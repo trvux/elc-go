@@ -19,4 +19,5 @@ This folder is the "what", `ARCHITECTURE.md` is the "how".
 | service       | Migrated (fully clean) | [service.md](service.md) |
 | brand         | Migrated (fully clean) | [brand.md](brand.md) |
 | group         | Migrated (fully clean) | [group.md](group.md) |
+| catalog       | Phase 1 done (Go built & verified) — `elc-tem` cutover is Phase 2, not started | [catalog.md](catalog.md) |
 | others        | Not started | — |

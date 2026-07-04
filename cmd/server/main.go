@@ -12,14 +12,18 @@ import (
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 
-	brandinfra "github.com/trvux/elc-go/internal/brand/infrastructure"
-	brandpresentation "github.com/trvux/elc-go/internal/brand/presentation"
 	branchinfra "github.com/trvux/elc-go/internal/branch/infrastructure"
 	branchpresentation "github.com/trvux/elc-go/internal/branch/presentation"
+	brandinfra "github.com/trvux/elc-go/internal/brand/infrastructure"
+	brandpresentation "github.com/trvux/elc-go/internal/brand/presentation"
+	catalogInfra "github.com/trvux/elc-go/internal/catalog/infrastructure"
+	catalogPresentation "github.com/trvux/elc-go/internal/catalog/presentation"
 	contactinfra "github.com/trvux/elc-go/internal/contact/infrastructure"
 	contactpresentation "github.com/trvux/elc-go/internal/contact/presentation"
 	groupinfra "github.com/trvux/elc-go/internal/group/infrastructure"
 	grouppresentation "github.com/trvux/elc-go/internal/group/presentation"
+	pageinfra "github.com/trvux/elc-go/internal/page/infrastructure"
+	pagepresentation "github.com/trvux/elc-go/internal/page/presentation"
 	"github.com/trvux/elc-go/internal/platform/db"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
 	"github.com/trvux/elc-go/internal/platform/logger"
@@ -29,8 +33,6 @@ import (
 	servicepresentation "github.com/trvux/elc-go/internal/service/presentation"
 	settingsinfra "github.com/trvux/elc-go/internal/settings/infrastructure"
 	settingspresentation "github.com/trvux/elc-go/internal/settings/presentation"
-	pageinfra "github.com/trvux/elc-go/internal/page/infrastructure"
-	pagepresentation "github.com/trvux/elc-go/internal/page/presentation"
 )
 
 func main() {
@@ -67,6 +69,10 @@ func main() {
 	brandRepo := brandinfra.NewPostgresBrandRepository(pool)
 	brandHandler := brandpresentation.NewBrandHandler(brandRepo)
 	brandpresentation.RegisterRoutes(router, brandHandler)
+
+	catalogRepo := catalogInfra.NewPostgresProductRepository(pool)
+	catalogHandler := catalogPresentation.NewProductHandler(catalogRepo)
+	catalogPresentation.RegisterRoutes(router, catalogHandler)
 
 	branchRepo := branchinfra.NewPostgresBranchRepository(pool)
 	branchHandler := branchpresentation.NewBranchHandler(branchRepo)
