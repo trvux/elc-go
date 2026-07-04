@@ -18,4 +18,5 @@ This folder is the "what", `ARCHITECTURE.md` is the "how".
 | service-group | Migrated (fully clean) | [service-group.md](service-group.md) |
 | service       | Migrated (fully clean) | [service.md](service.md) |
 | brand         | Migrated (fully clean) | [brand.md](brand.md) |
+| group         | Migrated (fully clean) | [group.md](group.md) |
 | others        | Not started | — |
