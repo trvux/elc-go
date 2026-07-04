@@ -2,3 +2,5 @@
 /bin/
 elc-go
 *.exe
+/tmp/
+build-errors.log

@@ -13,4 +13,4 @@ migrate-force:
 	@migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)" force $(version)
 
 run:
-	@go run ./cmd/server
+	@air
