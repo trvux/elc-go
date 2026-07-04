@@ -1,0 +1,18 @@
+### Get all settings
+GET http://localhost:8080/settings
+Accept: application/json
+
+### Update settings (bulk upsert)
+PUT http://localhost:8080/settings
+Content-Type: application/json
+
+[
+  {
+    "key": "company_name",
+    "value": "Cong ty TNHH Dien May ABC"
+  },
+  {
+    "key": "company_short_desc",
+    "value": "Cung cap dich vu dien lanh chuyen nghiep"
+  }
+]
