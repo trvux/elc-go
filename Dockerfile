@@ -1,7 +1,7 @@
 # Multi-stage build: the build stage has the full Go toolchain, the final
 # image only has the compiled binary — keeps the shipped image small and
 # avoids exposing source/toolchain in production.
-FROM golang:1.25-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /app
 
 COPY go.mod go.sum ./
