@@ -17,4 +17,3 @@ func New(env string) (*zap.Logger, error) {
 
 	return base.With(zap.String("service", "elc-go")), nil
 }
-

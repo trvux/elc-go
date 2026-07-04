@@ -50,10 +50,12 @@ Detailed per-module hand-off docs (data model, API reference, gotchas,
 what calls it from `elc-tem`) live in [`docs/`](docs/README.md) — one file
 per migrated module. This table is just the at-a-glance status.
 
-| Module    | Status      | Notes |
-|-----------|-------------|-------|
-| contact   | migrated    | pilot module — see [docs/contact.md](docs/contact.md) |
-| (others)  | not started | |
+| Module        | Status      | Notes |
+|---------------|-------------|-------|
+| contact       | migrated (fully clean) | pilot module — see [docs/contact.md](docs/contact.md) |
+| service-group | migrated (fully clean) | see [docs/service-group.md](docs/service-group.md) |
+| service       | migrated (fully clean) | see [docs/service.md](docs/service.md) |
+| (others)      | not started | |
 
 ## 2. Modular Monolith / DDD Layering
 
@@ -183,26 +185,41 @@ Rules:
   - New tables/columns introduced *after* a module has been cut over: real
     migrations, owned by Go from that point on.
 
+**Each module needs its own `schema_migrations` tracking table.**
+`golang-migrate` tracks applied versions in one table per `-database`
+connection, not per `-path`. Since every module restarts its own numbering
+at `000001`, two modules both running against the plain `DATABASE_URL`
+collide silently — module B's `000001` looks "already applied" because
+module A's `000001` already bumped the shared tracker to version 1, and
+migrate just skips it without error. Fix: append
+`?x-migrations-table=schema_migrations_<module>` to the connection string
+so each module tracks its own version history independently (see Makefile
+below — `contact` is the one exception, already deployed against the plain
+default table before this was caught; leave it as-is, nothing else will
+ever share that table now).
+
 Makefile convention (parameterized by module, since every module owns its own
 migrations folder):
 
 ```makefile
 include .env
 
+migrations_table = schema_migrations_$(subst -,_,$(module))
+
 migrate-up:
-	migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)" up
+	migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)?x-migrations-table=$(migrations_table)" up
 
 migrate-down:
-	migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)" down 1
+	migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)?x-migrations-table=$(migrations_table)" down 1
 
 migrate-create:
 	migrate create -ext sql -dir internal/$(module)/migrations -seq $(name)
 
 migrate-force:
-	migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)" force $(version)
+	migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)?x-migrations-table=$(migrations_table)" force $(version)
 ```
 
-Usage: `make migrate-up module=contact`, `make migrate-create module=contact name=baseline`.
+Usage: `make migrate-up module=service-group`, `make migrate-create module=service-group name=baseline`.
 
 ## 8. HTTP Layer
 

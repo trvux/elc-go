@@ -1,16 +1,23 @@
 include .env
 
+# golang-migrate tracks applied versions in a single `schema_migrations`
+# table by default — shared across the whole database. Since every module
+# restarts its own migration numbering at 000001, that collides silently
+# (module B's 000001 looks "already applied" because module A's 000001 ran).
+# Each module gets its own tracking table to keep them independent.
+migrations_table = schema_migrations_$(subst -,_,$(module))
+
 migrate-up:
-	@migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)" up
+	@migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)?x-migrations-table=$(migrations_table)" up
 
 migrate-down:
-	@migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)" down 1
+	@migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)?x-migrations-table=$(migrations_table)" down 1
 
 migrate-create:
 	@migrate create -ext sql -dir internal/$(module)/migrations -seq $(name)
 
 migrate-force:
-	@migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)" force $(version)
+	@migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)?x-migrations-table=$(migrations_table)" force $(version)
 
 run:
 	@air

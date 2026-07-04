@@ -12,11 +12,15 @@ import (
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 
-	"github.com/trvux/elc-go/internal/contact/infrastructure"
-	"github.com/trvux/elc-go/internal/contact/presentation"
+	contactinfra "github.com/trvux/elc-go/internal/contact/infrastructure"
+	contactpresentation "github.com/trvux/elc-go/internal/contact/presentation"
 	"github.com/trvux/elc-go/internal/platform/db"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
 	"github.com/trvux/elc-go/internal/platform/logger"
+	servicegroupinfra "github.com/trvux/elc-go/internal/service-group/infrastructure"
+	servicegrouppresentation "github.com/trvux/elc-go/internal/service-group/presentation"
+	serviceinfra "github.com/trvux/elc-go/internal/service/infrastructure"
+	servicepresentation "github.com/trvux/elc-go/internal/service/presentation"
 )
 
 func main() {
@@ -46,9 +50,17 @@ func main() {
 
 	router := httpserver.New(log)
 
-	contactRepo := infrastructure.NewPostgresContactRepository(pool)
-	contactHandler := presentation.NewContactHandler(contactRepo)
-	presentation.RegisterRoutes(router, contactHandler)
+	contactRepo := contactinfra.NewPostgresContactRepository(pool)
+	contactHandler := contactpresentation.NewContactHandler(contactRepo)
+	contactpresentation.RegisterRoutes(router, contactHandler)
+
+	serviceGroupRepo := servicegroupinfra.NewPostgresServiceGroupRepository(pool)
+	serviceGroupHandler := servicegrouppresentation.NewServiceGroupHandler(serviceGroupRepo)
+	servicegrouppresentation.RegisterRoutes(router, serviceGroupHandler)
+
+	serviceRepo := serviceinfra.NewPostgresServiceRepository(pool)
+	serviceHandler := servicepresentation.NewServiceHandler(serviceRepo)
+	servicepresentation.RegisterRoutes(router, serviceHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {

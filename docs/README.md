@@ -12,7 +12,9 @@ This folder is the "what", `ARCHITECTURE.md` is the "how".
 
 ## Status
 
-| Module  | Status    | Doc |
-|---------|-----------|-----|
-| contact | Migrated  | [contact.md](contact.md) |
-| others  | Not started | — |
+| Module        | Status      | Doc |
+|---------------|-------------|-----|
+| contact       | Migrated (fully clean) | [contact.md](contact.md) |
+| service-group | Migrated (fully clean) | [service-group.md](service-group.md) |
+| service       | Migrated (fully clean) | [service.md](service.md) |
+| others        | Not started | — |
