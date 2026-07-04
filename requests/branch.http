@@ -1,0 +1,53 @@
+### Get all branches
+GET http://localhost:8080/branches
+Accept: application/json
+
+### Get branches count
+GET http://localhost:8080/branches/count
+Accept: application/json
+
+### Create a branch
+POST http://localhost:8080/branches
+Content-Type: application/json
+
+{
+  "name": "ELC Q1",
+  "slug": "elc-q1",
+  "address": "123 Le Loi, Q1",
+  "phone": "0901234567",
+  "email": "q1@elc.vn",
+  "maps_url": "https://maps.google.com/q1",
+  "maps_embed": "<iframe></iframe>",
+  "description": {"text": "Mo ta"},
+  "is_published": true,
+  "order_index": 1
+}
+
+### Get branch by ID (replace placeholder with real UUID)
+GET http://localhost:8080/branches/00000000-0000-0000-0000-000000000000
+Accept: application/json
+
+### Get branch by Slug
+GET http://localhost:8080/branches/slug/elc-q1
+Accept: application/json
+
+### Update a branch (replace placeholder with real UUID)
+PUT http://localhost:8080/branches/00000000-0000-0000-0000-000000000000
+Content-Type: application/json
+
+{
+  "name": "ELC Q1 Updated",
+  "address": "123 Le Loi, Q1, HCMC"
+}
+
+### Update branch order (replace placeholder with real UUID)
+PUT http://localhost:8080/branches/00000000-0000-0000-0000-000000000000/order
+Content-Type: application/json
+
+{
+  "order_index": 10
+}
+
+### Delete a branch (replace placeholder with real UUID)
+DELETE http://localhost:8080/branches/00000000-0000-0000-0000-000000000000
+Accept: application/json

@@ -14,6 +14,8 @@ import (
 
 	brandinfra "github.com/trvux/elc-go/internal/brand/infrastructure"
 	brandpresentation "github.com/trvux/elc-go/internal/brand/presentation"
+	branchinfra "github.com/trvux/elc-go/internal/branch/infrastructure"
+	branchpresentation "github.com/trvux/elc-go/internal/branch/presentation"
 	contactinfra "github.com/trvux/elc-go/internal/contact/infrastructure"
 	contactpresentation "github.com/trvux/elc-go/internal/contact/presentation"
 	groupinfra "github.com/trvux/elc-go/internal/group/infrastructure"
@@ -61,6 +63,10 @@ func main() {
 	brandRepo := brandinfra.NewPostgresBrandRepository(pool)
 	brandHandler := brandpresentation.NewBrandHandler(brandRepo)
 	brandpresentation.RegisterRoutes(router, brandHandler)
+
+	branchRepo := branchinfra.NewPostgresBranchRepository(pool)
+	branchHandler := branchpresentation.NewBranchHandler(branchRepo)
+	branchpresentation.RegisterRoutes(router, branchHandler)
 
 	serviceGroupRepo := servicegroupinfra.NewPostgresServiceGroupRepository(pool)
 	serviceGroupHandler := servicegrouppresentation.NewServiceGroupHandler(serviceGroupRepo)
