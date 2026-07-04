@@ -34,6 +34,7 @@ func main() {
 		panic(err)
 	}
 	defer log.Sync()
+	httpserver.SetLogger(log)
 
 	ctx := context.Background()
 

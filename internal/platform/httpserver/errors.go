@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 
+	"go.uber.org/zap"
+
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
 
@@ -12,6 +14,15 @@ type errorResponse struct {
 	Code    string              `json:"code"`
 	Message string              `json:"message"`
 	Fields  map[string][]string `json:"fields,omitempty"`
+}
+
+// logger is set once at startup via SetLogger. It exists only so WriteError
+// can log the real error behind a 5xx before responding — every other part
+// of the app receives its logger via explicit injection, not this global.
+var logger *zap.Logger = zap.NewNop()
+
+func SetLogger(l *zap.Logger) {
+	logger = l
 }
 
 // WriteError is the single place that turns a Go error into an HTTP response.
@@ -22,6 +33,10 @@ func WriteError(w http.ResponseWriter, err error) {
 	var appErr *apperr.AppError
 	if !errors.As(err, &appErr) {
 		appErr = apperr.NewInternalError(err)
+	}
+
+	if appErr.Status >= 500 {
+		logger.Error("request failed", zap.Error(appErr.Err), zap.String("message", appErr.Message))
 	}
 
 	WriteJSON(w, appErr.Status, errorResponse{
