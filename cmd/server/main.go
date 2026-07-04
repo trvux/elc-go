@@ -12,6 +12,8 @@ import (
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 
+	brandinfra "github.com/trvux/elc-go/internal/brand/infrastructure"
+	brandpresentation "github.com/trvux/elc-go/internal/brand/presentation"
 	contactinfra "github.com/trvux/elc-go/internal/contact/infrastructure"
 	contactpresentation "github.com/trvux/elc-go/internal/contact/presentation"
 	"github.com/trvux/elc-go/internal/platform/db"
@@ -53,6 +55,10 @@ func main() {
 	contactRepo := contactinfra.NewPostgresContactRepository(pool)
 	contactHandler := contactpresentation.NewContactHandler(contactRepo)
 	contactpresentation.RegisterRoutes(router, contactHandler)
+
+	brandRepo := brandinfra.NewPostgresBrandRepository(pool)
+	brandHandler := brandpresentation.NewBrandHandler(brandRepo)
+	brandpresentation.RegisterRoutes(router, brandHandler)
 
 	serviceGroupRepo := servicegroupinfra.NewPostgresServiceGroupRepository(pool)
 	serviceGroupHandler := servicegrouppresentation.NewServiceGroupHandler(serviceGroupRepo)
