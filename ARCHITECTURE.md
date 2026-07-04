@@ -46,9 +46,13 @@ already been decided.
 
 ### Module status
 
+Detailed per-module hand-off docs (data model, API reference, gotchas,
+what calls it from `elc-tem`) live in [`docs/`](docs/README.md) — one file
+per migrated module. This table is just the at-a-glance status.
+
 | Module    | Status      | Notes |
 |-----------|-------------|-------|
-| contact   | in progress | pilot module |
+| contact   | migrated    | pilot module — see [docs/contact.md](docs/contact.md) |
 | (others)  | not started | |
 
 ## 2. Modular Monolith / DDD Layering
