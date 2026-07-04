@@ -1,0 +1,63 @@
+### Get all pages
+GET http://localhost:8080/pages
+Accept: application/json
+
+### Get pages count
+GET http://localhost:8080/pages/count
+Accept: application/json
+
+### Create a page
+POST http://localhost:8080/pages
+Content-Type: application/json
+
+{
+  "title": "Chính sách bảo mật",
+  "slug": "chinh-sach-bao-mat",
+  "content": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "Nội dung chính sách bảo mật..."
+          }
+        ]
+      }
+    ]
+  },
+  "is_published": true,
+  "meta_title": "Chính sách bảo mật - ELC",
+  "meta_description": "Chính sách bảo mật của Điện máy ELC",
+  "order_index": 1
+}
+
+### Get page by ID (replace placeholder)
+GET http://localhost:8080/pages/PLACEHOLDER_ID
+Accept: application/json
+
+### Get page by Slug
+GET http://localhost:8080/pages/slug/chinh-sach-bao-mat
+Accept: application/json
+
+### Update a page (replace placeholder)
+PUT http://localhost:8080/pages/PLACEHOLDER_ID
+Content-Type: application/json
+
+{
+  "title": "Chính sách bảo mật updated",
+  "slug": "chinh-sach-bao-mat",
+  "content": {
+    "type": "doc",
+    "content": []
+  },
+  "is_published": true,
+  "order_index": 2
+}
+
+### Delete a page (replace placeholder)
+DELETE http://localhost:8080/pages/PLACEHOLDER_ID
+
+### Restore a page (replace placeholder)
+POST http://localhost:8080/pages/PLACEHOLDER_ID/restore

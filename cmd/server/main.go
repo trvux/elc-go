@@ -29,6 +29,8 @@ import (
 	servicepresentation "github.com/trvux/elc-go/internal/service/presentation"
 	settingsinfra "github.com/trvux/elc-go/internal/settings/infrastructure"
 	settingspresentation "github.com/trvux/elc-go/internal/settings/presentation"
+	pageinfra "github.com/trvux/elc-go/internal/page/infrastructure"
+	pagepresentation "github.com/trvux/elc-go/internal/page/presentation"
 )
 
 func main() {
@@ -85,6 +87,10 @@ func main() {
 	settingsRepo := settingsinfra.NewPostgresSettingsRepository(pool)
 	settingsHandler := settingspresentation.NewSettingsHandler(settingsRepo)
 	settingspresentation.RegisterRoutes(router, settingsHandler)
+
+	pageRepo := pageinfra.NewPostgresPageRepository(pool)
+	pageHandler := pagepresentation.NewPageHandler(pageRepo)
+	pagepresentation.RegisterRoutes(router, pageHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
