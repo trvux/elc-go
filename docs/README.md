@@ -19,5 +19,7 @@ This folder is the "what", `ARCHITECTURE.md` is the "how".
 | service       | Migrated (fully clean) | [service.md](service.md) |
 | brand         | Migrated (fully clean) | [brand.md](brand.md) |
 | group         | Migrated (fully clean) | [group.md](group.md) |
-| catalog       | Phase 1 done (Go built & verified) — `elc-tem` cutover is Phase 2, not started | [catalog.md](catalog.md) |
+| category      | Migrated (fully clean) — doc file missing, pre-existing gap not introduced by this migration | — |
+| catalog       | Migrated (fully clean) — status corrected here; `elc-tem` cutover (previously listed as "Phase 2, not started") had actually already happened (verified: `application`/`infrastructure` are gone from `modules/catalog` in `elc-tem`) | [catalog.md](catalog.md) |
+| project       | Migrated (fully clean) | [project.md](project.md) |
 | others        | Not started | — |
