@@ -22,4 +22,5 @@ This folder is the "what", `ARCHITECTURE.md` is the "how".
 | category      | Migrated (fully clean) — doc file missing, pre-existing gap not introduced by this migration | — |
 | catalog       | Migrated (fully clean) — status corrected here; `elc-tem` cutover (previously listed as "Phase 2, not started") had actually already happened (verified: `application`/`infrastructure` are gone from `modules/catalog` in `elc-tem`) | [catalog.md](catalog.md) |
 | project       | Migrated (fully clean) | [project.md](project.md) |
+| news          | Migrated (fully clean) | [news.md](news.md) |
 | others        | Not started | — |

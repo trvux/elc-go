@@ -60,6 +60,7 @@ per migrated module. This table is just the at-a-glance status.
 | category      | migrated (fully clean) | doc file missing, pre-existing gap |
 | catalog       | migrated (fully clean) | see [docs/catalog.md](docs/catalog.md) |
 | project       | migrated (fully clean) | see [docs/project.md](docs/project.md) |
+| news          | migrated (fully clean) | see [docs/news.md](docs/news.md) |
 | (others)      | not started | |
 
 ## 2. Modular Monolith / DDD Layering

@@ -24,6 +24,8 @@ import (
 	contactpresentation "github.com/trvux/elc-go/internal/contact/presentation"
 	groupinfra "github.com/trvux/elc-go/internal/group/infrastructure"
 	grouppresentation "github.com/trvux/elc-go/internal/group/presentation"
+	newsinfra "github.com/trvux/elc-go/internal/news/infrastructure"
+	newspresentation "github.com/trvux/elc-go/internal/news/presentation"
 	pageinfra "github.com/trvux/elc-go/internal/page/infrastructure"
 	pagepresentation "github.com/trvux/elc-go/internal/page/presentation"
 	"github.com/trvux/elc-go/internal/platform/db"
@@ -109,6 +111,10 @@ func main() {
 	projectRepo := projectinfra.NewPostgresProjectRepository(pool)
 	projectHandler := projectpresentation.NewProjectHandler(projectRepo)
 	projectpresentation.RegisterRoutes(router, projectHandler)
+
+	newsRepo := newsinfra.NewPostgresNewsRepository(pool)
+	newsHandler := newspresentation.NewNewsHandler(newsRepo)
+	newspresentation.RegisterRoutes(router, newsHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
