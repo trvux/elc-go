@@ -65,7 +65,8 @@ per migrated module. This table is just the at-a-glance status.
 | page          | migrated (fully clean) | see [docs/page.md](docs/page.md) |
 | settings      | migrated (fully clean) | see [docs/settings.md](docs/settings.md) |
 | project-type  | migrated (fully clean) | see [docs/project-type.md](docs/project-type.md) |
-| (system-page, auth) | not started | `auth`/Storage intentionally deferred until last |
+| system-page   | migrated (fully clean) | see [docs/system-page.md](docs/system-page.md) |
+| auth          | not started | Supabase Cloud stays authoritative for auth/Storage until every other module is migrated |
 
 ## 2. Modular Monolith / DDD Layering
 

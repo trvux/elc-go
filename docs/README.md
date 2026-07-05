@@ -27,4 +27,5 @@ This folder is the "what", `ARCHITECTURE.md` is the "how".
 | page          | Migrated (fully clean) — missing from this table until now, pre-existing gap not introduced by this migration | [page.md](page.md) |
 | settings      | Migrated (fully clean) — missing from this table until now, pre-existing gap not introduced by this migration | [settings.md](settings.md) |
 | project-type  | Migrated (fully clean) | [project-type.md](project-type.md) |
-| others (system-page, auth) | Not started — `auth`/Storage intentionally deferred until every other module is migrated | — |
+| system-page   | Migrated (fully clean) | [system-page.md](system-page.md) |
+| auth          | Not started — intentionally deferred (Supabase Cloud stays authoritative for auth/Storage until every other module is migrated) | — |
