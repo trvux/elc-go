@@ -66,7 +66,7 @@ per migrated module. This table is just the at-a-glance status.
 | settings      | migrated (fully clean) | see [docs/settings.md](docs/settings.md) |
 | project-type  | migrated (fully clean) | see [docs/project-type.md](docs/project-type.md) |
 | system-page   | migrated (fully clean) | see [docs/system-page.md](docs/system-page.md) |
-| auth          | not started | Supabase Cloud stays authoritative for auth/Storage until every other module is migrated |
+| auth          | in progress (backend done, elc-tem cutover pending) | invite-only admin accounts (no public registration), login by username/email, forgot/reset password, JWT + refresh-token sessions — see [docs/auth.md](docs/auth.md). Supabase Auth still runs elc-tem's `/admin` login until the Next.js side is cut over. |
 
 ## 2. Modular Monolith / DDD Layering
 

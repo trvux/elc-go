@@ -201,13 +201,13 @@ type rowScanner interface {
 func scanBranch(row rowScanner) (*domain.Branch, error) {
 	var (
 		id, name, slug, address, phone, email, mapsURL, mapsEmbed string
-		description json.RawMessage
-		imageUrl *string
-		isPublished bool
-		orderIndex int
-		metaTitle, metaDescription *string
-		createdAt, updatedAt time.Time
-		deletedAt *time.Time
+		description                                               json.RawMessage
+		imageUrl                                                  *string
+		isPublished                                               bool
+		orderIndex                                                int
+		metaTitle, metaDescription                                *string
+		createdAt, updatedAt                                      time.Time
+		deletedAt                                                 *time.Time
 	)
 
 	if err := row.Scan(

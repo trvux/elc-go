@@ -1,0 +1,7 @@
+-- Intentionally empty. Bootstrap admin creation does NOT belong in a
+-- committed migration — a real person's name/email/phone/password would
+-- then live in git history forever, readable by anyone with repo access,
+-- long after that person leaves and the DB row is gone or rotated.
+-- See cmd/seed-admin instead: it reads ADMIN_USERNAME/ADMIN_EMAIL/
+-- ADMIN_PASSWORD/ADMIN_NAME/ADMIN_PHONE from the environment at run time
+-- and is never committed with real values (`make seed-admin`).

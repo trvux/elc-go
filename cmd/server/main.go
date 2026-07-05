@@ -12,6 +12,9 @@ import (
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 
+	authdomain "github.com/trvux/elc-go/internal/auth/domain"
+	authinfra "github.com/trvux/elc-go/internal/auth/infrastructure"
+	authpresentation "github.com/trvux/elc-go/internal/auth/presentation"
 	branchinfra "github.com/trvux/elc-go/internal/branch/infrastructure"
 	branchpresentation "github.com/trvux/elc-go/internal/branch/presentation"
 	brandinfra "github.com/trvux/elc-go/internal/brand/infrastructure"
@@ -72,61 +75,91 @@ func main() {
 
 	router := httpserver.New(log)
 
+	authUserRepo := authinfra.NewPostgresUserRepository(pool)
+	authTokenRepo := authinfra.NewPostgresVerificationTokenRepository(pool)
+	authSessionRepo := authinfra.NewPostgresSessionRepository(pool)
+	authHasher := authinfra.NewBcryptPasswordHasher()
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET must be set")
+	}
+	accessTokenTTL := 15 * time.Minute
+	tokenIssuer := authinfra.NewJWTTokenIssuer(jwtSecret, accessTokenTTL)
+
+	adminBaseURL := os.Getenv("ADMIN_BASE_URL")
+	var emailSender authdomain.EmailSender
+	if smtpHost := os.Getenv("SMTP_HOST"); smtpHost != "" {
+		emailSender = authinfra.NewSMTPEmailSender(
+			smtpHost, os.Getenv("SMTP_PORT"), os.Getenv("SMTP_USERNAME"), os.Getenv("SMTP_PASSWORD"),
+			os.Getenv("SMTP_FROM"), adminBaseURL,
+		)
+	} else {
+		log.Warn("SMTP_HOST not set — invite/reset emails will be logged instead of sent")
+		emailSender = authinfra.NewLogEmailSender(log, adminBaseURL)
+	}
+
+	authHandler := authpresentation.NewAuthHandler(
+		authUserRepo, authTokenRepo, authSessionRepo, authHasher, tokenIssuer, emailSender,
+		accessTokenTTL, env == "production",
+	)
+	authpresentation.RegisterRoutes(router, authHandler, tokenIssuer)
+
 	contactRepo := contactinfra.NewPostgresContactRepository(pool)
 	contactHandler := contactpresentation.NewContactHandler(contactRepo)
-	contactpresentation.RegisterRoutes(router, contactHandler)
+	contactpresentation.RegisterRoutes(router, contactHandler, tokenIssuer)
 
 	brandRepo := brandinfra.NewPostgresBrandRepository(pool)
 	brandHandler := brandpresentation.NewBrandHandler(brandRepo)
-	brandpresentation.RegisterRoutes(router, brandHandler)
+	brandpresentation.RegisterRoutes(router, brandHandler, tokenIssuer)
 
 	catalogRepo := catalogInfra.NewPostgresProductRepository(pool)
 	catalogHandler := catalogPresentation.NewProductHandler(catalogRepo)
-	catalogPresentation.RegisterRoutes(router, catalogHandler)
+	catalogPresentation.RegisterRoutes(router, catalogHandler, tokenIssuer)
 
 	branchRepo := branchinfra.NewPostgresBranchRepository(pool)
 	branchHandler := branchpresentation.NewBranchHandler(branchRepo)
-	branchpresentation.RegisterRoutes(router, branchHandler)
+	branchpresentation.RegisterRoutes(router, branchHandler, tokenIssuer)
 
 	serviceGroupRepo := servicegroupinfra.NewPostgresServiceGroupRepository(pool)
 	serviceGroupHandler := servicegrouppresentation.NewServiceGroupHandler(serviceGroupRepo)
-	servicegrouppresentation.RegisterRoutes(router, serviceGroupHandler)
+	servicegrouppresentation.RegisterRoutes(router, serviceGroupHandler, tokenIssuer)
 
 	serviceRepo := serviceinfra.NewPostgresServiceRepository(pool)
 	serviceHandler := servicepresentation.NewServiceHandler(serviceRepo)
-	servicepresentation.RegisterRoutes(router, serviceHandler)
+	servicepresentation.RegisterRoutes(router, serviceHandler, tokenIssuer)
 
 	groupRepo := groupinfra.NewPostgresGroupRepository(pool)
 	groupHandler := grouppresentation.NewGroupHandler(groupRepo)
-	grouppresentation.RegisterRoutes(router, groupHandler)
+	grouppresentation.RegisterRoutes(router, groupHandler, tokenIssuer)
 
 	categoryRepo := categoryinfra.NewPostgresCategoryRepository(pool)
 	categoryHandler := categorypresentation.NewCategoryHandler(categoryRepo)
-	categorypresentation.RegisterRoutes(router, categoryHandler)
+	categorypresentation.RegisterRoutes(router, categoryHandler, tokenIssuer)
 
 	settingsRepo := settingsinfra.NewPostgresSettingsRepository(pool)
 	settingsHandler := settingspresentation.NewSettingsHandler(settingsRepo)
-	settingspresentation.RegisterRoutes(router, settingsHandler)
+	settingspresentation.RegisterRoutes(router, settingsHandler, tokenIssuer)
 
 	pageRepo := pageinfra.NewPostgresPageRepository(pool)
 	pageHandler := pagepresentation.NewPageHandler(pageRepo)
-	pagepresentation.RegisterRoutes(router, pageHandler)
+	pagepresentation.RegisterRoutes(router, pageHandler, tokenIssuer)
 
 	projectRepo := projectinfra.NewPostgresProjectRepository(pool)
 	projectHandler := projectpresentation.NewProjectHandler(projectRepo)
-	projectpresentation.RegisterRoutes(router, projectHandler)
+	projectpresentation.RegisterRoutes(router, projectHandler, tokenIssuer)
 
 	projectTypeRepo := projecttypeinfra.NewPostgresProjectTypeRepository(pool)
 	projectTypeHandler := projecttypepresentation.NewProjectTypeHandler(projectTypeRepo)
-	projecttypepresentation.RegisterRoutes(router, projectTypeHandler)
+	projecttypepresentation.RegisterRoutes(router, projectTypeHandler, tokenIssuer)
 
 	newsRepo := newsinfra.NewPostgresNewsRepository(pool)
 	newsHandler := newspresentation.NewNewsHandler(newsRepo)
-	newspresentation.RegisterRoutes(router, newsHandler)
+	newspresentation.RegisterRoutes(router, newsHandler, tokenIssuer)
 
 	systemPageRepo := systempageinfra.NewPostgresSystemPageRepository(pool)
 	systemPageHandler := systempagepresentation.NewSystemPageHandler(systemPageRepo)
-	systempagepresentation.RegisterRoutes(router, systemPageHandler)
+	systempagepresentation.RegisterRoutes(router, systemPageHandler, tokenIssuer)
 
 	port := os.Getenv("PORT")
 	if port == "" {

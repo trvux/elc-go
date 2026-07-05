@@ -16,13 +16,13 @@ func TestCreateBranch(t *testing.T) {
 	desc := json.RawMessage(`{"text": "Mieu ta"}`)
 
 	b, err := CreateBranch(ctx, repo, domain.CreateBranchInput{
-		Name:      "ELC Q1",
-		Slug:      "elc-q1",
-		Address:   "123 Le Loi, Q1",
-		Phone:     "0901234567",
-		Email:     "q1@elc.vn",
-		MapsURL:   "https://maps.google.com/q1",
-		MapsEmbed: "<iframe></iframe>",
+		Name:        "ELC Q1",
+		Slug:        "elc-q1",
+		Address:     "123 Le Loi, Q1",
+		Phone:       "0901234567",
+		Email:       "q1@elc.vn",
+		MapsURL:     "https://maps.google.com/q1",
+		MapsEmbed:   "<iframe></iframe>",
 		Description: desc,
 	})
 	if err != nil {
@@ -64,15 +64,15 @@ func TestUpdateBranch_PartialUpdate(t *testing.T) {
 	desc := json.RawMessage(`{"text": "Mieu ta"}`)
 
 	created, _ := CreateBranch(ctx, repo, domain.CreateBranchInput{
-		Name:      "ELC Q1",
-		Slug:      "elc-q1",
-		Address:   "123 Le Loi, Q1",
-		Phone:     "0901234567",
-		Email:     "q1@elc.vn",
-		MapsURL:   "https://maps.google.com/q1",
-		MapsEmbed: "<iframe></iframe>",
+		Name:        "ELC Q1",
+		Slug:        "elc-q1",
+		Address:     "123 Le Loi, Q1",
+		Phone:       "0901234567",
+		Email:       "q1@elc.vn",
+		MapsURL:     "https://maps.google.com/q1",
+		MapsEmbed:   "<iframe></iframe>",
 		Description: desc,
-		OrderIndex: 5,
+		OrderIndex:  5,
 	})
 
 	newName := "ELC Q1 Updated"
@@ -98,13 +98,13 @@ func TestDeleteBranch(t *testing.T) {
 	desc := json.RawMessage(`{"text": "Mieu ta"}`)
 
 	created, _ := CreateBranch(ctx, repo, domain.CreateBranchInput{
-		Name:      "ELC Q1",
-		Slug:      "elc-q1",
-		Address:   "123 Le Loi, Q1",
-		Phone:     "0901234567",
-		Email:     "q1@elc.vn",
-		MapsURL:   "https://maps.google.com/q1",
-		MapsEmbed: "<iframe></iframe>",
+		Name:        "ELC Q1",
+		Slug:        "elc-q1",
+		Address:     "123 Le Loi, Q1",
+		Phone:       "0901234567",
+		Email:       "q1@elc.vn",
+		MapsURL:     "https://maps.google.com/q1",
+		MapsEmbed:   "<iframe></iframe>",
 		Description: desc,
 	})
 
@@ -122,15 +122,15 @@ func TestUpdateBranchOrder(t *testing.T) {
 	desc := json.RawMessage(`{"text": "Mieu ta"}`)
 
 	created, _ := CreateBranch(ctx, repo, domain.CreateBranchInput{
-		Name:      "ELC Q1",
-		Slug:      "elc-q1",
-		Address:   "123 Le Loi, Q1",
-		Phone:     "0901234567",
-		Email:     "q1@elc.vn",
-		MapsURL:   "https://maps.google.com/q1",
-		MapsEmbed: "<iframe></iframe>",
+		Name:        "ELC Q1",
+		Slug:        "elc-q1",
+		Address:     "123 Le Loi, Q1",
+		Phone:       "0901234567",
+		Email:       "q1@elc.vn",
+		MapsURL:     "https://maps.google.com/q1",
+		MapsEmbed:   "<iframe></iframe>",
 		Description: desc,
-		OrderIndex: 1,
+		OrderIndex:  1,
 	})
 
 	if err := UpdateBranchOrder(ctx, repo, created.ID(), 10); err != nil {

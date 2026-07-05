@@ -121,23 +121,23 @@ func RehydrateBranch(
 	}
 }
 
-func (b *Branch) ID() string               { return b.id }
-func (b *Branch) Name() string             { return b.name }
-func (b *Branch) Slug() string             { return b.slug }
-func (b *Branch) Address() string          { return b.address }
-func (b *Branch) Phone() string            { return b.phone }
-func (b *Branch) Email() string            { return b.email }
-func (b *Branch) MapsURL() string          { return b.mapsURL }
-func (b *Branch) MapsEmbed() string        { return b.mapsEmbed }
+func (b *Branch) ID() string                   { return b.id }
+func (b *Branch) Name() string                 { return b.name }
+func (b *Branch) Slug() string                 { return b.slug }
+func (b *Branch) Address() string              { return b.address }
+func (b *Branch) Phone() string                { return b.phone }
+func (b *Branch) Email() string                { return b.email }
+func (b *Branch) MapsURL() string              { return b.mapsURL }
+func (b *Branch) MapsEmbed() string            { return b.mapsEmbed }
 func (b *Branch) Description() json.RawMessage { return b.description }
-func (b *Branch) ImageUrl() *string        { return b.imageUrl }
-func (b *Branch) IsPublished() bool        { return b.isPublished }
-func (b *Branch) OrderIndex() int          { return b.orderIndex }
-func (b *Branch) MetaTitle() *string       { return b.metaTitle }
-func (b *Branch) MetaDescription() *string { return b.metaDescription }
-func (b *Branch) CreatedAt() time.Time     { return b.createdAt }
-func (b *Branch) UpdatedAt() time.Time     { return b.updatedAt }
-func (b *Branch) DeletedAt() *time.Time    { return b.deletedAt }
+func (b *Branch) ImageUrl() *string            { return b.imageUrl }
+func (b *Branch) IsPublished() bool            { return b.isPublished }
+func (b *Branch) OrderIndex() int              { return b.orderIndex }
+func (b *Branch) MetaTitle() *string           { return b.metaTitle }
+func (b *Branch) MetaDescription() *string     { return b.metaDescription }
+func (b *Branch) CreatedAt() time.Time         { return b.createdAt }
+func (b *Branch) UpdatedAt() time.Time         { return b.updatedAt }
+func (b *Branch) DeletedAt() *time.Time        { return b.deletedAt }
 
 func (b *Branch) IsDeleted() bool {
 	return b.deletedAt != nil

@@ -79,17 +79,17 @@ func RehydratePage(
 	}
 }
 
-func (p *Page) ID() string              { return p.id }
-func (p *Page) Title() string           { return p.title }
-func (p *Page) Slug() string            { return p.slug }
+func (p *Page) ID() string               { return p.id }
+func (p *Page) Title() string            { return p.title }
+func (p *Page) Slug() string             { return p.slug }
 func (p *Page) Content() json.RawMessage { return p.content }
-func (p *Page) IsPublished() bool       { return p.isPublished }
+func (p *Page) IsPublished() bool        { return p.isPublished }
 func (p *Page) MetaTitle() *string       { return p.metaTitle }
 func (p *Page) MetaDescription() *string { return p.metaDescription }
 func (p *Page) OrderIndex() int          { return p.orderIndex }
-func (p *Page) CreatedAt() time.Time    { return p.createdAt }
-func (p *Page) UpdatedAt() time.Time    { return p.updatedAt }
-func (p *Page) DeletedAt() *time.Time   { return p.deletedAt }
+func (p *Page) CreatedAt() time.Time     { return p.createdAt }
+func (p *Page) UpdatedAt() time.Time     { return p.updatedAt }
+func (p *Page) DeletedAt() *time.Time    { return p.deletedAt }
 
 func (p *Page) Update(
 	title, slug string,

@@ -21,3 +21,10 @@ migrate-force:
 
 run:
 	@air
+
+# Creates or resets the password of one admin account. Values come from the
+# environment at call time only — never hardcode real ADMIN_* values here or
+# in any committed file. Example:
+#   ADMIN_USERNAME=... ADMIN_EMAIL=... ADMIN_PASSWORD=... ADMIN_NAME=... ADMIN_PHONE=... make seed-admin
+seed-admin:
+	@go run ./cmd/seed-admin

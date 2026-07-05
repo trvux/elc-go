@@ -49,6 +49,22 @@ func NewConflictError(message string) *AppError {
 	}
 }
 
+func NewForbiddenError(message string) *AppError {
+	return &AppError{
+		Code:    "FORBIDDEN",
+		Message: message,
+		Status:  403,
+	}
+}
+
+func NewTooManyRequestsError(message string) *AppError {
+	return &AppError{
+		Code:    "TOO_MANY_REQUESTS",
+		Message: message,
+		Status:  429,
+	}
+}
+
 func NewInternalError(err error) *AppError {
 	return &AppError{
 		Code:    "INTERNAL",

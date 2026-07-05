@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS sessions CASCADE;
+DROP TABLE IF EXISTS verification_tokens CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TYPE IF EXISTS auth_token_purpose;
+DROP TYPE IF EXISTS auth_user_status;
+DROP TYPE IF EXISTS auth_role;

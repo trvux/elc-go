@@ -1,0 +1,2 @@
+-- Intentionally empty — see 000002_seed_bootstrap_admin.up.sql. Bootstrap
+-- accounts are created/removed via cmd/seed-admin, not migrations.

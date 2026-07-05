@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/trvux/elc-go/internal/settings/application"
-	"github.com/trvux/elc-go/internal/settings/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
+	"github.com/trvux/elc-go/internal/settings/application"
+	"github.com/trvux/elc-go/internal/settings/domain"
 )
 
 type SettingsHandler struct {
