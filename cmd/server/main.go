@@ -18,6 +18,8 @@ import (
 	brandpresentation "github.com/trvux/elc-go/internal/brand/presentation"
 	catalogInfra "github.com/trvux/elc-go/internal/catalog/infrastructure"
 	catalogPresentation "github.com/trvux/elc-go/internal/catalog/presentation"
+	categoryinfra "github.com/trvux/elc-go/internal/category/infrastructure"
+	categorypresentation "github.com/trvux/elc-go/internal/category/presentation"
 	contactinfra "github.com/trvux/elc-go/internal/contact/infrastructure"
 	contactpresentation "github.com/trvux/elc-go/internal/contact/presentation"
 	groupinfra "github.com/trvux/elc-go/internal/group/infrastructure"
@@ -89,6 +91,10 @@ func main() {
 	groupRepo := groupinfra.NewPostgresGroupRepository(pool)
 	groupHandler := grouppresentation.NewGroupHandler(groupRepo)
 	grouppresentation.RegisterRoutes(router, groupHandler)
+
+	categoryRepo := categoryinfra.NewPostgresCategoryRepository(pool)
+	categoryHandler := categorypresentation.NewCategoryHandler(categoryRepo)
+	categorypresentation.RegisterRoutes(router, categoryHandler)
 
 	settingsRepo := settingsinfra.NewPostgresSettingsRepository(pool)
 	settingsHandler := settingspresentation.NewSettingsHandler(settingsRepo)

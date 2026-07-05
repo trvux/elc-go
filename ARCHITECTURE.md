@@ -57,6 +57,7 @@ per migrated module. This table is just the at-a-glance status.
 | service       | migrated (fully clean) | see [docs/service.md](docs/service.md) |
 | brand         | migrated (fully clean) | see [docs/brand.md](docs/brand.md) |
 | group         | migrated (fully clean) | see [docs/group.md](docs/group.md) |
+| category      | migrated (fully clean) | see [docs/category.md](docs/category.md) |
 | (others)      | not started | |
 
 ## 2. Modular Monolith / DDD Layering
