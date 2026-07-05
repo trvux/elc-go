@@ -23,4 +23,8 @@ This folder is the "what", `ARCHITECTURE.md` is the "how".
 | catalog       | Migrated (fully clean) — status corrected here; `elc-tem` cutover (previously listed as "Phase 2, not started") had actually already happened (verified: `application`/`infrastructure` are gone from `modules/catalog` in `elc-tem`) | [catalog.md](catalog.md) |
 | project       | Migrated (fully clean) | [project.md](project.md) |
 | news          | Migrated (fully clean) | [news.md](news.md) |
-| others        | Not started | — |
+| branch        | Migrated (fully clean) — missing from this table until now, pre-existing gap not introduced by this migration | [branch.md](branch.md) |
+| page          | Migrated (fully clean) — missing from this table until now, pre-existing gap not introduced by this migration | [page.md](page.md) |
+| settings      | Migrated (fully clean) — missing from this table until now, pre-existing gap not introduced by this migration | [settings.md](settings.md) |
+| project-type  | Migrated (fully clean) | [project-type.md](project-type.md) |
+| others (system-page, auth) | Not started — `auth`/Storage intentionally deferred until every other module is migrated | — |

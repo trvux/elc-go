@@ -61,7 +61,11 @@ per migrated module. This table is just the at-a-glance status.
 | catalog       | migrated (fully clean) | see [docs/catalog.md](docs/catalog.md) |
 | project       | migrated (fully clean) | see [docs/project.md](docs/project.md) |
 | news          | migrated (fully clean) | see [docs/news.md](docs/news.md) |
-| (others)      | not started | |
+| branch        | migrated (fully clean) | see [docs/branch.md](docs/branch.md) |
+| page          | migrated (fully clean) | see [docs/page.md](docs/page.md) |
+| settings      | migrated (fully clean) | see [docs/settings.md](docs/settings.md) |
+| project-type  | migrated (fully clean) | see [docs/project-type.md](docs/project-type.md) |
+| (system-page, auth) | not started | `auth`/Storage intentionally deferred until last |
 
 ## 2. Modular Monolith / DDD Layering
 

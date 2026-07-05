@@ -31,6 +31,8 @@ import (
 	"github.com/trvux/elc-go/internal/platform/db"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
 	"github.com/trvux/elc-go/internal/platform/logger"
+	projecttypeinfra "github.com/trvux/elc-go/internal/project-type/infrastructure"
+	projecttypepresentation "github.com/trvux/elc-go/internal/project-type/presentation"
 	projectinfra "github.com/trvux/elc-go/internal/project/infrastructure"
 	projectpresentation "github.com/trvux/elc-go/internal/project/presentation"
 	servicegroupinfra "github.com/trvux/elc-go/internal/service-group/infrastructure"
@@ -111,6 +113,10 @@ func main() {
 	projectRepo := projectinfra.NewPostgresProjectRepository(pool)
 	projectHandler := projectpresentation.NewProjectHandler(projectRepo)
 	projectpresentation.RegisterRoutes(router, projectHandler)
+
+	projectTypeRepo := projecttypeinfra.NewPostgresProjectTypeRepository(pool)
+	projectTypeHandler := projecttypepresentation.NewProjectTypeHandler(projectTypeRepo)
+	projecttypepresentation.RegisterRoutes(router, projectTypeHandler)
 
 	newsRepo := newsinfra.NewPostgresNewsRepository(pool)
 	newsHandler := newspresentation.NewNewsHandler(newsRepo)
