@@ -3,6 +3,7 @@ package domain
 import (
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
@@ -167,7 +168,7 @@ func validateName(name string) []string {
 	var errs []string
 	if strings.TrimSpace(name) == "" {
 		errs = append(errs, "name is required")
-	} else if len(name) > 255 {
+	} else if utf8.RuneCountInString(name) > 255 {
 		errs = append(errs, "name must not exceed 255 characters")
 	}
 	return errs
@@ -177,7 +178,7 @@ func validatePhone(phone string) []string {
 	var errs []string
 	if strings.TrimSpace(phone) == "" {
 		errs = append(errs, "phone is required")
-	} else if len(phone) > 30 {
+	} else if utf8.RuneCountInString(phone) > 30 {
 		errs = append(errs, "phone must not exceed 30 characters")
 	}
 	return errs

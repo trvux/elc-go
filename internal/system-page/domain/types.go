@@ -2,6 +2,7 @@ package domain
 
 import (
 	"time"
+	"unicode/utf8"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
@@ -49,10 +50,10 @@ func (p *SystemPage) UpdatedAt() time.Time     { return p.updatedAt }
 // only validation the old module applied.
 func (p *SystemPage) UpdateMeta(metaTitle, metaDescription *string) error {
 	fields := map[string][]string{}
-	if metaTitle != nil && len(*metaTitle) > 70 {
+	if metaTitle != nil && utf8.RuneCountInString(*metaTitle) > 70 {
 		fields["meta_title"] = []string{"meta title must not exceed 70 characters"}
 	}
-	if metaDescription != nil && len(*metaDescription) > 160 {
+	if metaDescription != nil && utf8.RuneCountInString(*metaDescription) > 160 {
 		fields["meta_description"] = []string{"meta description must not exceed 160 characters"}
 	}
 	if len(fields) > 0 {

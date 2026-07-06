@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"regexp"
 	"time"
+	"unicode/utf8"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
@@ -198,7 +199,7 @@ func validateTitle(title string) []string {
 	if title == "" {
 		return []string{"Tiêu đề tin tức không được để trống"}
 	}
-	if len(title) > 200 {
+	if utf8.RuneCountInString(title) > 200 {
 		return []string{"Tiêu đề tin tức không được quá 200 ký tự"}
 	}
 	return nil
@@ -208,7 +209,7 @@ func validateSlug(slug string) []string {
 	if slug == "" {
 		return []string{"Slug không được để trống"}
 	}
-	if len(slug) > 200 {
+	if utf8.RuneCountInString(slug) > 200 {
 		return []string{"Slug không được quá 200 ký tự"}
 	}
 	if !slugRegex.MatchString(slug) {
@@ -218,14 +219,14 @@ func validateSlug(slug string) []string {
 }
 
 func validateMetaTitle(metaTitle *string) []string {
-	if metaTitle != nil && len(*metaTitle) > 70 {
+	if metaTitle != nil && utf8.RuneCountInString(*metaTitle) > 70 {
 		return []string{"Tiêu đề SEO không nên quá 70 ký tự"}
 	}
 	return nil
 }
 
 func validateMetaDescription(metaDescription *string) []string {
-	if metaDescription != nil && len(*metaDescription) > 160 {
+	if metaDescription != nil && utf8.RuneCountInString(*metaDescription) > 160 {
 		return []string{"Mô tả SEO không nên quá 160 ký tự"}
 	}
 	return nil

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
@@ -249,7 +250,7 @@ func validateName(name string) []string {
 	if name == "" {
 		return []string{"Tên cơ sở hạ tầng không được để trống"}
 	}
-	if len(name) > 100 {
+	if utf8.RuneCountInString(name) > 100 {
 		return []string{"Tên cơ sở hạ tầng không được quá 100 ký tự"}
 	}
 	return nil
@@ -259,7 +260,7 @@ func validateSlug(slug string) []string {
 	if slug == "" {
 		return []string{"Slug không được để trống"}
 	}
-	if len(slug) > 100 {
+	if utf8.RuneCountInString(slug) > 100 {
 		return []string{"Slug không được quá 100 ký tự"}
 	}
 	if !slugRegex.MatchString(slug) {

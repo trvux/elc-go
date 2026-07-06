@@ -3,6 +3,7 @@ package domain
 import (
 	"encoding/json"
 	"time"
+	"unicode/utf8"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
@@ -301,7 +302,7 @@ func validateTitle(title string) []string {
 	var errs []string
 	if title == "" {
 		errs = append(errs, "title is required")
-	} else if len(title) > 200 {
+	} else if utf8.RuneCountInString(title) > 200 {
 		errs = append(errs, "title must not exceed 200 characters")
 	}
 	return errs
@@ -311,7 +312,7 @@ func validateSlug(slug string) []string {
 	var errs []string
 	if slug == "" {
 		errs = append(errs, "slug is required")
-	} else if len(slug) > 200 {
+	} else if utf8.RuneCountInString(slug) > 200 {
 		errs = append(errs, "slug must not exceed 200 characters")
 	}
 	return errs
