@@ -19,19 +19,19 @@ import (
 // staff member's Zalo identity gets captured (they follow the OA and
 // message it once).
 type ZaloWebhookHandler struct {
-	followerRepo domain.ZaloFollowerRepository
-	appSecret    string // empty if Zalo OA isn't configured yet
-	log          *zap.Logger
+	followerRepo  domain.ZaloFollowerRepository
+	webhookSecret string // OA Secret Key from the App console's Webhook page — distinct from the App Secret Key; empty if the webhook isn't configured yet
+	log           *zap.Logger
 }
 
-func NewZaloWebhookHandler(followerRepo domain.ZaloFollowerRepository, appSecret string, log *zap.Logger) *ZaloWebhookHandler {
-	return &ZaloWebhookHandler{followerRepo: followerRepo, appSecret: appSecret, log: log}
+func NewZaloWebhookHandler(followerRepo domain.ZaloFollowerRepository, webhookSecret string, log *zap.Logger) *ZaloWebhookHandler {
+	return &ZaloWebhookHandler{followerRepo: followerRepo, webhookSecret: webhookSecret, log: log}
 }
 
 // Receive is always mounted (see routes.go) regardless of whether Zalo OA
 // credentials are configured, so the webhook URL can be registered in
 // Zalo's console at any time without a redeploy — it just no-ops with a
-// warning until ZALO_OA_APP_SECRET is set.
+// warning until ZALO_OA_WEBHOOK_SECRET is set.
 func (h *ZaloWebhookHandler) Receive(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -45,27 +45,17 @@ func (h *ZaloWebhookHandler) Receive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.appSecret == "" {
-		h.log.Warn("zalo webhook received but ZALO_OA_APP_SECRET is not configured — ignoring",
+	if h.webhookSecret == "" {
+		h.log.Warn("zalo webhook received but ZALO_OA_WEBHOOK_SECRET is not configured — ignoring",
 			zap.String("event_name", evt.EventName))
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
-	signature := r.Header.Get("X-ZEvent-Signature")
-	// TEMP bypass: Zalo's console only reveals the real OA Secret Key (distinct
-	// from ZALO_OA_APP_SECRET) after the webhook URL is saved, and saving is
-	// gated on a 200 response — chicken-and-egg. Skipping verification just
-	// long enough to save the URL and read that key off the console; revert
-	// this block once ZALO_OA_WEBHOOK_SECRET is wired in.
-	if false && !infrastructure.VerifyZaloWebhookSignature(evt.AppID, string(body), evt.Timestamp, h.appSecret, signature) {
-		h.log.Warn("zalo webhook signature mismatch — rejecting",
-			zap.String("event_name", evt.EventName),
-			zap.String("debug_raw_body", string(body)),
-			zap.String("debug_app_id", evt.AppID),
-			zap.String("debug_timestamp", evt.Timestamp),
-			zap.String("debug_signature_header", signature),
-			zap.Any("debug_all_headers", r.Header))
+	// Header value is "mac=<hex>" — strip the prefix before comparing.
+	signature := strings.TrimPrefix(r.Header.Get("X-ZEvent-Signature"), "mac=")
+	if !infrastructure.VerifyZaloWebhookSignature(evt.AppID, string(body), evt.Timestamp, h.webhookSecret, signature) {
+		h.log.Warn("zalo webhook signature mismatch — rejecting", zap.String("event_name", evt.EventName))
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}

@@ -37,11 +37,12 @@ jobs:
           ZALO_OA_APP_ID: ${{ secrets.ZALO_OA_APP_ID }}
           ZALO_OA_APP_SECRET: ${{ secrets.ZALO_OA_APP_SECRET }}
           ZALO_OA_REDIRECT_URI: ${{ secrets.ZALO_OA_REDIRECT_URI }}
+          ZALO_OA_WEBHOOK_SECRET: ${{ secrets.ZALO_OA_WEBHOOK_SECRET }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: DATABASE_URL,CLOUDFLARE_ZONE_ID,CLOUDFLARE_API_TOKEN,JWT_SECRET,SMTP_HOST,SMTP_PORT,SMTP_USERNAME,SMTP_PASSWORD,SMTP_FROM,ZALO_OA_APP_ID,ZALO_OA_APP_SECRET,ZALO_OA_REDIRECT_URI
+          envs: DATABASE_URL,CLOUDFLARE_ZONE_ID,CLOUDFLARE_API_TOKEN,JWT_SECRET,SMTP_HOST,SMTP_PORT,SMTP_USERNAME,SMTP_PASSWORD,SMTP_FROM,ZALO_OA_APP_ID,ZALO_OA_APP_SECRET,ZALO_OA_REDIRECT_URI,ZALO_OA_WEBHOOK_SECRET
           script: |
             cd /var/www/elc-go
             cat > .env <<EOF
@@ -58,6 +59,7 @@ jobs:
             ZALO_OA_APP_ID=${ZALO_OA_APP_ID}
             ZALO_OA_APP_SECRET=${ZALO_OA_APP_SECRET}
             ZALO_OA_REDIRECT_URI=${ZALO_OA_REDIRECT_URI}
+            ZALO_OA_WEBHOOK_SECRET=${ZALO_OA_WEBHOOK_SECRET}
             EOF
             # Build truoc (khong dung toi container dang chay), roi moi swap.
             # --wait doi container moi qua HEALTHCHECK (curl /brands) roi moi
