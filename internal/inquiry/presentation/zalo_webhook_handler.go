@@ -54,7 +54,13 @@ func (h *ZaloWebhookHandler) Receive(w http.ResponseWriter, r *http.Request) {
 
 	signature := r.Header.Get("X-ZEvent-Signature")
 	if !infrastructure.VerifyZaloWebhookSignature(evt.AppID, string(body), evt.Timestamp, h.appSecret, signature) {
-		h.log.Warn("zalo webhook signature mismatch — rejecting", zap.String("event_name", evt.EventName))
+		h.log.Warn("zalo webhook signature mismatch — rejecting",
+			zap.String("event_name", evt.EventName),
+			zap.String("debug_raw_body", string(body)),
+			zap.String("debug_app_id", evt.AppID),
+			zap.String("debug_timestamp", evt.Timestamp),
+			zap.String("debug_signature_header", signature),
+			zap.Any("debug_all_headers", r.Header))
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
