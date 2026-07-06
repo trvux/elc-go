@@ -25,8 +25,13 @@ import (
 	categorypresentation "github.com/trvux/elc-go/internal/category/presentation"
 	contactinfra "github.com/trvux/elc-go/internal/contact/infrastructure"
 	contactpresentation "github.com/trvux/elc-go/internal/contact/presentation"
+	eventinfra "github.com/trvux/elc-go/internal/event/infrastructure"
+	eventpresentation "github.com/trvux/elc-go/internal/event/presentation"
 	groupinfra "github.com/trvux/elc-go/internal/group/infrastructure"
 	grouppresentation "github.com/trvux/elc-go/internal/group/presentation"
+	inquirydomain "github.com/trvux/elc-go/internal/inquiry/domain"
+	inquiryinfra "github.com/trvux/elc-go/internal/inquiry/infrastructure"
+	inquirypresentation "github.com/trvux/elc-go/internal/inquiry/presentation"
 	newsinfra "github.com/trvux/elc-go/internal/news/infrastructure"
 	newspresentation "github.com/trvux/elc-go/internal/news/presentation"
 	pageinfra "github.com/trvux/elc-go/internal/page/infrastructure"
@@ -66,6 +71,12 @@ func main() {
 	httpserver.SetLogger(log)
 
 	ctx := context.Background()
+
+	// bgCtx scopes long-lived background goroutines (currently just the Zalo
+	// token refresher) — cancelled alongside the HTTP server's own shutdown
+	// below so nothing keeps running after the process is told to stop.
+	bgCtx, cancelBg := context.WithCancel(context.Background())
+	defer cancelBg()
 
 	pool, err := db.New(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
@@ -108,6 +119,35 @@ func main() {
 	contactRepo := contactinfra.NewPostgresContactRepository(pool)
 	contactHandler := contactpresentation.NewContactHandler(contactRepo)
 	contactpresentation.RegisterRoutes(router, contactHandler, tokenIssuer)
+
+	inquiryRepo := inquiryinfra.NewPostgresInquiryRepository(pool)
+	zaloFollowerRepo := inquiryinfra.NewPostgresZaloFollowerRepository(pool)
+	zaloTokenRepo := inquiryinfra.NewPostgresZaloTokenRepository(pool)
+
+	// leadNotifier falls back to LogLeadNotifier until Zalo OA credentials
+	// are set — lead capture works end-to-end regardless, staff just see
+	// new leads in /admin/inquiries instead of also getting a push. The
+	// webhook route is always mounted either way (see RegisterRoutes) so
+	// its URL can be registered in Zalo's console at any time.
+	var leadNotifier inquirydomain.LeadNotifier
+	zaloAppID := os.Getenv("ZALO_OA_APP_ID")
+	zaloAppSecret := os.Getenv("ZALO_OA_APP_SECRET")
+	if zaloAppID != "" && zaloAppSecret != "" {
+		leadNotifier = inquiryinfra.NewZaloOASender(zaloTokenRepo, zaloFollowerRepo, adminBaseURL, log)
+		refresher := inquiryinfra.NewZaloTokenRefresher(zaloTokenRepo, zaloAppID, zaloAppSecret, log, 20*time.Minute)
+		go refresher.Start(bgCtx)
+	} else {
+		log.Warn("ZALO_OA_APP_ID/ZALO_OA_APP_SECRET not set — lead notifications will be logged instead of sent via Zalo")
+		leadNotifier = inquiryinfra.NewLogLeadNotifier(log)
+	}
+
+	inquiryHandler := inquirypresentation.NewInquiryHandler(inquiryRepo, leadNotifier)
+	zaloWebhookHandler := inquirypresentation.NewZaloWebhookHandler(zaloFollowerRepo, zaloAppSecret, log)
+	inquirypresentation.RegisterRoutes(router, inquiryHandler, zaloWebhookHandler, tokenIssuer)
+
+	eventRepo := eventinfra.NewPostgresEventRepository(pool)
+	eventHandler := eventpresentation.NewEventHandler(eventRepo)
+	eventpresentation.RegisterRoutes(router, eventHandler)
 
 	brandRepo := brandinfra.NewPostgresBrandRepository(pool)
 	brandHandler := brandpresentation.NewBrandHandler(brandRepo)

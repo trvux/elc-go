@@ -28,3 +28,10 @@ run:
 #   ADMIN_USERNAME=... ADMIN_EMAIL=... ADMIN_PASSWORD=... ADMIN_NAME=... ADMIN_PHONE=... make seed-admin
 seed-admin:
 	@go run ./cmd/seed-admin
+
+# One-time Zalo OA authorization (see cmd/zalo-authorize's doc comment) —
+# only needs to be run once after the Zalo App is created; the background
+# token refresher keeps it fresh afterward. Example:
+#   ZALO_OA_APP_ID=... ZALO_OA_APP_SECRET=... ZALO_OA_REDIRECT_URI=... make zalo-authorize
+zalo-authorize:
+	@go run ./cmd/zalo-authorize

@@ -2,9 +2,7 @@ package presentation
 
 import (
 	"encoding/json"
-	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -75,7 +73,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.loginLimiter.Allow(req.Identifier + "|" + clientIP(r)) {
+	if !h.loginLimiter.Allow(req.Identifier + "|" + httpserver.ClientIP(r)) {
 		httpserver.WriteError(w, apperr.NewTooManyRequestsError("too many login attempts, try again later"))
 		return
 	}
@@ -84,7 +82,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Identifier: req.Identifier,
 		Password:   req.Password,
 		UserAgent:  r.UserAgent(),
-		IPAddress:  clientIP(r),
+		IPAddress:  httpserver.ClientIP(r),
 	})
 	if err != nil {
 		httpserver.WriteError(w, err)
@@ -150,7 +148,7 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	// Rate-limited silently: still returns the generic message, never a 429,
 	// so a caller hammering this endpoint can't distinguish "rate limited"
 	// from "email doesn't exist" from "email sent".
-	if h.forgotPasswordLimiter.Allow(req.Email + "|" + clientIP(r)) {
+	if h.forgotPasswordLimiter.Allow(req.Email + "|" + httpserver.ClientIP(r)) {
 		if err := application.ForgotPassword(r.Context(), h.userRepo, h.tokenRepo, h.emailSender, req.Email); err != nil {
 			httpserver.WriteError(w, err)
 			return
@@ -161,7 +159,7 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
-	if !h.resetPasswordLimiter.Allow(clientIP(r)) {
+	if !h.resetPasswordLimiter.Allow(httpserver.ClientIP(r)) {
 		httpserver.WriteError(w, apperr.NewTooManyRequestsError("too many attempts, try again later"))
 		return
 	}
@@ -181,7 +179,7 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
-	if !h.acceptInviteLimiter.Allow(clientIP(r)) {
+	if !h.acceptInviteLimiter.Allow(httpserver.ClientIP(r)) {
 		httpserver.WriteError(w, apperr.NewTooManyRequestsError("too many attempts, try again later"))
 		return
 	}
@@ -334,18 +332,4 @@ func (h *AuthHandler) clearRefreshCookie(w http.ResponseWriter) {
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
-}
-
-// clientIP prefers X-Forwarded-For (set by the Nginx reverse proxy in front
-// of this service per ARCHITECTURE.md §12) since r.RemoteAddr would
-// otherwise always be Nginx's own address.
-func clientIP(r *http.Request) string {
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		return strings.TrimSpace(strings.Split(fwd, ",")[0])
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
 }
