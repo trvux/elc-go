@@ -53,7 +53,12 @@ func (h *ZaloWebhookHandler) Receive(w http.ResponseWriter, r *http.Request) {
 	}
 
 	signature := r.Header.Get("X-ZEvent-Signature")
-	if !infrastructure.VerifyZaloWebhookSignature(evt.AppID, string(body), evt.Timestamp, h.appSecret, signature) {
+	// TEMP bypass: Zalo's console only reveals the real OA Secret Key (distinct
+	// from ZALO_OA_APP_SECRET) after the webhook URL is saved, and saving is
+	// gated on a 200 response — chicken-and-egg. Skipping verification just
+	// long enough to save the URL and read that key off the console; revert
+	// this block once ZALO_OA_WEBHOOK_SECRET is wired in.
+	if false && !infrastructure.VerifyZaloWebhookSignature(evt.AppID, string(body), evt.Timestamp, h.appSecret, signature) {
 		h.log.Warn("zalo webhook signature mismatch — rejecting",
 			zap.String("event_name", evt.EventName),
 			zap.String("debug_raw_body", string(body)),
