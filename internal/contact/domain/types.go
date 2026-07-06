@@ -2,6 +2,7 @@ package domain
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
@@ -142,7 +143,7 @@ func validateValue(value string) []string {
 }
 
 func validateLabel(label *string) []string {
-	if label != nil && len(*label) > 100 {
+	if label != nil && utf8.RuneCountInString(*label) > 100 {
 		return []string{"label must be at most 100 characters"}
 	}
 	return nil
