@@ -30,7 +30,7 @@ func TestPostgresProjectRepository_CRUD(t *testing.T) {
 
 	p, err := domain.NewProject(
 		"Integration Test Project", "integration-test-project-xyz",
-		nil, nil, false, true, nil, nil, 999, categoryID, nil,
+		nil, nil, false, true, nil, nil, domain.Seo{}, 999, categoryID, nil,
 	)
 	if err != nil {
 		t.Fatalf("NewProject failed: %v", err)
@@ -146,7 +146,7 @@ func TestPostgresProjectRepository_ResurrectOnSlugReuse(t *testing.T) {
 
 	repo := NewPostgresProjectRepository(pool)
 
-	p1, _ := domain.NewProject("Resurrect Test", "integration-test-resurrect-xyz", nil, nil, false, true, nil, nil, 0, categoryID, nil)
+	p1, _ := domain.NewProject("Resurrect Test", "integration-test-resurrect-xyz", nil, nil, false, true, nil, nil, domain.Seo{}, 0, categoryID, nil)
 	created1, err := repo.Create(ctx, p1, nil, nil)
 	if err != nil {
 		t.Fatalf("first Create failed: %v", err)
@@ -159,7 +159,7 @@ func TestPostgresProjectRepository_ResurrectOnSlugReuse(t *testing.T) {
 		t.Fatalf("SoftDelete failed: %v", err)
 	}
 
-	p2, _ := domain.NewProject("Resurrect Test Again", "integration-test-resurrect-xyz", nil, nil, false, true, nil, nil, 0, categoryID, nil)
+	p2, _ := domain.NewProject("Resurrect Test Again", "integration-test-resurrect-xyz", nil, nil, false, true, nil, nil, domain.Seo{}, 0, categoryID, nil)
 	created2, err := repo.Create(ctx, p2, nil, nil)
 	if err != nil {
 		t.Fatalf("second Create (resurrect) failed: %v", err)
@@ -198,7 +198,7 @@ func TestPostgresProjectRepository_CreateRollsBackOnBadRelation(t *testing.T) {
 
 	repo := NewPostgresProjectRepository(pool)
 
-	p, _ := domain.NewProject("Rollback Test", "integration-test-rollback-xyz", nil, nil, false, true, nil, nil, 0, categoryID, nil)
+	p, _ := domain.NewProject("Rollback Test", "integration-test-rollback-xyz", nil, nil, false, true, nil, nil, domain.Seo{}, 0, categoryID, nil)
 	_, err = repo.Create(ctx, p, []domain.CategoryCondition{{CategoryID: "00000000-0000-0000-0000-000000000000", Condition: "new"}}, nil)
 	if err == nil {
 		t.Fatal("expected Create to fail on a nonexistent category id")

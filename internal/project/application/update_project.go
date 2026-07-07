@@ -45,6 +45,9 @@ func UpdateProject(ctx context.Context, repo domain.ProjectRepository, input dom
 	if input.MetaDescription != nil {
 		project.UpdateMetaDescription(input.MetaDescription)
 	}
+	if input.Seo != nil {
+		project.UpdateSeo(*input.Seo)
+	}
 	if input.OrderIndex != nil {
 		project.Reorder(*input.OrderIndex)
 	}

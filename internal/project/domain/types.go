@@ -8,6 +8,16 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
 
+// Seo is the unified SEO metadata shape stored as jsonb, replacing the old
+// flat MetaTitle/MetaDescription pair (kept alongside during the migration).
+// Duplicated per-module rather than shared, same reasoning as
+// CategoryRef/BrandRef in catalog/domain/types.go.
+type Seo struct {
+	Title       *string `json:"title,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Noindex     bool    `json:"noindex,omitempty"`
+}
+
 type Project struct {
 	id              string
 	title           string
@@ -18,6 +28,7 @@ type Project struct {
 	isPublished     bool
 	metaTitle       *string
 	metaDescription *string
+	seo             Seo
 	orderIndex      int
 	categoryID      string
 	projectTypeID   *string
@@ -118,6 +129,7 @@ func NewProject(
 	images []string,
 	isFeatured, isPublished bool,
 	metaTitle, metaDescription *string,
+	seo Seo,
 	orderIndex int,
 	categoryID string,
 	projectTypeID *string,
@@ -155,6 +167,7 @@ func NewProject(
 		isPublished:     isPublished,
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
+		seo:             seo,
 		orderIndex:      orderIndex,
 		categoryID:      categoryID,
 		projectTypeID:   projectTypeID,
@@ -171,6 +184,7 @@ func RehydrateProject(
 	images []string,
 	isFeatured, isPublished bool,
 	metaTitle, metaDescription *string,
+	seo Seo,
 	orderIndex int,
 	categoryID string,
 	projectTypeID *string,
@@ -187,6 +201,7 @@ func RehydrateProject(
 		isPublished:     isPublished,
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
+		seo:             seo,
 		orderIndex:      orderIndex,
 		categoryID:      categoryID,
 		projectTypeID:   projectTypeID,
@@ -205,6 +220,7 @@ func (p *Project) IsFeatured() bool             { return p.isFeatured }
 func (p *Project) IsPublished() bool            { return p.isPublished }
 func (p *Project) MetaTitle() *string           { return p.metaTitle }
 func (p *Project) MetaDescription() *string     { return p.metaDescription }
+func (p *Project) Seo() Seo                     { return p.seo }
 func (p *Project) OrderIndex() int              { return p.orderIndex }
 func (p *Project) CategoryID() string           { return p.categoryID }
 func (p *Project) ProjectTypeID() *string       { return p.projectTypeID }
@@ -267,6 +283,11 @@ func (p *Project) UpdateMetaTitle(metaTitle *string) {
 
 func (p *Project) UpdateMetaDescription(metaDescription *string) {
 	p.metaDescription = metaDescription
+	p.updatedAt = time.Now()
+}
+
+func (p *Project) UpdateSeo(seo Seo) {
+	p.seo = seo
 	p.updatedAt = time.Now()
 }
 
@@ -344,6 +365,7 @@ type CreateProjectInput struct {
 	IsPublished     bool
 	MetaTitle       *string
 	MetaDescription *string
+	Seo             Seo
 	OrderIndex      int
 	CategoryID      string
 	ProjectTypeID   *string
@@ -361,6 +383,7 @@ type UpdateProjectInput struct {
 	IsPublished     *bool
 	MetaTitle       *string
 	MetaDescription *string
+	Seo             *Seo
 	OrderIndex      *int
 	CategoryID      *string
 	ProjectTypeID   *string

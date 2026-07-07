@@ -88,6 +88,7 @@ func (r *fakeProjectRepository) Create(ctx context.Context, project *domain.Proj
 	created := domain.RehydrateProject(
 		id, project.Title(), project.Slug(), project.Description(), project.Images(),
 		project.IsFeatured(), project.IsPublished(), project.MetaTitle(), project.MetaDescription(),
+		project.Seo(),
 		project.OrderIndex(), project.CategoryID(), project.ProjectTypeID(),
 		now, now, nil,
 	)
