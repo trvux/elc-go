@@ -48,6 +48,9 @@ func UpdateNews(ctx context.Context, repo domain.NewsRepository, input domain.Up
 			return nil, err
 		}
 	}
+	if input.Seo != nil {
+		news.UpdateSeo(*input.Seo)
+	}
 	if input.OrderIndex != nil {
 		news.Reorder(*input.OrderIndex)
 	}

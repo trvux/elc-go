@@ -11,6 +11,16 @@ import (
 
 var slugRegex = regexp.MustCompile("^[a-z0-9-]+$")
 
+// Seo is the unified SEO metadata shape stored as jsonb, replacing the old
+// flat MetaTitle/MetaDescription pair (kept alongside during the migration).
+// Duplicated per-module rather than shared, same reasoning as
+// CategoryRef/BrandRef in catalog/domain/types.go.
+type Seo struct {
+	Title       *string `json:"title,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Noindex     bool    `json:"noindex,omitempty"`
+}
+
 type News struct {
 	id              string
 	title           string
@@ -21,6 +31,7 @@ type News struct {
 	isPublished     bool
 	metaTitle       *string
 	metaDescription *string
+	seo             Seo
 	orderIndex      int
 	createdAt       time.Time
 	updatedAt       time.Time
@@ -34,6 +45,7 @@ func NewNews(
 	categoryID *string,
 	isPublished bool,
 	metaTitle, metaDescription *string,
+	seo Seo,
 	orderIndex int,
 ) (*News, error) {
 	fields := map[string][]string{}
@@ -69,6 +81,7 @@ func NewNews(
 		isPublished:     isPublished,
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
+		seo:             seo,
 		orderIndex:      orderIndex,
 		createdAt:       now,
 		updatedAt:       now,
@@ -83,6 +96,7 @@ func RehydrateNews(
 	categoryID *string,
 	isPublished bool,
 	metaTitle, metaDescription *string,
+	seo Seo,
 	orderIndex int,
 	createdAt, updatedAt time.Time,
 	deletedAt *time.Time,
@@ -97,6 +111,7 @@ func RehydrateNews(
 		isPublished:     isPublished,
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
+		seo:             seo,
 		orderIndex:      orderIndex,
 		createdAt:       createdAt,
 		updatedAt:       updatedAt,
@@ -113,6 +128,7 @@ func (n *News) CategoryID() *string      { return n.categoryID }
 func (n *News) IsPublished() bool        { return n.isPublished }
 func (n *News) MetaTitle() *string       { return n.metaTitle }
 func (n *News) MetaDescription() *string { return n.metaDescription }
+func (n *News) Seo() Seo                 { return n.seo }
 func (n *News) OrderIndex() int          { return n.orderIndex }
 func (n *News) CreatedAt() time.Time     { return n.createdAt }
 func (n *News) UpdatedAt() time.Time     { return n.updatedAt }
@@ -181,6 +197,11 @@ func (n *News) UpdateMetaDescription(metaDescription *string) error {
 	return nil
 }
 
+func (n *News) UpdateSeo(seo Seo) {
+	n.seo = seo
+	n.updatedAt = time.Now()
+}
+
 func (n *News) Reorder(orderIndex int) {
 	n.orderIndex = orderIndex
 	n.updatedAt = time.Now()
@@ -241,6 +262,7 @@ type CreateNewsInput struct {
 	IsPublished     bool
 	MetaTitle       *string
 	MetaDescription *string
+	Seo             Seo
 	OrderIndex      int
 }
 
@@ -254,6 +276,7 @@ type UpdateNewsInput struct {
 	IsPublished     *bool
 	MetaTitle       *string
 	MetaDescription *string
+	Seo             *Seo
 	OrderIndex      *int
 }
 
