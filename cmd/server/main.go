@@ -53,6 +53,9 @@ import (
 	slugregistrypresentation "github.com/trvux/elc-go/internal/slug-registry/presentation"
 	systempageinfra "github.com/trvux/elc-go/internal/system-page/infrastructure"
 	systempagepresentation "github.com/trvux/elc-go/internal/system-page/presentation"
+	uploaddomain "github.com/trvux/elc-go/internal/upload/domain"
+	uploadinfra "github.com/trvux/elc-go/internal/upload/infrastructure"
+	uploadpresentation "github.com/trvux/elc-go/internal/upload/presentation"
 )
 
 func main() {
@@ -210,6 +213,19 @@ func main() {
 	slugRegistryRepo := slugregistryinfra.NewPostgresSlugRegistryRepository(pool)
 	slugRegistryHandler := slugregistrypresentation.NewSlugRegistryHandler(slugRegistryRepo)
 	slugregistrypresentation.RegisterRoutes(router, slugRegistryHandler)
+
+	var uploader uploaddomain.Uploader
+	if r2AccountID := os.Getenv("R2_ACCOUNT_ID"); r2AccountID != "" {
+		uploader = uploadinfra.NewR2Uploader(
+			r2AccountID, os.Getenv("R2_ACCESS_KEY_ID"), os.Getenv("R2_SECRET_ACCESS_KEY"),
+			os.Getenv("R2_BUCKET_NAME"), os.Getenv("R2_PUBLIC_URL"),
+		)
+	} else {
+		log.Warn("R2_ACCOUNT_ID not set — image uploads will fail until R2 is configured")
+		uploader = uploadinfra.NewNoopUploader()
+	}
+	uploadHandler := uploadpresentation.NewUploadHandler(uploader)
+	uploadpresentation.RegisterRoutes(router, uploadHandler, tokenIssuer)
 
 	port := os.Getenv("PORT")
 	if port == "" {
