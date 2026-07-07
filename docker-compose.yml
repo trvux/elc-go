@@ -3,7 +3,34 @@ services:
     build: .
     container_name: elc-go
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8090:8090"
     env_file:
       - .env
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: elc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: elc
+      POSTGRES_USER: elc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # No `ports:` here on purpose — elc-go reaches this over the internal
+    # Compose network (`postgres:5432`), and a production DB has no business
+    # being reachable from outside the Docker network. For local dev (`air`
+    # run on the host, needs a published port), see docker-compose.override.yml
+    # (gitignored, never deployed).
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elc"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:

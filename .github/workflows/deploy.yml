@@ -17,15 +17,29 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p /var/www/elc-go"
+          # --delete mirrors the repo exactly onto the VPS — must exclude
+          # everything that only ever exists on the VPS itself (never in
+          # git), or it gets wiped every deploy. `backups/` holds the nightly
+          # cron pg_dumps AND the migrate-postgres.sh sentinel
+          # (.postgres-migrated) that gates the one-time Supabase import from
+          # re-running — losing either here would silently re-trigger a full
+          # destructive re-import (or delete backups) on every future deploy.
           rsync -az --delete \
-            --exclude '.git' --exclude '.env' \
+            --exclude '.git' --exclude '.env' --exclude 'backups/' \
             -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
             ./ "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/elc-go/"
 
       - name: Write .env and (re)deploy container on VPS
         uses: appleboy/ssh-action@v1.0.3
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # NOTE: this secret is Supabase's OLD connection string. It is no
+          # longer written into the app's own .env (see SOURCE_DATABASE_URL
+          # below) — it's kept only as the one-time source for
+          # scripts/migrate-postgres.sh's dump-and-restore. Safe to delete
+          # this secret once the self-hosted Postgres has run clean in
+          # production for a while.
+          SOURCE_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -38,17 +52,23 @@ jobs:
           ZALO_OA_APP_SECRET: ${{ secrets.ZALO_OA_APP_SECRET }}
           ZALO_OA_REDIRECT_URI: ${{ secrets.ZALO_OA_REDIRECT_URI }}
           ZALO_OA_WEBHOOK_SECRET: ${{ secrets.ZALO_OA_WEBHOOK_SECRET }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: DATABASE_URL,CLOUDFLARE_ZONE_ID,CLOUDFLARE_API_TOKEN,JWT_SECRET,SMTP_HOST,SMTP_PORT,SMTP_USERNAME,SMTP_PASSWORD,SMTP_FROM,ZALO_OA_APP_ID,ZALO_OA_APP_SECRET,ZALO_OA_REDIRECT_URI,ZALO_OA_WEBHOOK_SECRET
+          envs: SOURCE_DATABASE_URL,POSTGRES_PASSWORD,CLOUDFLARE_ZONE_ID,CLOUDFLARE_API_TOKEN,JWT_SECRET,SMTP_HOST,SMTP_PORT,SMTP_USERNAME,SMTP_PASSWORD,SMTP_FROM,ZALO_OA_APP_ID,ZALO_OA_APP_SECRET,ZALO_OA_REDIRECT_URI,ZALO_OA_WEBHOOK_SECRET,R2_ACCOUNT_ID,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,R2_BUCKET_NAME,R2_PUBLIC_URL
           script: |
             cd /var/www/elc-go
             cat > .env <<EOF
             ENV=production
             PORT=8090
-            DATABASE_URL=${DATABASE_URL}
+            POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+            DATABASE_URL=postgresql://elc:${POSTGRES_PASSWORD}@postgres:5432/elc
             JWT_SECRET=${JWT_SECRET}
             ADMIN_BASE_URL=https://dienmayelc.com.vn
             SMTP_HOST=${SMTP_HOST}
@@ -60,13 +80,35 @@ jobs:
             ZALO_OA_APP_SECRET=${ZALO_OA_APP_SECRET}
             ZALO_OA_REDIRECT_URI=${ZALO_OA_REDIRECT_URI}
             ZALO_OA_WEBHOOK_SECRET=${ZALO_OA_WEBHOOK_SECRET}
+            R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
+            R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+            R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+            R2_BUCKET_NAME=${R2_BUCKET_NAME}
+            R2_PUBLIC_URL=${R2_PUBLIC_URL}
             EOF
+            chmod +x scripts/*.sh
+
             # Build truoc (khong dung toi container dang chay), roi moi swap.
+            docker compose build
+
+            # Dua Postgres len truoc va cho khoe, roi moi chay migration mot-lan
+            # (idempotent qua sentinel file) TRUOC khi dung toi elc-go -- neu
+            # migration that bai, container elc-go CU (dang chay, van tro ve
+            # Supabase qua .env cu cua no) khong bi dong, site khong sap.
+            docker compose up -d --wait --wait-timeout 60 postgres
+            SOURCE_DATABASE_URL="$SOURCE_DATABASE_URL" POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+              ./scripts/migrate-postgres.sh
+
             # --wait doi container moi qua HEALTHCHECK (curl /brands) roi moi
             # tra ve thanh cong -- khong con coi deploy la "xong" ngay khi tien
             # trinh moi khoi dong nhung chua thuc su san sang nhan request.
-            docker compose build
             docker compose up -d --wait --wait-timeout 60
+
+            # Cron backup hang dem cho Postgres tu host (volume khong phai la
+            # backup) -- idempotent, chi them dong crontab neu chua co.
+            ( crontab -l 2>/dev/null | grep -v 'backup-postgres.sh' ; \
+              echo "0 3 * * * /var/www/elc-go/scripts/backup-postgres.sh >> /var/www/elc-go/backups/backup.log 2>&1" \
+            ) | crontab -
 
             # Next.js goi truc tiep vao Go API qua "use cache" -- neu Cloudflare
             # tinh co crawl dung luc container cu vua tat/moi vua len (truoc khi

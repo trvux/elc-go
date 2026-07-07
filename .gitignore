@@ -4,3 +4,5 @@ elc-go
 *.exe
 /tmp/
 build-errors.log
+/backups/
+docker-compose.override.yml
