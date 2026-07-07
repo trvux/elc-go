@@ -16,6 +16,7 @@ func newTestProduct(t *testing.T) *Product {
 		false, true, 0,
 		"", "",
 		nil, nil, nil, nil,
+		Seo{},
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -41,32 +42,32 @@ func TestNewProduct(t *testing.T) {
 	})
 
 	t.Run("empty name fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "", "sku", "slug", nil, nil, nil, nil, nil, 0, nil, 0, false, true, 0, "", "", nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "brand-1", "", "sku", "slug", nil, nil, nil, nil, nil, 0, nil, 0, false, true, 0, "", "", nil, nil, nil, nil, Seo{})
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty slug fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "name", "sku", "", nil, nil, nil, nil, nil, 0, nil, 0, false, true, 0, "", "", nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "brand-1", "name", "sku", "", nil, nil, nil, nil, nil, 0, nil, 0, false, true, 0, "", "", nil, nil, nil, nil, Seo{})
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty sku fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "name", "", "slug", nil, nil, nil, nil, nil, 0, nil, 0, false, true, 0, "", "", nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "brand-1", "name", "", "slug", nil, nil, nil, nil, nil, 0, nil, 0, false, true, 0, "", "", nil, nil, nil, nil, Seo{})
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty category_id fails validation", func(t *testing.T) {
-		_, err := NewProduct("", "brand-1", "name", "sku", "slug", nil, nil, nil, nil, nil, 0, nil, 0, false, true, 0, "", "", nil, nil, nil, nil)
+		_, err := NewProduct("", "brand-1", "name", "sku", "slug", nil, nil, nil, nil, nil, 0, nil, 0, false, true, 0, "", "", nil, nil, nil, nil, Seo{})
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty brand_id fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "", "name", "sku", "slug", nil, nil, nil, nil, nil, 0, nil, 0, false, true, 0, "", "", nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "", "name", "sku", "slug", nil, nil, nil, nil, nil, 0, nil, 0, false, true, 0, "", "", nil, nil, nil, nil, Seo{})
 		assertValidationError(t, err)
 	})
 
 	t.Run("invalid condition fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "name", "sku", "slug", nil, nil, nil, nil, nil, 0, nil, 0, false, true, 0, "", "refurbished", nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "brand-1", "name", "sku", "slug", nil, nil, nil, nil, nil, 0, nil, 0, false, true, 0, "", "refurbished", nil, nil, nil, nil, Seo{})
 		assertValidationError(t, err)
 	})
 }

@@ -118,6 +118,9 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, input dom
 	if input.MetaDescription != nil {
 		product.UpdateMetaDescription(input.MetaDescription)
 	}
+	if input.Seo != nil {
+		product.UpdateSeo(*input.Seo)
+	}
 	if input.MPN != nil {
 		product.UpdateMPN(input.MPN)
 	}

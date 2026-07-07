@@ -53,6 +53,18 @@ type BrandRef struct {
 	OrderIndex      int
 }
 
+// Seo is the unified SEO metadata shape stored as jsonb on products/news/
+// projects (see docs/catalog.md), replacing the old flat MetaTitle/
+// MetaDescription pair. Both fields kept side by side during the migration —
+// MetaTitle/MetaDescription are not removed yet. Noindex lets an editor
+// exclude one entity's detail page from search indexing without touching
+// robots logic anywhere else.
+type Seo struct {
+	Title       *string `json:"title,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Noindex     bool    `json:"noindex,omitempty"`
+}
+
 // ProductWithRelations is what read queries (GetAll/GetByID/GetBySlug/
 // GetByIDs/GetAdjacent's siblings) return — a Product plus the joined
 // category/brand display refs. Create/Update only ever deal with a plain
@@ -85,6 +97,7 @@ type Product struct {
 	condition       string
 	metaTitle       *string
 	metaDescription *string
+	seo             Seo
 	mpn             *string
 	gtin            *string
 	createdAt       time.Time
@@ -110,6 +123,7 @@ func NewProduct(
 	orderIndex int,
 	stockStatus, condition string,
 	metaTitle, metaDescription, mpn, gtin *string,
+	seo Seo,
 ) (*Product, error) {
 	fields := map[string][]string{}
 
@@ -165,6 +179,7 @@ func NewProduct(
 		condition:       condition,
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
+		seo:             seo,
 		mpn:             mpn,
 		gtin:            gtin,
 		createdAt:       now,
@@ -187,6 +202,7 @@ func RehydrateProduct(
 	orderIndex int,
 	stockStatus, condition string,
 	metaTitle, metaDescription, mpn, gtin *string,
+	seo Seo,
 	createdAt, updatedAt time.Time,
 	deletedAt *time.Time,
 ) *Product {
@@ -198,7 +214,7 @@ func RehydrateProduct(
 		originalPrice: originalPrice, salePrice: salePrice, discountPercent: discountPercent,
 		isFeatured: isFeatured, isPublished: isPublished, orderIndex: orderIndex,
 		stockStatus: stockStatus, condition: condition,
-		metaTitle: metaTitle, metaDescription: metaDescription, mpn: mpn, gtin: gtin,
+		metaTitle: metaTitle, metaDescription: metaDescription, seo: seo, mpn: mpn, gtin: gtin,
 		createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt,
 	}
 }
@@ -224,6 +240,7 @@ func (p *Product) StockStatus() string          { return p.stockStatus }
 func (p *Product) Condition() string            { return p.condition }
 func (p *Product) MetaTitle() *string           { return p.metaTitle }
 func (p *Product) MetaDescription() *string     { return p.metaDescription }
+func (p *Product) Seo() Seo                     { return p.seo }
 func (p *Product) MPN() *string                 { return p.mpn }
 func (p *Product) GTIN() *string                { return p.gtin }
 func (p *Product) CreatedAt() time.Time         { return p.createdAt }
@@ -359,6 +376,11 @@ func (p *Product) UpdateMetaDescription(metaDescription *string) {
 	p.updatedAt = time.Now()
 }
 
+func (p *Product) UpdateSeo(seo Seo) {
+	p.seo = seo
+	p.updatedAt = time.Now()
+}
+
 func (p *Product) UpdateMPN(mpn *string) {
 	p.mpn = mpn
 	p.updatedAt = time.Now()
@@ -449,6 +471,7 @@ type CreateProductInput struct {
 	Condition       string
 	MetaTitle       *string
 	MetaDescription *string
+	Seo             Seo
 	MPN             *string
 	GTIN            *string
 }
@@ -482,6 +505,7 @@ type UpdateProductInput struct {
 	Condition       *string
 	MetaTitle       *string
 	MetaDescription *string
+	Seo             *Seo
 	MPN             *string
 	GTIN            *string
 }

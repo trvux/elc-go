@@ -7,6 +7,20 @@ import (
 	"github.com/trvux/elc-go/internal/catalog/domain"
 )
 
+type seoDTO struct {
+	Title       *string `json:"title,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Noindex     bool    `json:"noindex,omitempty"`
+}
+
+func toSeoDTO(seo domain.Seo) seoDTO {
+	return seoDTO{Title: seo.Title, Description: seo.Description, Noindex: seo.Noindex}
+}
+
+func toSeoDomain(seo seoDTO) domain.Seo {
+	return domain.Seo{Title: seo.Title, Description: seo.Description, Noindex: seo.Noindex}
+}
+
 type specSubItemDTO struct {
 	Label string  `json:"label"`
 	Value string  `json:"value"`
@@ -95,6 +109,7 @@ type productResponse struct {
 	Condition       string               `json:"condition"`
 	MetaTitle       *string              `json:"meta_title"`
 	MetaDescription *string              `json:"meta_description"`
+	Seo             seoDTO               `json:"seo"`
 	MPN             *string              `json:"mpn"`
 	GTIN            *string              `json:"gtin"`
 	CreatedAt       time.Time            `json:"created_at"`
@@ -147,6 +162,7 @@ func toPlainProductResponse(p *domain.Product) productResponse {
 		Condition:       p.Condition(),
 		MetaTitle:       p.MetaTitle(),
 		MetaDescription: p.MetaDescription(),
+		Seo:             toSeoDTO(p.Seo()),
 		MPN:             p.MPN(),
 		GTIN:            p.GTIN(),
 		CreatedAt:       p.CreatedAt(),
@@ -244,6 +260,7 @@ type createProductRequest struct {
 	Condition       string          `json:"condition"`
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
+	Seo             seoDTO          `json:"seo"`
 	MPN             *string         `json:"mpn"`
 	GTIN            *string         `json:"gtin"`
 }
@@ -268,6 +285,7 @@ type updateProductRequest struct {
 	Condition       *string         `json:"condition"`
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
+	Seo             *seoDTO         `json:"seo"`
 	MPN             *string         `json:"mpn"`
 	GTIN            *string         `json:"gtin"`
 }

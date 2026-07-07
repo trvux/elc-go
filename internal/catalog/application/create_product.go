@@ -33,6 +33,7 @@ func CreateProduct(ctx context.Context, repo domain.ProductRepository, input dom
 		input.IsFeatured, input.IsPublished, input.OrderIndex,
 		input.StockStatus, input.Condition,
 		input.MetaTitle, input.MetaDescription, input.MPN, input.GTIN,
+		input.Seo,
 	)
 	if err != nil {
 		return nil, err

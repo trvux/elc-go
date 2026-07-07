@@ -93,6 +93,7 @@ func (r *fakeProductRepository) Create(ctx context.Context, product *domain.Prod
 		product.IsFeatured(), product.IsPublished(), product.OrderIndex(),
 		product.StockStatus(), product.Condition(),
 		product.MetaTitle(), product.MetaDescription(), product.MPN(), product.GTIN(),
+		product.Seo(),
 		now, now, nil,
 	)
 	r.items[id] = created

@@ -42,6 +42,7 @@ func TestPostgresProductRepository_CRUD(t *testing.T) {
 		false, true, 0,
 		"in_stock", "new",
 		nil, nil, nil, nil,
+		domain.Seo{},
 	)
 	if err != nil {
 		t.Fatalf("NewProduct failed: %v", err)

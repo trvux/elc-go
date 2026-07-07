@@ -242,7 +242,8 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 		OriginalPrice: req.OriginalPrice, SalePrice: req.SalePrice, DiscountPercent: req.DiscountPercent,
 		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
 		StockStatus: req.StockStatus, Condition: req.Condition,
-		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription, MPN: req.MPN, GTIN: req.GTIN,
+		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription, Seo: toSeoDomain(req.Seo),
+		MPN: req.MPN, GTIN: req.GTIN,
 	}
 
 	p, err := application.CreateProduct(r.Context(), h.repo, input)
@@ -263,6 +264,12 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var seo *domain.Seo
+	if req.Seo != nil {
+		s := toSeoDomain(*req.Seo)
+		seo = &s
+	}
+
 	input := domain.UpdateProductInput{
 		ID:         id,
 		CategoryID: req.CategoryID, BrandID: req.BrandID,
@@ -272,7 +279,8 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		OriginalPrice: req.OriginalPrice, SalePrice: req.SalePrice, DiscountPercent: req.DiscountPercent,
 		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
 		StockStatus: req.StockStatus, Condition: req.Condition,
-		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription, MPN: req.MPN, GTIN: req.GTIN,
+		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription, Seo: seo,
+		MPN: req.MPN, GTIN: req.GTIN,
 	}
 
 	p, err := application.UpdateProduct(r.Context(), h.repo, input)

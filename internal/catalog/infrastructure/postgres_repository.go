@@ -40,7 +40,7 @@ const productColumns = `p.id, p.category_id, p.brand_id, p.name, p.sku, p.slug,
 	p.original_price, p.sale_price, p.discount_percent,
 	p.is_featured, p.is_published, p.order_index,
 	p.stock_status, p.condition,
-	p.meta_title, p.meta_description, p.mpn, p.gtin,
+	p.meta_title, p.meta_description, p.seo, p.mpn, p.gtin,
 	p.created_at, p.updated_at, p.deleted_at,
 	c.id, c.name, c.slug, c.meta_title, c.meta_description,
 	br.id, br.name, br.slug, br.logo_url, br.meta_title, br.meta_description, br.is_featured, br.order_index`
@@ -54,7 +54,7 @@ const catalogJoin = `FROM products p
 const plainProductColumns = `id, category_id, brand_id, name, sku, slug, description, specs, normalized_specs,
 	images, labels, original_price, sale_price, discount_percent,
 	is_featured, is_published, order_index, stock_status, condition,
-	meta_title, meta_description, mpn, gtin, created_at, updated_at, deleted_at`
+	meta_title, meta_description, seo, mpn, gtin, created_at, updated_at, deleted_at`
 
 // categoryPriorityOrder is the exact "popularity" sort priority list from the
 // old TS CATEGORY_PRIORITY_ORDER in searchProducts.ts — order is
@@ -650,14 +650,18 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 			category_id, brand_id, name, sku, slug, description, specs, normalized_specs,
 			images, labels, original_price, sale_price, discount_percent,
 			is_featured, is_published, order_index, stock_status, condition,
-			meta_title, meta_description, mpn, gtin
+			meta_title, meta_description, seo, mpn, gtin
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
 		RETURNING ` + plainProductColumns
 
 	specsJSON, err := marshalSpecs(product.Specs())
 	if err != nil {
 		return nil, fmt.Errorf("product repository create (marshal specs): %w", err)
+	}
+	seoJSON, err := marshalSeo(product.Seo())
+	if err != nil {
+		return nil, fmt.Errorf("product repository create (marshal seo): %w", err)
 	}
 
 	row := r.pool.QueryRow(ctx, query,
@@ -667,7 +671,7 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 		product.OriginalPrice(), product.SalePrice(), product.DiscountPercent(),
 		product.IsFeatured(), product.IsPublished(), product.OrderIndex(),
 		product.StockStatus(), product.Condition(),
-		product.MetaTitle(), product.MetaDescription(), product.MPN(), product.GTIN(),
+		product.MetaTitle(), product.MetaDescription(), seoJSON, product.MPN(), product.GTIN(),
 	)
 	created, err := scanProduct(row)
 	if err != nil {
@@ -687,13 +691,17 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 			description = $6, specs = $7, normalized_specs = $8,
 			images = $9, labels = $10, original_price = $11, sale_price = $12, discount_percent = $13,
 			is_featured = $14, is_published = $15, order_index = $16, stock_status = $17, condition = $18,
-			meta_title = $19, meta_description = $20, mpn = $21, gtin = $22
-		WHERE id = $23
+			meta_title = $19, meta_description = $20, seo = $21, mpn = $22, gtin = $23
+		WHERE id = $24
 		RETURNING ` + plainProductColumns
 
 	specsJSON, err := marshalSpecs(product.Specs())
 	if err != nil {
 		return nil, fmt.Errorf("product repository update (marshal specs): %w", err)
+	}
+	seoJSON, err := marshalSeo(product.Seo())
+	if err != nil {
+		return nil, fmt.Errorf("product repository update (marshal seo): %w", err)
 	}
 
 	row := r.pool.QueryRow(ctx, query,
@@ -703,7 +711,7 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 		product.OriginalPrice(), product.SalePrice(), product.DiscountPercent(),
 		product.IsFeatured(), product.IsPublished(), product.OrderIndex(),
 		product.StockStatus(), product.Condition(),
-		product.MetaTitle(), product.MetaDescription(), product.MPN(), product.GTIN(),
+		product.MetaTitle(), product.MetaDescription(), seoJSON, product.MPN(), product.GTIN(),
 		product.ID(),
 	)
 	updated, err := scanProduct(row)
@@ -837,6 +845,25 @@ func unmarshalSpecs(raw []byte) ([]domain.SpecItem, error) {
 	return specs, nil
 }
 
+// marshalSeo/unmarshalSeo hand-roll the jsonb <-> domain.Seo conversion for
+// the same simple-protocol-mode reason as marshalSpecs/unmarshalSpecs above.
+// Unlike specs, seo is object-shaped (not an array) and NOT NULL DEFAULT '{}',
+// same as the description column, so an empty/zero Seo marshals to "{}".
+func marshalSeo(seo domain.Seo) (json.RawMessage, error) {
+	return json.Marshal(seo)
+}
+
+func unmarshalSeo(raw []byte) (domain.Seo, error) {
+	var seo domain.Seo
+	if len(raw) == 0 {
+		return seo, nil
+	}
+	if err := json.Unmarshal(raw, &seo); err != nil {
+		return domain.Seo{}, err
+	}
+	return seo, nil
+}
+
 // orEmptyJSON defaults a nil/empty description to "{}" — products.description
 // is NOT NULL DEFAULT '{}' jsonb; an explicit NULL bind would violate the
 // NOT NULL constraint (the column default only applies when a column is
@@ -873,6 +900,7 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 		orderIndex                               int
 		stockStatus, condition                   string
 		metaTitle, metaDescription, mpn, gtin    *string
+		seoRaw                                   []byte
 		createdAt, updatedAt                     time.Time
 		deletedAt                                *time.Time
 	)
@@ -884,7 +912,7 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 		&originalPrice, &salePrice, &discountPercent,
 		&isFeatured, &isPublished, &orderIndex,
 		&stockStatus, &condition,
-		&metaTitle, &metaDescription, &mpn, &gtin,
+		&metaTitle, &metaDescription, &seoRaw, &mpn, &gtin,
 		&createdAt, &updatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
@@ -893,6 +921,10 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 	specs, err := unmarshalSpecs(specsRaw)
 	if err != nil {
 		return nil, fmt.Errorf("scan product (unmarshal specs): %w", err)
+	}
+	seo, err := unmarshalSeo(seoRaw)
+	if err != nil {
+		return nil, fmt.Errorf("scan product (unmarshal seo): %w", err)
 	}
 
 	return domain.RehydrateProduct(
@@ -903,6 +935,7 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 		isFeatured, isPublished, orderIndex,
 		stockStatus, condition,
 		metaTitle, metaDescription, mpn, gtin,
+		seo,
 		createdAt, updatedAt, deletedAt,
 	), nil
 }
@@ -924,6 +957,7 @@ func scanProductWithRelationsRow(row rowScanner, extraDest ...any) (*domain.Prod
 		orderIndex                               int
 		stockStatus, condition                   string
 		metaTitle, metaDescription, mpn, gtin    *string
+		seoRaw                                   []byte
 		createdAt, updatedAt                     time.Time
 		deletedAt                                *time.Time
 
@@ -941,7 +975,7 @@ func scanProductWithRelationsRow(row rowScanner, extraDest ...any) (*domain.Prod
 		&originalPrice, &salePrice, &discountPercent,
 		&isFeatured, &isPublished, &orderIndex,
 		&stockStatus, &condition,
-		&metaTitle, &metaDescription, &mpn, &gtin,
+		&metaTitle, &metaDescription, &seoRaw, &mpn, &gtin,
 		&createdAt, &updatedAt, &deletedAt,
 		&catID, &catName, &catSlug, &catMetaTitle, &catMetaDescription,
 		&brID, &brName, &brSlug, &brLogoURL, &brMetaTitle, &brMetaDescription, &brIsFeatured, &brOrderIndex,
@@ -956,6 +990,10 @@ func scanProductWithRelationsRow(row rowScanner, extraDest ...any) (*domain.Prod
 	if err != nil {
 		return nil, fmt.Errorf("scan product with relations (unmarshal specs): %w", err)
 	}
+	seo, err := unmarshalSeo(seoRaw)
+	if err != nil {
+		return nil, fmt.Errorf("scan product with relations (unmarshal seo): %w", err)
+	}
 
 	product := domain.RehydrateProduct(
 		id, categoryID, brandID, name, sku, slug,
@@ -965,6 +1003,7 @@ func scanProductWithRelationsRow(row rowScanner, extraDest ...any) (*domain.Prod
 		isFeatured, isPublished, orderIndex,
 		stockStatus, condition,
 		metaTitle, metaDescription, mpn, gtin,
+		seo,
 		createdAt, updatedAt, deletedAt,
 	)
 
