@@ -1,0 +1,39 @@
+name: Migrate images (Supabase Storage -> R2)
+
+# Manual, one-off/re-runnable — deliberately not wired into deploy.yml since
+# it mutates live product/news/project/etc. image URLs and should be watched
+# when it runs, not fired automatically on every push. See
+# cmd/migrate-images/main.go — safe to re-run, already-migrated URLs (under
+# R2_PUBLIC_URL) are skipped.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run migrate-images on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 30m
+          script: |
+            cd /var/www/elc-go
+            DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-)
+            R2_ACCOUNT_ID=$(grep '^R2_ACCOUNT_ID=' .env | cut -d= -f2-)
+            R2_ACCESS_KEY_ID=$(grep '^R2_ACCESS_KEY_ID=' .env | cut -d= -f2-)
+            R2_SECRET_ACCESS_KEY=$(grep '^R2_SECRET_ACCESS_KEY=' .env | cut -d= -f2-)
+            R2_BUCKET_NAME=$(grep '^R2_BUCKET_NAME=' .env | cut -d= -f2-)
+            R2_PUBLIC_URL=$(grep '^R2_PUBLIC_URL=' .env | cut -d= -f2-)
+
+            docker run --rm --network elc-go_default \
+              -e DATABASE_URL="$DATABASE_URL" \
+              -e R2_ACCOUNT_ID="$R2_ACCOUNT_ID" \
+              -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+              -e R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+              -e R2_BUCKET_NAME="$R2_BUCKET_NAME" \
+              -e R2_PUBLIC_URL="$R2_PUBLIC_URL" \
+              -v "$(pwd):/app" -w /app golang:1.26-alpine \
+              sh -c "apk add --no-cache ca-certificates >/dev/null 2>&1 && go run ./cmd/migrate-images"
