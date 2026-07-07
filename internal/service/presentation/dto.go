@@ -7,6 +7,20 @@ import (
 	"github.com/trvux/elc-go/internal/service/domain"
 )
 
+type seoDTO struct {
+	Title       *string `json:"title,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Noindex     bool    `json:"noindex,omitempty"`
+}
+
+func toSeoDTO(seo domain.Seo) seoDTO {
+	return seoDTO{Title: seo.Title, Description: seo.Description, Noindex: seo.Noindex}
+}
+
+func toSeoDomain(seo seoDTO) domain.Seo {
+	return domain.Seo{Title: seo.Title, Description: seo.Description, Noindex: seo.Noindex}
+}
+
 type refResponse struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -28,6 +42,7 @@ type serviceResponse struct {
 	Image            *string         `json:"image"`
 	MetaTitle        *string         `json:"meta_title"`
 	MetaDescription  *string         `json:"meta_description"`
+	Seo              seoDTO          `json:"seo"`
 	IsFeatured       bool            `json:"is_featured"`
 	IsPublished      bool            `json:"is_published"`
 	OrderIndex       int             `json:"order_index"`
@@ -55,6 +70,7 @@ func toServiceResponse(sr *domain.ServiceWithRelations) serviceResponse {
 		Image:            sr.Image(),
 		MetaTitle:        sr.MetaTitle(),
 		MetaDescription:  sr.MetaDescription(),
+		Seo:              toSeoDTO(sr.Seo()),
 		IsFeatured:       sr.IsFeatured(),
 		IsPublished:      sr.IsPublished(),
 		OrderIndex:       sr.OrderIndex(),
@@ -90,6 +106,7 @@ func toPlainServiceResponse(s *domain.Service) serviceResponse {
 		Image:            s.Image(),
 		MetaTitle:        s.MetaTitle(),
 		MetaDescription:  s.MetaDescription(),
+		Seo:              toSeoDTO(s.Seo()),
 		IsFeatured:       s.IsFeatured(),
 		IsPublished:      s.IsPublished(),
 		OrderIndex:       s.OrderIndex(),
@@ -121,6 +138,7 @@ type createServiceRequest struct {
 	Image            *string         `json:"image"`
 	MetaTitle        *string         `json:"meta_title"`
 	MetaDescription  *string         `json:"meta_description"`
+	Seo              seoDTO          `json:"seo"`
 	IsFeatured       bool            `json:"is_featured"`
 	IsPublished      bool            `json:"is_published"`
 	OrderIndex       int             `json:"order_index"`
@@ -140,6 +158,7 @@ type updateServiceRequest struct {
 	Image            *string         `json:"image"`
 	MetaTitle        *string         `json:"meta_title"`
 	MetaDescription  *string         `json:"meta_description"`
+	Seo              *seoDTO         `json:"seo"`
 	IsFeatured       *bool           `json:"is_featured"`
 	IsPublished      *bool           `json:"is_published"`
 	OrderIndex       *int            `json:"order_index"`

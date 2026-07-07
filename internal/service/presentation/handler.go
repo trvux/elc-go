@@ -127,6 +127,7 @@ func (h *ServiceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		PriceDisplayText: req.PriceDisplayText, Labels: req.Labels,
 		Description: req.Description, Content: req.Content,
 		Image: req.Image, MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
+		Seo:        toSeoDomain(req.Seo),
 		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
 	}
 
@@ -148,6 +149,12 @@ func (h *ServiceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var seo *domain.Seo
+	if req.Seo != nil {
+		s := toSeoDomain(*req.Seo)
+		seo = &s
+	}
+
 	input := domain.UpdateServiceInput{
 		ID: id, Title: req.Title, Slug: req.Slug,
 		GroupID: req.GroupID, CategoryID: req.CategoryID,
@@ -155,6 +162,7 @@ func (h *ServiceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		PriceDisplayText: req.PriceDisplayText, Labels: req.Labels,
 		Description: req.Description, Content: req.Content,
 		Image: req.Image, MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
+		Seo:        seo,
 		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
 	}
 

@@ -7,6 +7,16 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
 
+// Seo is the unified SEO metadata shape stored as jsonb, replacing the old
+// flat MetaTitle/MetaDescription pair (kept alongside during the migration).
+// Duplicated per-module rather than shared, same reasoning as
+// CategoryRef/BrandRef in catalog/domain/types.go.
+type Seo struct {
+	Title       *string `json:"title,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Noindex     bool    `json:"noindex,omitempty"`
+}
+
 type Service struct {
 	id               string
 	title            string
@@ -22,6 +32,7 @@ type Service struct {
 	image            *string
 	metaTitle        *string
 	metaDescription  *string
+	seo              Seo
 	isFeatured       bool
 	isPublished      bool
 	orderIndex       int
@@ -66,6 +77,7 @@ func NewService(
 	description *string,
 	content json.RawMessage,
 	image, metaTitle, metaDescription *string,
+	seo Seo,
 	isFeatured, isPublished bool,
 	orderIndex int,
 ) (*Service, error) {
@@ -97,6 +109,7 @@ func NewService(
 		image:            image,
 		metaTitle:        metaTitle,
 		metaDescription:  metaDescription,
+		seo:              seo,
 		isFeatured:       isFeatured,
 		isPublished:      isPublished,
 		orderIndex:       orderIndex,
@@ -117,6 +130,7 @@ func RehydrateService(
 	description *string,
 	content json.RawMessage,
 	image, metaTitle, metaDescription *string,
+	seo Seo,
 	isFeatured, isPublished bool,
 	orderIndex int,
 	createdAt, updatedAt time.Time,
@@ -128,7 +142,7 @@ func RehydrateService(
 		originalPrice: originalPrice, discountPercent: discountPercent,
 		priceDisplayText: priceDisplayText, labels: labels,
 		description: description, content: content,
-		image: image, metaTitle: metaTitle, metaDescription: metaDescription,
+		image: image, metaTitle: metaTitle, metaDescription: metaDescription, seo: seo,
 		isFeatured: isFeatured, isPublished: isPublished, orderIndex: orderIndex,
 		createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt,
 	}
@@ -148,6 +162,7 @@ func (s *Service) Content() json.RawMessage  { return s.content }
 func (s *Service) Image() *string            { return s.image }
 func (s *Service) MetaTitle() *string        { return s.metaTitle }
 func (s *Service) MetaDescription() *string  { return s.metaDescription }
+func (s *Service) Seo() Seo                  { return s.seo }
 func (s *Service) IsFeatured() bool          { return s.isFeatured }
 func (s *Service) IsPublished() bool         { return s.isPublished }
 func (s *Service) OrderIndex() int           { return s.orderIndex }
@@ -248,6 +263,11 @@ func (s *Service) UpdateMetaDescription(metaDescription *string) {
 	s.updatedAt = time.Now()
 }
 
+func (s *Service) UpdateSeo(seo Seo) {
+	s.seo = seo
+	s.updatedAt = time.Now()
+}
+
 func (s *Service) SetFeatured(isFeatured bool) {
 	s.isFeatured = isFeatured
 	s.updatedAt = time.Now()
@@ -300,6 +320,7 @@ type CreateServiceInput struct {
 	Image            *string
 	MetaTitle        *string
 	MetaDescription  *string
+	Seo              Seo
 	IsFeatured       bool
 	IsPublished      bool
 	OrderIndex       int
@@ -320,6 +341,7 @@ type UpdateServiceInput struct {
 	Image            *string
 	MetaTitle        *string
 	MetaDescription  *string
+	Seo              *Seo
 	IsFeatured       *bool
 	IsPublished      *bool
 	OrderIndex       *int

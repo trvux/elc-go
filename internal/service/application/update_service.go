@@ -72,6 +72,9 @@ func UpdateService(ctx context.Context, repo domain.ServiceRepository, input dom
 	if input.MetaDescription != nil {
 		service.UpdateMetaDescription(input.MetaDescription)
 	}
+	if input.Seo != nil {
+		service.UpdateSeo(*input.Seo)
+	}
 	if input.IsFeatured != nil {
 		service.SetFeatured(*input.IsFeatured)
 	}

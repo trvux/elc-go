@@ -56,7 +56,7 @@ func (r *fakeServiceRepository) Create(ctx context.Context, service *domain.Serv
 		service.GroupID(), service.CategoryID(),
 		service.OriginalPrice(), service.DiscountPercent(),
 		service.PriceDisplayText(), service.Labels(), service.Description(), service.Content(),
-		service.Image(), service.MetaTitle(), service.MetaDescription(),
+		service.Image(), service.MetaTitle(), service.MetaDescription(), service.Seo(),
 		service.IsFeatured(), service.IsPublished(), service.OrderIndex(),
 		now, now, nil,
 	)
