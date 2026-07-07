@@ -49,6 +49,8 @@ import (
 	servicepresentation "github.com/trvux/elc-go/internal/service/presentation"
 	settingsinfra "github.com/trvux/elc-go/internal/settings/infrastructure"
 	settingspresentation "github.com/trvux/elc-go/internal/settings/presentation"
+	slugregistryinfra "github.com/trvux/elc-go/internal/slug-registry/infrastructure"
+	slugregistrypresentation "github.com/trvux/elc-go/internal/slug-registry/presentation"
 	systempageinfra "github.com/trvux/elc-go/internal/system-page/infrastructure"
 	systempagepresentation "github.com/trvux/elc-go/internal/system-page/presentation"
 )
@@ -204,6 +206,10 @@ func main() {
 	systemPageRepo := systempageinfra.NewPostgresSystemPageRepository(pool)
 	systemPageHandler := systempagepresentation.NewSystemPageHandler(systemPageRepo)
 	systempagepresentation.RegisterRoutes(router, systemPageHandler, tokenIssuer)
+
+	slugRegistryRepo := slugregistryinfra.NewPostgresSlugRegistryRepository(pool)
+	slugRegistryHandler := slugregistrypresentation.NewSlugRegistryHandler(slugRegistryRepo)
+	slugregistrypresentation.RegisterRoutes(router, slugRegistryHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
