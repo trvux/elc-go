@@ -12,6 +12,7 @@ type userResponse struct {
 	Email       string     `json:"email"`
 	Name        string     `json:"name"`
 	Phone       string     `json:"phone"`
+	AvatarURL   string     `json:"avatar_url"`
 	Role        string     `json:"role"`
 	Status      string     `json:"status"`
 	LastLoginAt *time.Time `json:"last_login_at"`
@@ -25,6 +26,7 @@ func toUserResponse(u *domain.User) userResponse {
 		Email:       u.Email(),
 		Name:        u.Name(),
 		Phone:       u.Phone(),
+		AvatarURL:   u.AvatarURL(),
 		Role:        string(u.Role()),
 		Status:      string(u.Status()),
 		LastLoginAt: u.LastLoginAt(),
@@ -89,6 +91,19 @@ type createInviteRequest struct {
 type updateUserRequest struct {
 	Role   *string `json:"role"`
 	Status *string `json:"status"`
+}
+
+// updateProfileRequest fields are pointers for the same "not provided" vs
+// "explicitly cleared" reason as updateUserRequest.
+type updateProfileRequest struct {
+	Name      *string `json:"name"`
+	Email     *string `json:"email"`
+	AvatarURL *string `json:"avatar_url"`
+}
+
+type changePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }
 
 type inviteResponse struct {

@@ -21,16 +21,16 @@ func NewPostgresUserRepository(pool *pgxpool.Pool) *PostgresUserRepository {
 	return &PostgresUserRepository{pool: pool}
 }
 
-const userColumns = "id, username, email, password_hash, name, phone, role, status, last_login_at, created_at, updated_at"
+const userColumns = "id, username, email, password_hash, name, phone, avatar_url, role, status, last_login_at, created_at, updated_at"
 
 func (r *PostgresUserRepository) Create(ctx context.Context, user *domain.User) (*domain.User, error) {
 	query := `
-		INSERT INTO users (username, email, password_hash, name, phone, role, status)
-		VALUES ($1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), $6, $7)
+		INSERT INTO users (username, email, password_hash, name, phone, avatar_url, role, status)
+		VALUES ($1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''), $7, $8)
 		RETURNING ` + userColumns
 
 	row := r.pool.QueryRow(ctx, query,
-		user.Username(), user.Email(), user.PasswordHash(), user.Name(), user.Phone(),
+		user.Username(), user.Email(), user.PasswordHash(), user.Name(), user.Phone(), user.AvatarURL(),
 		string(user.Role()), string(user.Status()),
 	)
 	created, err := scanUser(row)
@@ -44,12 +44,12 @@ func (r *PostgresUserRepository) Update(ctx context.Context, user *domain.User) 
 	query := `
 		UPDATE users
 		SET username = $1, email = $2, password_hash = $3, name = NULLIF($4, ''), phone = NULLIF($5, ''),
-		    role = $6, status = $7, last_login_at = $8, updated_at = now()
-		WHERE id = $9
+		    avatar_url = NULLIF($6, ''), role = $7, status = $8, last_login_at = $9, updated_at = now()
+		WHERE id = $10
 		RETURNING ` + userColumns
 
 	row := r.pool.QueryRow(ctx, query,
-		user.Username(), user.Email(), user.PasswordHash(), user.Name(), user.Phone(),
+		user.Username(), user.Email(), user.PasswordHash(), user.Name(), user.Phone(), user.AvatarURL(),
 		string(user.Role()), string(user.Status()), user.LastLoginAt(), user.ID(),
 	)
 	updated, err := scanUser(row)
@@ -134,14 +134,14 @@ type rowScanner interface {
 func scanUser(row rowScanner) (*domain.User, error) {
 	var (
 		id, username, email, passwordHash, role, status string
-		name, phone                                     *string
+		name, phone, avatarURL                          *string
 		lastLoginAt                                     *time.Time
 		createdAt, updatedAt                            time.Time
 	)
 
-	if err := row.Scan(&id, &username, &email, &passwordHash, &name, &phone, &role, &status, &lastLoginAt, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&id, &username, &email, &passwordHash, &name, &phone, &avatarURL, &role, &status, &lastLoginAt, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 
-	return domain.RehydrateUser(id, username, email, passwordHash, deref(name), deref(phone), domain.Role(role), domain.UserStatus(status), lastLoginAt, createdAt, updatedAt), nil
+	return domain.RehydrateUser(id, username, email, passwordHash, deref(name), deref(phone), deref(avatarURL), domain.Role(role), domain.UserStatus(status), lastLoginAt, createdAt, updatedAt), nil
 }

@@ -27,6 +27,8 @@ func RegisterRoutes(r chi.Router, h *AuthHandler, verifier httpserver.TokenVerif
 		r.Group(func(r chi.Router) {
 			r.Use(httpserver.RequireAuth(verifier))
 			r.Get("/me", h.Me)
+			r.Patch("/me", h.UpdateProfile)
+			r.Post("/me/change-password", h.ChangePassword)
 		})
 	})
 

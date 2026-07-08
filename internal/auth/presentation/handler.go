@@ -223,6 +223,72 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	httpserver.WriteJSON(w, http.StatusOK, toUserResponse(user))
 }
 
+// UpdateProfile requires RequireAuth only (see routes.go) — every account is
+// always allowed to edit its own name/email/avatar, no permission check
+// beyond "is this a real logged-in user".
+func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	actorID, _ := httpserver.UserIDFromContext(r.Context())
+	actor, err := application.GetCurrentUser(r.Context(), h.userRepo, actorID)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+	if actor == nil {
+		httpserver.WriteError(w, apperr.NewUnauthorizedError("user not found"))
+		return
+	}
+
+	var req updateProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
+		return
+	}
+
+	updated, err := application.UpdateProfile(r.Context(), h.userRepo, actor, application.UpdateProfileInput{
+		Name:      req.Name,
+		Email:     req.Email,
+		AvatarURL: req.AvatarURL,
+	})
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toUserResponse(updated))
+}
+
+// ChangePassword requires RequireAuth only — proving the current password is
+// the authorization check, same as any other self-service credential change.
+func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	actorID, _ := httpserver.UserIDFromContext(r.Context())
+	actor, err := application.GetCurrentUser(r.Context(), h.userRepo, actorID)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+	if actor == nil {
+		httpserver.WriteError(w, apperr.NewUnauthorizedError("user not found"))
+		return
+	}
+
+	var req changePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
+		return
+	}
+
+	if err := application.ChangePassword(r.Context(), h.userRepo, h.sessionRepo, h.hasher, actor, req.CurrentPassword, req.NewPassword); err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	// Every session (including this request's) was just revoked — clear the
+	// refresh cookie on this response too, so this browser tab doesn't hold
+	// a stale/dead refresh token after the fact.
+	h.clearRefreshCookie(w)
+	httpserver.WriteJSON(w, http.StatusOK, messageResponse{Message: "password changed, please log in again"})
+}
+
 // CreateInvite requires RequireAuth + RequireRole(admin, super_admin) to
 // have already run — this is the only way a new admin account can ever come
 // into existence, so it must never be reachable anonymously.

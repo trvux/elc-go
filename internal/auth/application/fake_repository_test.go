@@ -22,7 +22,7 @@ func newFakeUserRepository() *fakeUserRepository {
 
 func (r *fakeUserRepository) Create(ctx context.Context, user *domain.User) (*domain.User, error) {
 	id := fmt.Sprintf("user-%d", len(r.users)+1)
-	created := domain.RehydrateUser(id, user.Username(), user.Email(), user.PasswordHash(), user.Name(), user.Phone(), user.Role(), user.Status(), user.LastLoginAt(), user.CreatedAt(), user.UpdatedAt())
+	created := domain.RehydrateUser(id, user.Username(), user.Email(), user.PasswordHash(), user.Name(), user.Phone(), user.AvatarURL(), user.Role(), user.Status(), user.LastLoginAt(), user.CreatedAt(), user.UpdatedAt())
 	r.users[id] = created
 	return created, nil
 }

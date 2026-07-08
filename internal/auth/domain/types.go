@@ -23,6 +23,7 @@ type User struct {
 	passwordHash string
 	name         string
 	phone        string
+	avatarURL    string
 	role         Role
 	status       UserStatus
 	lastLoginAt  *time.Time
@@ -75,7 +76,7 @@ func NewUser(username, email, passwordHash, name, phone string, role Role) (*Use
 // RehydrateUser reconstructs a User from a trusted DB row. No validation —
 // only the infrastructure layer should call this.
 func RehydrateUser(
-	id, username, email, passwordHash, name, phone string,
+	id, username, email, passwordHash, name, phone, avatarURL string,
 	role Role,
 	status UserStatus,
 	lastLoginAt *time.Time,
@@ -88,6 +89,7 @@ func RehydrateUser(
 		passwordHash: passwordHash,
 		name:         name,
 		phone:        phone,
+		avatarURL:    avatarURL,
 		role:         role,
 		status:       status,
 		lastLoginAt:  lastLoginAt,
@@ -102,6 +104,7 @@ func (u *User) Email() string           { return u.email }
 func (u *User) PasswordHash() string    { return u.passwordHash }
 func (u *User) Name() string            { return u.name }
 func (u *User) Phone() string           { return u.phone }
+func (u *User) AvatarURL() string       { return u.avatarURL }
 func (u *User) Role() Role              { return u.role }
 func (u *User) Status() UserStatus      { return u.status }
 func (u *User) LastLoginAt() *time.Time { return u.lastLoginAt }
@@ -138,6 +141,29 @@ func (u *User) SetPasswordHash(hash string) {
 
 func (u *User) SetRole(role Role) {
 	u.role = role
+}
+
+func (u *User) SetAvatarURL(url string) {
+	u.avatarURL = url
+}
+
+// UpdateProfile applies a self-service edit of display name and email.
+// Unlike CanManageUser/UpdateUser (an admin acting on someone else, gated by
+// role rank), there is no privilege check here — every account, including a
+// plain "user", is always allowed to edit its own name/email. Email
+// uniqueness against *other* accounts can't be checked here (needs a repo
+// call) — that's the application layer's job before calling this.
+func (u *User) UpdateProfile(name, email string) error {
+	name = strings.TrimSpace(name)
+	email = strings.ToLower(strings.TrimSpace(email))
+
+	if errs := validateEmail(email); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"email": errs})
+	}
+
+	u.name = name
+	u.email = email
+	return nil
 }
 
 func (u *User) RecordLogin(at time.Time) {
