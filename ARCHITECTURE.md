@@ -294,6 +294,26 @@ before Postgres ever runs on this box.
   the Go Docker image and deploys it to the VPS using the existing SSH
   secrets, independent of the Next.js deploy job.
 
+**Git workflow — `main` is production, not a scratchpad.** `deploy.yml`
+triggers on every push to `main` with no gate in between — there is
+deliberately no staging environment (see the migration/deployment
+discussion this section came from: a second environment is not worth the
+cost at this scale, as long as this rule is followed). Concretely:
+
+- Do in-progress feature/refactor work on a branch, not `main`. Push freely
+  to the branch — it never triggers a deploy.
+- Merge to `main` only when that slice of work actually runs (tested
+  locally against the Docker Postgres + `air`, per §7/§10) — a small,
+  working slice merged often beats one large branch merged all at once; both
+  are fine, but nothing half-finished belongs on `main`.
+- `.github/workflows/ci.yml` runs `go build`/`go vet`/`go test` on every
+  push to a non-`main` branch and every PR into `main`, so a broken build is
+  caught before merge, not after it's already live.
+- Migrations still need their own discipline on top of this: additive only
+  (new nullable/defaulted columns, no same-deploy rename/drop) — see §7 —
+  because `scripts/migrate-all.sh` applies them before swapping the
+  container, and a breaking migration can still land wrong on `main`.
+
 ## 13. Decided Stack
 
 | Concern     | Choice                        | Explicitly not used |

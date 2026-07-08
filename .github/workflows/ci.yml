@@ -1,0 +1,30 @@
+name: CI
+
+# Runs on every branch other than main (catches WIP breaks before merge) and
+# on every PR into main (checks the exact diff about to land) — deploy.yml
+# only triggers on push to main, so this is meant to run BEFORE code gets
+# there, not as a gate on the deploy itself. See ARCHITECTURE.md §12.
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - run: go build ./...
+      - run: go vet ./...
+      # Infra tests are gated behind the `integration` build tag (see e.g.
+      # internal/catalog/infrastructure/postgres_repository_integration_test.go)
+      # and need a real DATABASE_URL — plain `go test ./...` (no -tags) skips
+      # them and only runs unit tests against fakes, which is what we want here.
+      - run: go test ./...

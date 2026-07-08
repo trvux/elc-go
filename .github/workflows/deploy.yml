@@ -99,6 +99,17 @@ jobs:
             SOURCE_DATABASE_URL="$SOURCE_DATABASE_URL" POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
               ./scripts/migrate-postgres.sh
 
+            # Chay migration cho tung module (internal/*/migrations) TRUOC khi
+            # swap container elc-go moi -- day la buoc truoc day BI THIEU: script
+            # migrate-postgres.sh o tren chi chay dung 1 lan (cutover Supabase),
+            # khong ap dung migration moi cho tung lan deploy sau do, nen code Go
+            # moi (da doi cot/bang moi) tung khoi dong dung schema cu va loi ngay.
+            # Neu buoc nay loi, script thoat non-zero va container elc-go CU
+            # (chua dong toi) van tiep tuc phuc vu -- giong dung tinh an toan da
+            # co o buoc migrate-postgres.sh ben tren.
+            DATABASE_URL="postgresql://elc:${POSTGRES_PASSWORD}@postgres:5432/elc" \
+              ./scripts/migrate-all.sh
+
             # --wait doi container moi qua HEALTHCHECK (curl /brands) roi moi
             # tra ve thanh cong -- khong con coi deploy la "xong" ngay khi tien
             # trinh moi khoi dong nhung chua thuc su san sang nhan request.

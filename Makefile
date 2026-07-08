@@ -7,17 +7,42 @@ include .env
 # Each module gets its own tracking table to keep them independent.
 migrations_table = schema_migrations_$(subst -,_,$(module))
 
+# golang-migrate's Postgres driver defaults to sslmode=require and hard-fails
+# ("SSL is not enabled on the server") against our self-hosted postgres:17-
+# alpine container, which has no TLS cert configured — unlike the app's own
+# pgx connection, which defaults to "prefer" and silently falls back to
+# plaintext. Explicit sslmode=disable here only affects the `migrate` CLI's
+# connection, not the running app. Revisit if DATABASE_URL ever points at a
+# TLS-terminated Postgres again (e.g. a managed provider).
+migrate_ssl = sslmode=disable
+
 migrate-up:
-	@migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)?x-migrations-table=$(migrations_table)" up
+	@migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)?x-migrations-table=$(migrations_table)&$(migrate_ssl)" up
 
 migrate-down:
-	@migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)?x-migrations-table=$(migrations_table)" down 1
+	@migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)?x-migrations-table=$(migrations_table)&$(migrate_ssl)" down 1
 
 migrate-create:
 	@migrate create -ext sql -dir internal/$(module)/migrations -seq $(name)
 
 migrate-force:
-	@migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)?x-migrations-table=$(migrations_table)" force $(version)
+	@migrate -path internal/$(module)/migrations -database "$(DATABASE_URL)?x-migrations-table=$(migrations_table)&$(migrate_ssl)" force $(version)
+
+# Applies pending migrations for every module that has a migrations/
+# directory, in one shot. Idempotent — golang-migrate only applies versions
+# newer than each module's own schema_migrations_<module> table (see
+# `migrations_table` above), so running this against an already-up-to-date
+# DB is a safe no-op. Use this locally after `git pull` brings in migration
+# files you haven't applied yet; the deploy pipeline runs the equivalent via
+# scripts/migrate-all.sh.
+migrate-up-all:
+	@set -e; \
+	for dir in internal/*/migrations; do \
+		mod=$$(basename $$(dirname $$dir)); \
+		table=schema_migrations_$$(echo $$mod | tr '-' '_'); \
+		echo "==> $$mod"; \
+		migrate -path $$dir -database "$(DATABASE_URL)?x-migrations-table=$$table&$(migrate_ssl)" up; \
+	done
 
 run:
 	@air
