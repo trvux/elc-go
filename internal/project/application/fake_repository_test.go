@@ -18,6 +18,7 @@ type fakeProjectRepository struct {
 	items      map[string]*domain.Project
 	categories map[string][]domain.CategoryCondition
 	serviceIDs map[string][]string
+	tagIDs     map[string][]string
 }
 
 func newFakeProjectRepository() *fakeProjectRepository {
@@ -25,6 +26,7 @@ func newFakeProjectRepository() *fakeProjectRepository {
 		items:      map[string]*domain.Project{},
 		categories: map[string][]domain.CategoryCondition{},
 		serviceIDs: map[string][]string{},
+		tagIDs:     map[string][]string{},
 	}
 }
 
@@ -47,9 +49,6 @@ func (r *fakeProjectRepository) GetAll(ctx context.Context, filter domain.Projec
 			continue
 		}
 		if filter.Search != "" && !strings.Contains(strings.ToLower(p.Title()), strings.ToLower(filter.Search)) {
-			continue
-		}
-		if filter.CategoryID != nil && p.CategoryID() != *filter.CategoryID {
 			continue
 		}
 		if filter.ExcludeID != nil && p.ID() == *filter.ExcludeID {
@@ -82,29 +81,35 @@ func (r *fakeProjectRepository) GetBySlug(ctx context.Context, slug string, with
 	return nil, nil
 }
 
-func (r *fakeProjectRepository) Create(ctx context.Context, project *domain.Project, categories []domain.CategoryCondition, serviceIDs []string) (*domain.Project, error) {
+func (r *fakeProjectRepository) Create(ctx context.Context, project *domain.Project, categories []domain.CategoryCondition, serviceIDs []string, tagIDs []string) (*domain.Project, error) {
 	id := fmt.Sprintf("id-%d", len(r.items)+1)
 	now := time.Now()
 	created := domain.RehydrateProject(
 		id, project.Title(), project.Slug(), project.Description(), project.Images(),
 		project.IsFeatured(), project.IsPublished(), project.MetaTitle(), project.MetaDescription(),
 		project.Seo(),
-		project.OrderIndex(), project.CategoryID(), project.ProjectTypeID(),
+		project.OrderIndex(), project.ProjectTypeID(),
+		project.ClientName(), project.Location(), project.CompletedAt(),
+		project.TestimonialQuote(), project.TestimonialAuthor(),
 		now, now, nil,
 	)
 	r.items[id] = created
 	r.categories[id] = categories
 	r.serviceIDs[id] = serviceIDs
+	r.tagIDs[id] = tagIDs
 	return created, nil
 }
 
-func (r *fakeProjectRepository) Update(ctx context.Context, project *domain.Project, categories *[]domain.CategoryCondition, serviceIDs *[]string) (*domain.Project, error) {
+func (r *fakeProjectRepository) Update(ctx context.Context, project *domain.Project, categories *[]domain.CategoryCondition, serviceIDs *[]string, tagIDs *[]string) (*domain.Project, error) {
 	r.items[project.ID()] = project
 	if categories != nil {
 		r.categories[project.ID()] = *categories
 	}
 	if serviceIDs != nil {
 		r.serviceIDs[project.ID()] = *serviceIDs
+	}
+	if tagIDs != nil {
+		r.tagIDs[project.ID()] = *tagIDs
 	}
 	return project, nil
 }

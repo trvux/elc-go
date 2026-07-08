@@ -54,8 +54,8 @@ func UpdateBranch(ctx context.Context, repo domain.BranchRepository, input domai
 	if input.Description != nil {
 		b.UpdateDescription(input.Description)
 	}
-	if input.ImageUrl != nil {
-		b.UpdateImageUrl(input.ImageUrl)
+	if input.Images != nil {
+		b.UpdateImages(input.Images)
 	}
 	if input.IsPublished != nil {
 		b.SetPublished(*input.IsPublished)

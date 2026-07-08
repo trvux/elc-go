@@ -39,5 +39,5 @@ func CreateProduct(ctx context.Context, repo domain.ProductRepository, input dom
 		return nil, err
 	}
 
-	return repo.Create(ctx, product)
+	return repo.Create(ctx, product, input.TagIDs)
 }

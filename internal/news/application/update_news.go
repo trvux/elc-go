@@ -26,14 +26,20 @@ func UpdateNews(ctx context.Context, repo domain.NewsRepository, input domain.Up
 			return nil, err
 		}
 	}
-	if input.Image != nil {
-		news.UpdateImage(*input.Image)
+	if input.Images != nil {
+		news.UpdateImages(input.Images)
 	}
 	if input.Content != nil {
 		news.UpdateContent(input.Content)
 	}
+	if input.Excerpt != nil {
+		news.UpdateExcerpt(*input.Excerpt)
+	}
 	if input.CategoryID != nil {
 		news.UpdateCategoryID(input.CategoryID)
+	}
+	if input.AuthorID != nil {
+		news.UpdateAuthorID(input.AuthorID)
 	}
 	if input.IsPublished != nil {
 		news.SetPublished(*input.IsPublished)
@@ -55,5 +61,5 @@ func UpdateNews(ctx context.Context, repo domain.NewsRepository, input domain.Up
 		news.Reorder(*input.OrderIndex)
 	}
 
-	return repo.Update(ctx, news)
+	return repo.Update(ctx, news, input.TagIDs)
 }

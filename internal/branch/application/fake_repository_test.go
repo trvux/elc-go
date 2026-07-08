@@ -63,7 +63,7 @@ func (r *fakeBranchRepository) Create(ctx context.Context, branch *domain.Branch
 	now := time.Now()
 	created := domain.RehydrateBranch(
 		id, branch.Name(), branch.Slug(), branch.Address(), branch.Phone(), branch.Email(),
-		branch.MapsURL(), branch.MapsEmbed(), branch.Description(), branch.ImageUrl(),
+		branch.MapsURL(), branch.MapsEmbed(), branch.Description(), branch.Images(),
 		branch.IsPublished(), branch.OrderIndex(), branch.MetaTitle(), branch.MetaDescription(),
 		now, now, nil,
 	)

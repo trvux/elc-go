@@ -15,10 +15,11 @@ import (
 // tests against the real DB in internal/news/infrastructure.
 type fakeNewsRepository struct {
 	items map[string]*domain.News
+	tags  map[string][]string
 }
 
 func newFakeNewsRepository() *fakeNewsRepository {
-	return &fakeNewsRepository{items: map[string]*domain.News{}}
+	return &fakeNewsRepository{items: map[string]*domain.News{}, tags: map[string][]string{}}
 }
 
 func (r *fakeNewsRepository) GetAll(ctx context.Context, filter domain.NewsFilter) ([]*domain.News, error) {
@@ -63,20 +64,24 @@ func (r *fakeNewsRepository) GetBySlug(ctx context.Context, slug string) (*domai
 	return nil, nil
 }
 
-func (r *fakeNewsRepository) Create(ctx context.Context, news *domain.News) (*domain.News, error) {
+func (r *fakeNewsRepository) Create(ctx context.Context, news *domain.News, tagIDs []string) (*domain.News, error) {
 	id := fmt.Sprintf("id-%d", len(r.items)+1)
 	now := time.Now()
 	created := domain.RehydrateNews(
-		id, news.Title(), news.Slug(), news.Image(), news.Content(), news.CategoryID(),
+		id, news.Title(), news.Slug(), news.Images(), news.Content(), news.Excerpt(), news.CategoryID(), news.AuthorID(),
 		news.IsPublished(), news.MetaTitle(), news.MetaDescription(), news.Seo(), news.OrderIndex(),
 		now, now, nil,
 	)
 	r.items[id] = created
+	r.tags[id] = tagIDs
 	return created, nil
 }
 
-func (r *fakeNewsRepository) Update(ctx context.Context, news *domain.News) (*domain.News, error) {
+func (r *fakeNewsRepository) Update(ctx context.Context, news *domain.News, tagIDs *[]string) (*domain.News, error) {
 	r.items[news.ID()] = news
+	if tagIDs != nil {
+		r.tags[news.ID()] = *tagIDs
+	}
 	return news, nil
 }
 

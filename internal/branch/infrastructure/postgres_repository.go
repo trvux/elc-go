@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/trvux/elc-go/internal/branch/domain"
+	"github.com/trvux/elc-go/internal/platform/media"
 )
 
 type PostgresBranchRepository struct {
@@ -22,7 +23,7 @@ func NewPostgresBranchRepository(pool *pgxpool.Pool) *PostgresBranchRepository {
 	return &PostgresBranchRepository{pool: pool}
 }
 
-const branchColumns = "id, name, slug, address, phone, email, maps_url, maps_embed, description, image_url, is_published, order_index, meta_title, meta_description, created_at, updated_at, deleted_at"
+const branchColumns = "id, name, slug, address, phone, email, maps_url, maps_embed, description, images, is_published, order_index, meta_title, meta_description, created_at, updated_at, deleted_at"
 
 func (r *PostgresBranchRepository) GetAll(ctx context.Context, filter domain.BranchFilter) ([]*domain.Branch, error) {
 	var conditions []string
@@ -143,17 +144,22 @@ func (r *PostgresBranchRepository) GetBySlug(ctx context.Context, slug string) (
 }
 
 func (r *PostgresBranchRepository) Create(ctx context.Context, branch *domain.Branch) (*domain.Branch, error) {
+	imagesJSON, err := media.MarshalImages(branch.Images())
+	if err != nil {
+		return nil, fmt.Errorf("branch repository create (marshal images): %w", err)
+	}
+
 	query := `
 		INSERT INTO branches (
 			name, slug, address, phone, email, maps_url, maps_embed, description,
-			image_url, is_published, order_index, meta_title, meta_description
+			images, is_published, order_index, meta_title, meta_description
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		RETURNING ` + branchColumns
 
 	row := r.pool.QueryRow(ctx, query,
 		branch.Name(), branch.Slug(), branch.Address(), branch.Phone(), branch.Email(),
-		branch.MapsURL(), branch.MapsEmbed(), branch.Description(), branch.ImageUrl(),
+		branch.MapsURL(), branch.MapsEmbed(), branch.Description(), imagesJSON,
 		branch.IsPublished(), branch.OrderIndex(), branch.MetaTitle(), branch.MetaDescription(),
 	)
 	created, err := scanBranch(row)
@@ -164,10 +170,15 @@ func (r *PostgresBranchRepository) Create(ctx context.Context, branch *domain.Br
 }
 
 func (r *PostgresBranchRepository) Update(ctx context.Context, branch *domain.Branch) (*domain.Branch, error) {
+	imagesJSON, err := media.MarshalImages(branch.Images())
+	if err != nil {
+		return nil, fmt.Errorf("branch repository update (marshal images): %w", err)
+	}
+
 	query := `
 		UPDATE branches
 		SET name = $1, slug = $2, address = $3, phone = $4, email = $5,
-			maps_url = $6, maps_embed = $7, description = $8, image_url = $9,
+			maps_url = $6, maps_embed = $7, description = $8, images = $9,
 			is_published = $10, order_index = $11, meta_title = $12, meta_description = $13,
 			updated_at = $14
 		WHERE id = $15
@@ -175,7 +186,7 @@ func (r *PostgresBranchRepository) Update(ctx context.Context, branch *domain.Br
 
 	row := r.pool.QueryRow(ctx, query,
 		branch.Name(), branch.Slug(), branch.Address(), branch.Phone(), branch.Email(),
-		branch.MapsURL(), branch.MapsEmbed(), branch.Description(), branch.ImageUrl(),
+		branch.MapsURL(), branch.MapsEmbed(), branch.Description(), imagesJSON,
 		branch.IsPublished(), branch.OrderIndex(), branch.MetaTitle(), branch.MetaDescription(),
 		branch.UpdatedAt(), branch.ID(),
 	)
@@ -202,7 +213,7 @@ func scanBranch(row rowScanner) (*domain.Branch, error) {
 	var (
 		id, name, slug, address, phone, email, mapsURL, mapsEmbed string
 		description                                               json.RawMessage
-		imageUrl                                                  *string
+		imagesRaw                                                 []byte
 		isPublished                                               bool
 		orderIndex                                                int
 		metaTitle, metaDescription                                *string
@@ -212,15 +223,20 @@ func scanBranch(row rowScanner) (*domain.Branch, error) {
 
 	if err := row.Scan(
 		&id, &name, &slug, &address, &phone, &email, &mapsURL, &mapsEmbed, &description,
-		&imageUrl, &isPublished, &orderIndex, &metaTitle, &metaDescription,
+		&imagesRaw, &isPublished, &orderIndex, &metaTitle, &metaDescription,
 		&createdAt, &updatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
 	}
 
+	images, err := media.UnmarshalImages(imagesRaw)
+	if err != nil {
+		return nil, fmt.Errorf("branch repository scan (unmarshal images): %w", err)
+	}
+
 	return domain.RehydrateBranch(
 		id, name, slug, address, phone, email, mapsURL, mapsEmbed, description,
-		imageUrl, isPublished, orderIndex, metaTitle, metaDescription,
+		images, isPublished, orderIndex, metaTitle, metaDescription,
 		createdAt, updatedAt, deletedAt,
 	), nil
 }

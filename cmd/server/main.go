@@ -15,6 +15,8 @@ import (
 	authdomain "github.com/trvux/elc-go/internal/auth/domain"
 	authinfra "github.com/trvux/elc-go/internal/auth/infrastructure"
 	authpresentation "github.com/trvux/elc-go/internal/auth/presentation"
+	authorinfra "github.com/trvux/elc-go/internal/author/infrastructure"
+	authorpresentation "github.com/trvux/elc-go/internal/author/presentation"
 	branchinfra "github.com/trvux/elc-go/internal/branch/infrastructure"
 	branchpresentation "github.com/trvux/elc-go/internal/branch/presentation"
 	brandinfra "github.com/trvux/elc-go/internal/brand/infrastructure"
@@ -43,6 +45,8 @@ import (
 	projecttypepresentation "github.com/trvux/elc-go/internal/project-type/presentation"
 	projectinfra "github.com/trvux/elc-go/internal/project/infrastructure"
 	projectpresentation "github.com/trvux/elc-go/internal/project/presentation"
+	reviewinfra "github.com/trvux/elc-go/internal/review/infrastructure"
+	reviewpresentation "github.com/trvux/elc-go/internal/review/presentation"
 	servicegroupinfra "github.com/trvux/elc-go/internal/service-group/infrastructure"
 	servicegrouppresentation "github.com/trvux/elc-go/internal/service-group/presentation"
 	serviceinfra "github.com/trvux/elc-go/internal/service/infrastructure"
@@ -53,6 +57,8 @@ import (
 	slugregistrypresentation "github.com/trvux/elc-go/internal/slug-registry/presentation"
 	systempageinfra "github.com/trvux/elc-go/internal/system-page/infrastructure"
 	systempagepresentation "github.com/trvux/elc-go/internal/system-page/presentation"
+	taginfra "github.com/trvux/elc-go/internal/tag/infrastructure"
+	tagpresentation "github.com/trvux/elc-go/internal/tag/presentation"
 	uploaddomain "github.com/trvux/elc-go/internal/upload/domain"
 	uploadinfra "github.com/trvux/elc-go/internal/upload/infrastructure"
 	uploadpresentation "github.com/trvux/elc-go/internal/upload/presentation"
@@ -162,9 +168,21 @@ func main() {
 	brandHandler := brandpresentation.NewBrandHandler(brandRepo)
 	brandpresentation.RegisterRoutes(router, brandHandler, tokenIssuer)
 
+	authorRepo := authorinfra.NewPostgresAuthorRepository(pool)
+	authorHandler := authorpresentation.NewAuthorHandler(authorRepo)
+	authorpresentation.RegisterRoutes(router, authorHandler, tokenIssuer)
+
+	tagRepo := taginfra.NewPostgresTagRepository(pool)
+	tagHandler := tagpresentation.NewTagHandler(tagRepo)
+	tagpresentation.RegisterRoutes(router, tagHandler, tokenIssuer)
+
 	catalogRepo := catalogInfra.NewPostgresProductRepository(pool)
 	catalogHandler := catalogPresentation.NewProductHandler(catalogRepo)
 	catalogPresentation.RegisterRoutes(router, catalogHandler, tokenIssuer)
+
+	reviewRepo := reviewinfra.NewPostgresReviewRepository(pool)
+	reviewHandler := reviewpresentation.NewReviewHandler(reviewRepo)
+	reviewpresentation.RegisterRoutes(router, reviewHandler, tokenIssuer)
 
 	branchRepo := branchinfra.NewPostgresBranchRepository(pool)
 	branchHandler := branchpresentation.NewBranchHandler(branchRepo)

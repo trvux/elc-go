@@ -128,5 +128,5 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, input dom
 		product.UpdateGTIN(input.GTIN)
 	}
 
-	return repo.Update(ctx, product)
+	return repo.Update(ctx, product, input.TagIDs)
 }

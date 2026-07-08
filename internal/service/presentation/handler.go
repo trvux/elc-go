@@ -126,7 +126,7 @@ func (h *ServiceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		OriginalPrice: req.OriginalPrice, DiscountPercent: req.DiscountPercent,
 		PriceDisplayText: req.PriceDisplayText, Labels: req.Labels,
 		Description: req.Description, Content: req.Content,
-		Image: req.Image, MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
+		Images: toImageAssetDomainList(req.Images), MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
 		Seo:        toSeoDomain(req.Seo),
 		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
 	}
@@ -161,7 +161,7 @@ func (h *ServiceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		OriginalPrice: req.OriginalPrice, DiscountPercent: req.DiscountPercent,
 		PriceDisplayText: req.PriceDisplayText, Labels: req.Labels,
 		Description: req.Description, Content: req.Content,
-		Image: req.Image, MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
+		Images: toImageAssetDomainList(req.Images), MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
 		Seo:        seo,
 		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
 	}

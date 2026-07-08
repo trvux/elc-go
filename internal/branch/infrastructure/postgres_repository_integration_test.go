@@ -28,12 +28,12 @@ func TestPostgresBranchRepository_CRUD(t *testing.T) {
 	repo := NewPostgresBranchRepository(pool)
 
 	desc := json.RawMessage(`{"text": "Chi nhánh kiểm thử"}`)
-	img := "https://example.com/logo.png"
+	images := []domain.ImageAsset{{URL: "https://example.com/logo.png"}}
 
 	b, err := domain.NewBranch(
 		"ELC Integration Q12", "elc-integration-q12-xyz", "123 Le Loi, Q12", "0901122334",
 		"q12@elc.vn", "https://maps.google.com/q12", "<iframe></iframe>",
-		desc, &img, true, 999, nil, nil,
+		desc, images, true, 999, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("NewBranch failed: %v", err)

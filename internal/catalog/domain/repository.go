@@ -51,8 +51,11 @@ type ProductRepository interface {
 	GetByID(ctx context.Context, id string) (*ProductWithRelations, error)
 	GetBySlug(ctx context.Context, slug string) (*ProductWithRelations, error)
 	GetByIDs(ctx context.Context, ids []string) ([]*ProductWithRelations, error)
-	Create(ctx context.Context, product *Product) (*Product, error)
-	Update(ctx context.Context, product *Product) (*Product, error)
+	// tagIDs on Create is the initial tag set; on Update, nil means "leave
+	// tags untouched", a non-nil pointer means "replace all tags with this
+	// set" — same convention as project's Categories/ServiceIDs.
+	Create(ctx context.Context, product *Product, tagIDs []string) (*Product, error)
+	Update(ctx context.Context, product *Product, tagIDs *[]string) (*Product, error)
 	SoftDelete(ctx context.Context, id string) error
 	Restore(ctx context.Context, id string) error
 	// GetAdjacent resolves prev/next within categoryID first, falling back to

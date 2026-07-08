@@ -6,7 +6,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/media"
 )
+
+// ImageAsset re-exports the shared media type — see catalog/domain/types.go's
+// identical alias for why this is centralized rather than duplicated.
+type ImageAsset = media.ImageAsset
 
 // Seo is the unified SEO metadata shape stored as jsonb, replacing the old
 // flat MetaTitle/MetaDescription pair (kept alongside during the migration).
@@ -19,22 +24,26 @@ type Seo struct {
 }
 
 type Project struct {
-	id              string
-	title           string
-	slug            string
-	description     json.RawMessage
-	images          []string
-	isFeatured      bool
-	isPublished     bool
-	metaTitle       *string
-	metaDescription *string
-	seo             Seo
-	orderIndex      int
-	categoryID      string
-	projectTypeID   *string
-	createdAt       time.Time
-	updatedAt       time.Time
-	deletedAt       *time.Time
+	id                string
+	title             string
+	slug              string
+	description       json.RawMessage
+	images            []ImageAsset
+	isFeatured        bool
+	isPublished       bool
+	metaTitle         *string
+	metaDescription   *string
+	seo               Seo
+	orderIndex        int
+	projectTypeID     *string
+	clientName        string
+	location          string
+	completedAt       *time.Time
+	testimonialQuote  string
+	testimonialAuthor string
+	createdAt         time.Time
+	updatedAt         time.Time
+	deletedAt         *time.Time
 }
 
 // ProjectTypeRef/CategoryGroupRef/ServiceGroupRef/ServiceRef are lightweight,
@@ -104,6 +113,16 @@ type ProjectWithRelations struct {
 	ProjectType *ProjectTypeRef
 	Categories  []ProjectCategory
 	Services    []ProjectServiceRef
+	Tags        []TagRef
+}
+
+// TagRef is a lightweight read-only reference to a tag owned by the tag
+// module — resolved via a direct SQL join into `tags`/`project_tags`, same
+// cross-module read pattern as CategoryGroupRef/ServiceGroupRef above.
+type TagRef struct {
+	ID   string
+	Name string
+	Slug string
 }
 
 // CategoryCondition is one entry of the project_category join table's
@@ -126,13 +145,15 @@ type AdjacentProject struct {
 func NewProject(
 	title, slug string,
 	description json.RawMessage,
-	images []string,
+	images []ImageAsset,
 	isFeatured, isPublished bool,
 	metaTitle, metaDescription *string,
 	seo Seo,
 	orderIndex int,
-	categoryID string,
 	projectTypeID *string,
+	clientName, location string,
+	completedAt *time.Time,
+	testimonialQuote, testimonialAuthor string,
 ) (*Project, error) {
 	fields := map[string][]string{}
 
@@ -141,9 +162,6 @@ func NewProject(
 	}
 	if errs := validateSlug(slug); len(errs) > 0 {
 		fields["slug"] = errs
-	}
-	if errs := validateCategoryID(categoryID); len(errs) > 0 {
-		fields["categoryId"] = errs
 	}
 
 	if len(fields) > 0 {
@@ -154,25 +172,29 @@ func NewProject(
 		description = json.RawMessage(`{}`)
 	}
 	if images == nil {
-		images = []string{}
+		images = []ImageAsset{}
 	}
 
 	now := time.Now()
 	return &Project{
-		title:           title,
-		slug:            slug,
-		description:     description,
-		images:          images,
-		isFeatured:      isFeatured,
-		isPublished:     isPublished,
-		metaTitle:       metaTitle,
-		metaDescription: metaDescription,
-		seo:             seo,
-		orderIndex:      orderIndex,
-		categoryID:      categoryID,
-		projectTypeID:   projectTypeID,
-		createdAt:       now,
-		updatedAt:       now,
+		title:             title,
+		slug:              slug,
+		description:       description,
+		images:            images,
+		isFeatured:        isFeatured,
+		isPublished:       isPublished,
+		metaTitle:         metaTitle,
+		metaDescription:   metaDescription,
+		seo:               seo,
+		orderIndex:        orderIndex,
+		projectTypeID:     projectTypeID,
+		clientName:        clientName,
+		location:          location,
+		completedAt:       completedAt,
+		testimonialQuote:  testimonialQuote,
+		testimonialAuthor: testimonialAuthor,
+		createdAt:         now,
+		updatedAt:         now,
 	}, nil
 }
 
@@ -181,33 +203,39 @@ func NewProject(
 func RehydrateProject(
 	id, title, slug string,
 	description json.RawMessage,
-	images []string,
+	images []ImageAsset,
 	isFeatured, isPublished bool,
 	metaTitle, metaDescription *string,
 	seo Seo,
 	orderIndex int,
-	categoryID string,
 	projectTypeID *string,
+	clientName, location string,
+	completedAt *time.Time,
+	testimonialQuote, testimonialAuthor string,
 	createdAt, updatedAt time.Time,
 	deletedAt *time.Time,
 ) *Project {
 	return &Project{
-		id:              id,
-		title:           title,
-		slug:            slug,
-		description:     description,
-		images:          images,
-		isFeatured:      isFeatured,
-		isPublished:     isPublished,
-		metaTitle:       metaTitle,
-		metaDescription: metaDescription,
-		seo:             seo,
-		orderIndex:      orderIndex,
-		categoryID:      categoryID,
-		projectTypeID:   projectTypeID,
-		createdAt:       createdAt,
-		updatedAt:       updatedAt,
-		deletedAt:       deletedAt,
+		id:                id,
+		title:             title,
+		slug:              slug,
+		description:       description,
+		images:            images,
+		isFeatured:        isFeatured,
+		isPublished:       isPublished,
+		metaTitle:         metaTitle,
+		metaDescription:   metaDescription,
+		seo:               seo,
+		orderIndex:        orderIndex,
+		projectTypeID:     projectTypeID,
+		clientName:        clientName,
+		location:          location,
+		completedAt:       completedAt,
+		testimonialQuote:  testimonialQuote,
+		testimonialAuthor: testimonialAuthor,
+		createdAt:         createdAt,
+		updatedAt:         updatedAt,
+		deletedAt:         deletedAt,
 	}
 }
 
@@ -215,15 +243,19 @@ func (p *Project) ID() string                   { return p.id }
 func (p *Project) Title() string                { return p.title }
 func (p *Project) Slug() string                 { return p.slug }
 func (p *Project) Description() json.RawMessage { return p.description }
-func (p *Project) Images() []string             { return p.images }
+func (p *Project) Images() []ImageAsset         { return p.images }
 func (p *Project) IsFeatured() bool             { return p.isFeatured }
 func (p *Project) IsPublished() bool            { return p.isPublished }
 func (p *Project) MetaTitle() *string           { return p.metaTitle }
 func (p *Project) MetaDescription() *string     { return p.metaDescription }
 func (p *Project) Seo() Seo                     { return p.seo }
 func (p *Project) OrderIndex() int              { return p.orderIndex }
-func (p *Project) CategoryID() string           { return p.categoryID }
 func (p *Project) ProjectTypeID() *string       { return p.projectTypeID }
+func (p *Project) ClientName() string           { return p.clientName }
+func (p *Project) Location() string             { return p.location }
+func (p *Project) CompletedAt() *time.Time      { return p.completedAt }
+func (p *Project) TestimonialQuote() string     { return p.testimonialQuote }
+func (p *Project) TestimonialAuthor() string    { return p.testimonialAuthor }
 func (p *Project) CreatedAt() time.Time         { return p.createdAt }
 func (p *Project) UpdatedAt() time.Time         { return p.updatedAt }
 func (p *Project) DeletedAt() *time.Time        { return p.deletedAt }
@@ -258,9 +290,9 @@ func (p *Project) UpdateDescription(description json.RawMessage) {
 	p.updatedAt = time.Now()
 }
 
-func (p *Project) UpdateImages(images []string) {
+func (p *Project) UpdateImages(images []ImageAsset) {
 	if images == nil {
-		images = []string{}
+		images = []ImageAsset{}
 	}
 	p.images = images
 	p.updatedAt = time.Now()
@@ -296,17 +328,29 @@ func (p *Project) Reorder(orderIndex int) {
 	p.updatedAt = time.Now()
 }
 
-func (p *Project) UpdateCategoryID(categoryID string) error {
-	if errs := validateCategoryID(categoryID); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"categoryId": errs})
-	}
-	p.categoryID = categoryID
-	p.updatedAt = time.Now()
-	return nil
-}
-
 func (p *Project) UpdateProjectTypeID(projectTypeID *string) {
 	p.projectTypeID = projectTypeID
+	p.updatedAt = time.Now()
+}
+
+func (p *Project) UpdateClientName(clientName string) {
+	p.clientName = clientName
+	p.updatedAt = time.Now()
+}
+
+func (p *Project) UpdateLocation(location string) {
+	p.location = location
+	p.updatedAt = time.Now()
+}
+
+func (p *Project) UpdateCompletedAt(completedAt *time.Time) {
+	p.completedAt = completedAt
+	p.updatedAt = time.Now()
+}
+
+func (p *Project) UpdateTestimonial(quote, author string) {
+	p.testimonialQuote = quote
+	p.testimonialAuthor = author
 	p.updatedAt = time.Now()
 }
 
@@ -339,13 +383,6 @@ func validateSlug(slug string) []string {
 	return errs
 }
 
-func validateCategoryID(categoryID string) []string {
-	if categoryID == "" {
-		return []string{"categoryId is required"}
-	}
-	return nil
-}
-
 // ValidateCondition enforces the product_condition Postgres enum's two
 // allowed values — same rule internal/catalog/domain/types.go's
 // validateCondition uses for the identical enum.
@@ -357,20 +394,25 @@ func ValidateCondition(condition string) []string {
 }
 
 type CreateProjectInput struct {
-	Title           string
-	Slug            string
-	Description     json.RawMessage
-	Images          []string
-	IsFeatured      bool
-	IsPublished     bool
-	MetaTitle       *string
-	MetaDescription *string
-	Seo             Seo
-	OrderIndex      int
-	CategoryID      string
-	ProjectTypeID   *string
-	ServiceIDs      []string
-	Categories      []CategoryCondition
+	Title             string
+	Slug              string
+	Description       json.RawMessage
+	Images            []ImageAsset
+	IsFeatured        bool
+	IsPublished       bool
+	MetaTitle         *string
+	MetaDescription   *string
+	Seo               Seo
+	OrderIndex        int
+	ProjectTypeID     *string
+	ServiceIDs        []string
+	Categories        []CategoryCondition
+	TagIDs            []string
+	ClientName        string
+	Location          string
+	CompletedAt       *time.Time
+	TestimonialQuote  string
+	TestimonialAuthor string
 }
 
 type UpdateProjectInput struct {
@@ -378,14 +420,13 @@ type UpdateProjectInput struct {
 	Title           *string
 	Slug            *string
 	Description     json.RawMessage
-	Images          []string
+	Images          []ImageAsset
 	IsFeatured      *bool
 	IsPublished     *bool
 	MetaTitle       *string
 	MetaDescription *string
 	Seo             *Seo
 	OrderIndex      *int
-	CategoryID      *string
 	ProjectTypeID   *string
 	// ServiceIDs/Categories: nil means "leave relations untouched", a
 	// non-nil pointer (including one pointing at an empty slice) means
@@ -393,12 +434,17 @@ type UpdateProjectInput struct {
 	// `if (input.serviceIds !== undefined)` / `if (input.categories !==
 	// undefined)` distinction between "field omitted" and "field sent
 	// empty" exactly (see modules/project/infrastructure/projectRepo.ts).
-	ServiceIDs *[]string
-	Categories *[]CategoryCondition
+	ServiceIDs        *[]string
+	Categories        *[]CategoryCondition
+	TagIDs            *[]string
+	ClientName        *string
+	Location          *string
+	CompletedAt       *time.Time
+	TestimonialQuote  *string
+	TestimonialAuthor *string
 }
 
 type ProjectFilter struct {
-	CategoryID     *string
 	ProjectTypeID  *string
 	CategorySlug   *string
 	CategorySlugs  []string

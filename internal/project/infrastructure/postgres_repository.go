@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/trvux/elc-go/internal/platform/media"
 	"github.com/trvux/elc-go/internal/project/domain"
 )
 
@@ -29,9 +30,10 @@ func NewPostgresProjectRepository(pool *pgxpool.Pool) *PostgresProjectRepository
 // TS mapper's `row.is_published || false` / `row.order_index || 0` /
 // `row.is_featured || false` fallbacks exactly (see
 // modules/project/infrastructure/projectRepo.ts's mapToDomain).
-const projectColumns = `p.id, p.category_id, p.title, p.description, p.images,
+const projectColumns = `p.id, p.title, p.description, p.images,
 	COALESCE(p.is_published, false), COALESCE(p.order_index, 0), p.created_at, p.slug, p.updated_at,
-	COALESCE(p.is_featured, false), p.deleted_at, p.meta_title, p.meta_description, p.seo, p.project_type_id`
+	COALESCE(p.is_featured, false), p.deleted_at, p.meta_title, p.meta_description, p.seo, p.project_type_id,
+	p.client_name, p.location, p.completed_at, p.testimonial_quote, p.testimonial_author`
 
 // marshalSeo/unmarshalSeo hand-roll the jsonb <-> domain.Seo conversion —
 // the shared pool runs pgx.QueryExecModeSimpleProtocol (PgBouncer fix), which
@@ -66,22 +68,26 @@ func derefStr(s *string) string {
 
 func scanProject(row rowScanner) (*domain.Project, error) {
 	var (
-		id, categoryID, title, slug string
-		description                 json.RawMessage
-		images                      []string
-		isPublished, isFeatured     bool
-		orderIndex                  int
-		createdAt, updatedAt        time.Time
-		deletedAt                   *time.Time
-		metaTitle, metaDescription  *string
-		seoRaw                      []byte
-		projectTypeID               *string
+		id, title, slug                     string
+		description                         json.RawMessage
+		imagesRaw                           []byte
+		isPublished, isFeatured             bool
+		orderIndex                          int
+		createdAt, updatedAt                time.Time
+		deletedAt                           *time.Time
+		metaTitle, metaDescription          *string
+		seoRaw                              []byte
+		projectTypeID                       *string
+		clientName, location                string
+		completedAt                         *time.Time
+		testimonialQuote, testimonialAuthor string
 	)
 
 	if err := row.Scan(
-		&id, &categoryID, &title, &description, &images,
+		&id, &title, &description, &imagesRaw,
 		&isPublished, &orderIndex, &createdAt, &slug, &updatedAt,
 		&isFeatured, &deletedAt, &metaTitle, &metaDescription, &seoRaw, &projectTypeID,
+		&clientName, &location, &completedAt, &testimonialQuote, &testimonialAuthor,
 	); err != nil {
 		return nil, err
 	}
@@ -90,11 +96,16 @@ func scanProject(row rowScanner) (*domain.Project, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan project (unmarshal seo): %w", err)
 	}
+	images, err := media.UnmarshalImages(imagesRaw)
+	if err != nil {
+		return nil, fmt.Errorf("scan project (unmarshal images): %w", err)
+	}
 
 	return domain.RehydrateProject(
 		id, title, slug, description, images,
 		isFeatured, isPublished, metaTitle, metaDescription, seo,
-		orderIndex, categoryID, projectTypeID,
+		orderIndex, projectTypeID,
+		clientName, location, completedAt, testimonialQuote, testimonialAuthor,
 		createdAt, updatedAt, deletedAt,
 	), nil
 }
@@ -105,23 +116,27 @@ func scanProject(row rowScanner) (*domain.Project, error) {
 // docs/project.md).
 func scanProjectWithType(row rowScanner) (*domain.Project, *domain.ProjectTypeRef, error) {
 	var (
-		id, categoryID, title, slug string
-		description                 json.RawMessage
-		images                      []string
-		isPublished, isFeatured     bool
-		orderIndex                  int
-		createdAt, updatedAt        time.Time
-		deletedAt                   *time.Time
-		metaTitle, metaDescription  *string
-		seoRaw                      []byte
-		projectTypeID               *string
-		ptID, ptName, ptSlug        *string
+		id, title, slug                     string
+		description                         json.RawMessage
+		imagesRaw                           []byte
+		isPublished, isFeatured             bool
+		orderIndex                          int
+		createdAt, updatedAt                time.Time
+		deletedAt                           *time.Time
+		metaTitle, metaDescription          *string
+		seoRaw                              []byte
+		projectTypeID                       *string
+		clientName, location                string
+		completedAt                         *time.Time
+		testimonialQuote, testimonialAuthor string
+		ptID, ptName, ptSlug                *string
 	)
 
 	if err := row.Scan(
-		&id, &categoryID, &title, &description, &images,
+		&id, &title, &description, &imagesRaw,
 		&isPublished, &orderIndex, &createdAt, &slug, &updatedAt,
 		&isFeatured, &deletedAt, &metaTitle, &metaDescription, &seoRaw, &projectTypeID,
+		&clientName, &location, &completedAt, &testimonialQuote, &testimonialAuthor,
 		&ptID, &ptName, &ptSlug,
 	); err != nil {
 		return nil, nil, err
@@ -131,11 +146,16 @@ func scanProjectWithType(row rowScanner) (*domain.Project, *domain.ProjectTypeRe
 	if err != nil {
 		return nil, nil, fmt.Errorf("scan project with type (unmarshal seo): %w", err)
 	}
+	images, err := media.UnmarshalImages(imagesRaw)
+	if err != nil {
+		return nil, nil, fmt.Errorf("scan project with type (unmarshal images): %w", err)
+	}
 
 	project := domain.RehydrateProject(
 		id, title, slug, description, images,
 		isFeatured, isPublished, metaTitle, metaDescription, seo,
-		orderIndex, categoryID, projectTypeID,
+		orderIndex, projectTypeID,
+		clientName, location, completedAt, testimonialQuote, testimonialAuthor,
 		createdAt, updatedAt, deletedAt,
 	)
 
@@ -166,10 +186,6 @@ func buildProjectConditions(filter domain.ProjectFilter) ([]string, []any) {
 
 	if !filter.IncludeDeleted {
 		conditions = append(conditions, "p.deleted_at IS NULL")
-	}
-	if filter.CategoryID != nil {
-		conditions = append(conditions, fmt.Sprintf("p.category_id = $%d", next()))
-		args = append(args, *filter.CategoryID)
 	}
 	if filter.ProjectTypeID != nil {
 		conditions = append(conditions, fmt.Sprintf("p.project_type_id = $%d", next()))
@@ -288,6 +304,10 @@ func (r *PostgresProjectRepository) GetAll(ctx context.Context, filter domain.Pr
 	if err != nil {
 		return nil, err
 	}
+	tagsByProject, err := fetchTagsForProjects(ctx, r.pool, ids)
+	if err != nil {
+		return nil, err
+	}
 
 	result := make([]*domain.ProjectWithRelations, 0, len(projects))
 	for _, p := range projects {
@@ -296,6 +316,7 @@ func (r *PostgresProjectRepository) GetAll(ctx context.Context, filter domain.Pr
 			ProjectType: projectTypes[p.ID()],
 			Categories:  categoriesByProject[p.ID()],
 			Services:    servicesByProject[p.ID()],
+			Tags:        tagsByProject[p.ID()],
 		})
 	}
 	return result, nil
@@ -360,12 +381,80 @@ func (r *PostgresProjectRepository) attachRelations(ctx context.Context, p *doma
 	if err != nil {
 		return nil, err
 	}
+	tagsByProject, err := fetchTagsForProjects(ctx, r.pool, []string{p.ID()})
+	if err != nil {
+		return nil, err
+	}
 	return &domain.ProjectWithRelations{
 		Project:     p,
 		ProjectType: pt,
 		Categories:  categoriesByProject[p.ID()],
 		Services:    servicesByProject[p.ID()],
+		Tags:        tagsByProject[p.ID()],
 	}, nil
+}
+
+// pgxQuerier is satisfied by both *pgxpool.Pool and pgx.Tx.
+type pgxQuerier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+// fetchTagsForProjects batch-loads project_tags rows (+ tag name/slug) for
+// every project id in one round trip, keyed by project id — same pattern as
+// fetchCategoriesForProjects/fetchServicesForProjects above.
+func fetchTagsForProjects(ctx context.Context, q pgxQuerier, projectIDs []string) (map[string][]domain.TagRef, error) {
+	if len(projectIDs) == 0 {
+		return map[string][]domain.TagRef{}, nil
+	}
+
+	query := `
+		SELECT pt.project_id, t.id, t.name, t.slug
+		FROM project_tags pt
+		JOIN tags t ON t.id = pt.tag_id AND t.deleted_at IS NULL
+		WHERE pt.project_id = ANY($1)
+		ORDER BY t.name ASC`
+
+	rows, err := q.Query(ctx, query, projectIDs)
+	if err != nil {
+		return nil, fmt.Errorf("project repository fetchTags: %w", err)
+	}
+	defer rows.Close()
+
+	result := map[string][]domain.TagRef{}
+	for rows.Next() {
+		var projectID string
+		var tag domain.TagRef
+		if err := rows.Scan(&projectID, &tag.ID, &tag.Name, &tag.Slug); err != nil {
+			return nil, fmt.Errorf("project repository fetchTags scan: %w", err)
+		}
+		result[projectID] = append(result[projectID], tag)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("project repository fetchTags rows: %w", err)
+	}
+	return result, nil
+}
+
+func insertProjectTags(ctx context.Context, tx pgx.Tx, projectID string, tagIDs []string) error {
+	if len(tagIDs) == 0 {
+		return nil
+	}
+	var sb strings.Builder
+	sb.WriteString("INSERT INTO project_tags (project_id, tag_id) VALUES ")
+	args := make([]any, 0, len(tagIDs)*2)
+	argN := 1
+	for i, tagID := range tagIDs {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(fmt.Sprintf("($%d, $%d)", argN, argN+1))
+		args = append(args, projectID, tagID)
+		argN += 2
+	}
+	if _, err := tx.Exec(ctx, sb.String(), args...); err != nil {
+		return fmt.Errorf("project repository insertTags: %w", err)
+	}
+	return nil
 }
 
 // fetchCategoriesForProjects batch-loads project_category rows (+ category +
@@ -503,7 +592,7 @@ func (r *PostgresProjectRepository) fetchServicesForProjects(ctx context.Context
 // relations, insert new relations) — a real partial-failure risk this fixes,
 // same spirit as service-group/group's transactional SoftDelete. See
 // docs/project.md.
-func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.Project, categories []domain.CategoryCondition, serviceIDs []string) (*domain.Project, error) {
+func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.Project, categories []domain.CategoryCondition, serviceIDs []string, tagIDs []string) (*domain.Project, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("project repository create (begin tx): %w", err)
@@ -524,22 +613,28 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 	if err != nil {
 		return nil, fmt.Errorf("project repository create (marshal seo): %w", err)
 	}
+	imagesJSON, err := media.MarshalImages(project.Images())
+	if err != nil {
+		return nil, fmt.Errorf("project repository create (marshal images): %w", err)
+	}
 
 	var createdID string
 	if isResurrect {
 		query := `
 			UPDATE projects
-			SET category_id = $1, title = $2, description = $3, images = $4,
-				is_published = $5, order_index = $6, slug = $7,
-				is_featured = $8, meta_title = $9, meta_description = $10, seo = $11,
-				project_type_id = $12, deleted_at = NULL, updated_at = $13
-			WHERE id = $14
+			SET title = $1, description = $2, images = $3,
+				is_published = $4, order_index = $5, slug = $6,
+				is_featured = $7, meta_title = $8, meta_description = $9, seo = $10,
+				project_type_id = $11, client_name = $12, location = $13, completed_at = $14,
+				testimonial_quote = $15, testimonial_author = $16, deleted_at = NULL, updated_at = $17
+			WHERE id = $18
 			RETURNING id`
 		if err := tx.QueryRow(ctx, query,
-			project.CategoryID(), project.Title(), project.Description(), project.Images(),
+			project.Title(), project.Description(), imagesJSON,
 			project.IsPublished(), project.OrderIndex(), project.Slug(),
 			project.IsFeatured(), project.MetaTitle(), project.MetaDescription(), seoJSON,
-			project.ProjectTypeID(), time.Now(), existingID,
+			project.ProjectTypeID(), project.ClientName(), project.Location(), project.CompletedAt(),
+			project.TestimonialQuote(), project.TestimonialAuthor(), time.Now(), existingID,
 		).Scan(&createdID); err != nil {
 			return nil, fmt.Errorf("project repository create (resurrect): %w", err)
 		}
@@ -553,16 +648,20 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 		if _, err := tx.Exec(ctx, "DELETE FROM project_service WHERE project_id = $1", createdID); err != nil {
 			return nil, fmt.Errorf("project repository create (clear services): %w", err)
 		}
+		if _, err := tx.Exec(ctx, "DELETE FROM project_tags WHERE project_id = $1", createdID); err != nil {
+			return nil, fmt.Errorf("project repository create (clear tags): %w", err)
+		}
 	} else {
 		query := `
-			INSERT INTO projects (category_id, title, description, images, is_published, order_index, slug, is_featured, meta_title, meta_description, seo, project_type_id)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			INSERT INTO projects (title, description, images, is_published, order_index, slug, is_featured, meta_title, meta_description, seo, project_type_id, client_name, location, completed_at, testimonial_quote, testimonial_author)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 			RETURNING id`
 		if err := tx.QueryRow(ctx, query,
-			project.CategoryID(), project.Title(), project.Description(), project.Images(),
+			project.Title(), project.Description(), imagesJSON,
 			project.IsPublished(), project.OrderIndex(), project.Slug(),
 			project.IsFeatured(), project.MetaTitle(), project.MetaDescription(), seoJSON,
-			project.ProjectTypeID(),
+			project.ProjectTypeID(), project.ClientName(), project.Location(), project.CompletedAt(),
+			project.TestimonialQuote(), project.TestimonialAuthor(),
 		).Scan(&createdID); err != nil {
 			return nil, fmt.Errorf("project repository create: %w", err)
 		}
@@ -572,6 +671,9 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 		return nil, err
 	}
 	if err := insertProjectServices(ctx, tx, createdID, serviceIDs); err != nil {
+		return nil, err
+	}
+	if err := insertProjectTags(ctx, tx, createdID, tagIDs); err != nil {
 		return nil, err
 	}
 
@@ -589,7 +691,7 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 
 // Update runs the row update + full relation replace in one transaction,
 // same atomicity fix as Create — see its doc comment.
-func (r *PostgresProjectRepository) Update(ctx context.Context, project *domain.Project, categories *[]domain.CategoryCondition, serviceIDs *[]string) (*domain.Project, error) {
+func (r *PostgresProjectRepository) Update(ctx context.Context, project *domain.Project, categories *[]domain.CategoryCondition, serviceIDs *[]string, tagIDs *[]string) (*domain.Project, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("project repository update (begin tx): %w", err)
@@ -600,21 +702,27 @@ func (r *PostgresProjectRepository) Update(ctx context.Context, project *domain.
 	if err != nil {
 		return nil, fmt.Errorf("project repository update (marshal seo): %w", err)
 	}
+	imagesJSON, err := media.MarshalImages(project.Images())
+	if err != nil {
+		return nil, fmt.Errorf("project repository update (marshal images): %w", err)
+	}
 
 	query := `
 		UPDATE projects p
-		SET category_id = $1, title = $2, description = $3, images = $4,
-			is_published = $5, order_index = $6, slug = $7,
-			is_featured = $8, meta_title = $9, meta_description = $10, seo = $11,
-			project_type_id = $12, updated_at = $13
-		WHERE p.id = $14
+		SET title = $1, description = $2, images = $3,
+			is_published = $4, order_index = $5, slug = $6,
+			is_featured = $7, meta_title = $8, meta_description = $9, seo = $10,
+			project_type_id = $11, client_name = $12, location = $13, completed_at = $14,
+			testimonial_quote = $15, testimonial_author = $16, updated_at = $17
+		WHERE p.id = $18
 		RETURNING ` + projectColumns
 
 	row := tx.QueryRow(ctx, query,
-		project.CategoryID(), project.Title(), project.Description(), project.Images(),
+		project.Title(), project.Description(), imagesJSON,
 		project.IsPublished(), project.OrderIndex(), project.Slug(),
 		project.IsFeatured(), project.MetaTitle(), project.MetaDescription(), seoJSON,
-		project.ProjectTypeID(), project.UpdatedAt(), project.ID(),
+		project.ProjectTypeID(), project.ClientName(), project.Location(), project.CompletedAt(),
+		project.TestimonialQuote(), project.TestimonialAuthor(), project.UpdatedAt(), project.ID(),
 	)
 	updated, err := scanProject(row)
 	if err != nil {
@@ -634,6 +742,14 @@ func (r *PostgresProjectRepository) Update(ctx context.Context, project *domain.
 			return nil, fmt.Errorf("project repository update (clear services): %w", err)
 		}
 		if err := insertProjectServices(ctx, tx, project.ID(), *serviceIDs); err != nil {
+			return nil, err
+		}
+	}
+	if tagIDs != nil {
+		if _, err := tx.Exec(ctx, "DELETE FROM project_tags WHERE project_id = $1", project.ID()); err != nil {
+			return nil, fmt.Errorf("project repository update (clear tags): %w", err)
+		}
+		if err := insertProjectTags(ctx, tx, project.ID(), *tagIDs); err != nil {
 			return nil, err
 		}
 	}

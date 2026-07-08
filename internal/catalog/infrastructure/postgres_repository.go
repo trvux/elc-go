@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/trvux/elc-go/internal/catalog/domain"
+	"github.com/trvux/elc-go/internal/platform/media"
 )
 
 type PostgresProductRepository struct {
@@ -23,6 +24,84 @@ var _ domain.ProductRepository = (*PostgresProductRepository)(nil)
 
 func NewPostgresProductRepository(pool *pgxpool.Pool) *PostgresProductRepository {
 	return &PostgresProductRepository{pool: pool}
+}
+
+// pgxQuerier is satisfied by both *pgxpool.Pool and pgx.Tx.
+type pgxQuerier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+// fetchTagsForProducts batch-loads product_tags rows (+ tag name/slug) for
+// every product id in one round trip, keyed by product id — same pattern as
+// project's fetchCategoriesForProjects / news's fetchTagsForNews.
+func fetchTagsForProducts(ctx context.Context, q pgxQuerier, productIDs []string) (map[string][]domain.TagRef, error) {
+	if len(productIDs) == 0 {
+		return map[string][]domain.TagRef{}, nil
+	}
+
+	query := `
+		SELECT pt.product_id, t.id, t.name, t.slug
+		FROM product_tags pt
+		JOIN tags t ON t.id = pt.tag_id AND t.deleted_at IS NULL
+		WHERE pt.product_id = ANY($1)
+		ORDER BY t.name ASC`
+
+	rows, err := q.Query(ctx, query, productIDs)
+	if err != nil {
+		return nil, fmt.Errorf("product repository fetchTags: %w", err)
+	}
+	defer rows.Close()
+
+	result := map[string][]domain.TagRef{}
+	for rows.Next() {
+		var productID string
+		var tag domain.TagRef
+		if err := rows.Scan(&productID, &tag.ID, &tag.Name, &tag.Slug); err != nil {
+			return nil, fmt.Errorf("product repository fetchTags scan: %w", err)
+		}
+		result[productID] = append(result[productID], tag)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("product repository fetchTags rows: %w", err)
+	}
+	return result, nil
+}
+
+func attachTagsToProducts(ctx context.Context, q pgxQuerier, products []*domain.ProductWithRelations) error {
+	ids := make([]string, len(products))
+	for i, p := range products {
+		ids[i] = p.ID()
+	}
+	tagsByProduct, err := fetchTagsForProducts(ctx, q, ids)
+	if err != nil {
+		return err
+	}
+	for _, p := range products {
+		p.Tags = tagsByProduct[p.ID()]
+	}
+	return nil
+}
+
+func insertProductTags(ctx context.Context, tx pgx.Tx, productID string, tagIDs []string) error {
+	if len(tagIDs) == 0 {
+		return nil
+	}
+	var sb strings.Builder
+	sb.WriteString("INSERT INTO product_tags (product_id, tag_id) VALUES ")
+	args := make([]any, 0, len(tagIDs)*2)
+	argN := 1
+	for i, tagID := range tagIDs {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(fmt.Sprintf("($%d, $%d)", argN, argN+1))
+		args = append(args, productID, tagID)
+		argN += 2
+	}
+	if _, err := tx.Exec(ctx, sb.String(), args...); err != nil {
+		return fmt.Errorf("product repository insertTags: %w", err)
+	}
+	return nil
 }
 
 // productColumns/catalogJoin are shared by every read query that needs the
@@ -389,6 +468,10 @@ func (r *PostgresProductRepository) GetAll(ctx context.Context, filter domain.Pr
 		return nil, fmt.Errorf("product repository getAll: %w", err)
 	}
 
+	if err := attachTagsToProducts(ctx, r.pool, products); err != nil {
+		return nil, err
+	}
+
 	return &domain.ProductListResult{Products: products, TotalCount: totalCount, Facets: facets}, nil
 }
 
@@ -592,6 +675,9 @@ func (r *PostgresProductRepository) GetByID(ctx context.Context, id string) (*do
 		}
 		return nil, fmt.Errorf("product repository getById: %w", err)
 	}
+	if err := attachTagsToProducts(ctx, r.pool, []*domain.ProductWithRelations{p}); err != nil {
+		return nil, err
+	}
 	return p, nil
 }
 
@@ -605,6 +691,9 @@ func (r *PostgresProductRepository) GetBySlug(ctx context.Context, slug string) 
 			return nil, nil
 		}
 		return nil, fmt.Errorf("product repository getBySlug: %w", err)
+	}
+	if err := attachTagsToProducts(ctx, r.pool, []*domain.ProductWithRelations{p}); err != nil {
+		return nil, err
 	}
 	return p, nil
 }
@@ -633,6 +722,9 @@ func (r *PostgresProductRepository) GetByIDs(ctx context.Context, ids []string) 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("product repository getByIds rows: %w", err)
 	}
+	if err := attachTagsToProducts(ctx, r.pool, products); err != nil {
+		return nil, err
+	}
 	return products, nil
 }
 
@@ -644,7 +736,13 @@ func (r *PostgresProductRepository) GetByIDs(ctx context.Context, ids []string) 
 // normalized_specs are plain text[] columns, which pgx encodes/decodes
 // natively from/to []string with no special handling (same as
 // service.labels).
-func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.Product) (*domain.Product, error) {
+func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.Product, tagIDs []string) (*domain.Product, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("product repository create (begin tx): %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	query := `
 		INSERT INTO products (
 			category_id, brand_id, name, sku, slug, description, specs, normalized_specs,
@@ -663,11 +761,15 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 	if err != nil {
 		return nil, fmt.Errorf("product repository create (marshal seo): %w", err)
 	}
+	imagesJSON, err := media.MarshalImages(product.Images())
+	if err != nil {
+		return nil, fmt.Errorf("product repository create (marshal images): %w", err)
+	}
 
-	row := r.pool.QueryRow(ctx, query,
+	row := tx.QueryRow(ctx, query,
 		product.CategoryID(), product.BrandID(), product.Name(), product.SKU(), product.Slug(),
 		orEmptyJSON(product.Description()), specsJSON, orEmptyStrings(product.NormalizedSpecs()),
-		orEmptyStrings(product.Images()), orEmptyStrings(product.Labels()),
+		imagesJSON, orEmptyStrings(product.Labels()),
 		product.OriginalPrice(), product.SalePrice(), product.DiscountPercent(),
 		product.IsFeatured(), product.IsPublished(), product.OrderIndex(),
 		product.StockStatus(), product.Condition(),
@@ -677,6 +779,14 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 	if err != nil {
 		return nil, fmt.Errorf("product repository create: %w", err)
 	}
+
+	if err := insertProductTags(ctx, tx, created.ID(), tagIDs); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("product repository create (commit tx): %w", err)
+	}
 	return created, nil
 }
 
@@ -684,7 +794,13 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 // update_products_modtime BEFORE UPDATE trigger sets it automatically on
 // every UPDATE (unlike brand's Update, written before that trigger's
 // presence was confirmed on this table). See docs/catalog.md.
-func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.Product) (*domain.Product, error) {
+func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.Product, tagIDs *[]string) (*domain.Product, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("product repository update (begin tx): %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	query := `
 		UPDATE products
 		SET category_id = $1, brand_id = $2, name = $3, sku = $4, slug = $5,
@@ -703,11 +819,15 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 	if err != nil {
 		return nil, fmt.Errorf("product repository update (marshal seo): %w", err)
 	}
+	imagesJSON, err := media.MarshalImages(product.Images())
+	if err != nil {
+		return nil, fmt.Errorf("product repository update (marshal images): %w", err)
+	}
 
-	row := r.pool.QueryRow(ctx, query,
+	row := tx.QueryRow(ctx, query,
 		product.CategoryID(), product.BrandID(), product.Name(), product.SKU(), product.Slug(),
 		orEmptyJSON(product.Description()), specsJSON, orEmptyStrings(product.NormalizedSpecs()),
-		orEmptyStrings(product.Images()), orEmptyStrings(product.Labels()),
+		imagesJSON, orEmptyStrings(product.Labels()),
 		product.OriginalPrice(), product.SalePrice(), product.DiscountPercent(),
 		product.IsFeatured(), product.IsPublished(), product.OrderIndex(),
 		product.StockStatus(), product.Condition(),
@@ -717,6 +837,19 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 	updated, err := scanProduct(row)
 	if err != nil {
 		return nil, fmt.Errorf("product repository update: %w", err)
+	}
+
+	if tagIDs != nil {
+		if _, err := tx.Exec(ctx, "DELETE FROM product_tags WHERE product_id = $1", updated.ID()); err != nil {
+			return nil, fmt.Errorf("product repository update (clear tags): %w", err)
+		}
+		if err := insertProductTags(ctx, tx, updated.ID(), *tagIDs); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("product repository update (commit tx): %w", err)
 	}
 	return updated, nil
 }
@@ -892,7 +1025,8 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 		description                              json.RawMessage
 		specsRaw                                 []byte
 		normalizedSpecs                          []string
-		images, labels                           []string
+		imagesRaw                                []byte
+		labels                                   []string
 		originalPrice                            int64
 		salePrice                                *int64
 		discountPercent                          float64
@@ -908,7 +1042,7 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 	if err := row.Scan(
 		&id, &categoryID, &brandID, &name, &sku, &slug,
 		&description, &specsRaw, &normalizedSpecs,
-		&images, &labels,
+		&imagesRaw, &labels,
 		&originalPrice, &salePrice, &discountPercent,
 		&isFeatured, &isPublished, &orderIndex,
 		&stockStatus, &condition,
@@ -925,6 +1059,10 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 	seo, err := unmarshalSeo(seoRaw)
 	if err != nil {
 		return nil, fmt.Errorf("scan product (unmarshal seo): %w", err)
+	}
+	images, err := media.UnmarshalImages(imagesRaw)
+	if err != nil {
+		return nil, fmt.Errorf("scan product (unmarshal images): %w", err)
 	}
 
 	return domain.RehydrateProduct(
@@ -949,7 +1087,8 @@ func scanProductWithRelationsRow(row rowScanner, extraDest ...any) (*domain.Prod
 		description                              json.RawMessage
 		specsRaw                                 []byte
 		normalizedSpecs                          []string
-		images, labels                           []string
+		imagesRaw                                []byte
+		labels                                   []string
 		originalPrice                            int64
 		salePrice                                *int64
 		discountPercent                          float64
@@ -971,7 +1110,7 @@ func scanProductWithRelationsRow(row rowScanner, extraDest ...any) (*domain.Prod
 	dest := []any{
 		&id, &categoryID, &brandID, &name, &sku, &slug,
 		&description, &specsRaw, &normalizedSpecs,
-		&images, &labels,
+		&imagesRaw, &labels,
 		&originalPrice, &salePrice, &discountPercent,
 		&isFeatured, &isPublished, &orderIndex,
 		&stockStatus, &condition,
@@ -993,6 +1132,10 @@ func scanProductWithRelationsRow(row rowScanner, extraDest ...any) (*domain.Prod
 	seo, err := unmarshalSeo(seoRaw)
 	if err != nil {
 		return nil, fmt.Errorf("scan product with relations (unmarshal seo): %w", err)
+	}
+	images, err := media.UnmarshalImages(imagesRaw)
+	if err != nil {
+		return nil, fmt.Errorf("scan product with relations (unmarshal images): %w", err)
 	}
 
 	product := domain.RehydrateProduct(

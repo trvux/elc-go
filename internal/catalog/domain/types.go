@@ -5,7 +5,13 @@ import (
 	"time"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/media"
 )
+
+// ImageAsset re-exports the shared media type so callers outside this
+// package can write domain.ImageAsset without also importing
+// internal/platform/media directly.
+type ImageAsset = media.ImageAsset
 
 // SpecSubItem/SpecItem model the jsonb shape stored in products.specs — ported
 // verbatim from elc-tem's modules/catalog/domain/types.ts (SpecSubItem/SpecItem).
@@ -53,6 +59,15 @@ type BrandRef struct {
 	OrderIndex      int
 }
 
+// TagRef is a lightweight read-only reference to a tag owned by the tag
+// module — resolved via a direct SQL join into `tags`/`product_tags`, same
+// cross-module read pattern as CategoryRef/BrandRef above.
+type TagRef struct {
+	ID   string
+	Name string
+	Slug string
+}
+
 // Seo is the unified SEO metadata shape stored as jsonb on products/news/
 // projects (see docs/catalog.md), replacing the old flat MetaTitle/
 // MetaDescription pair. Both fields kept side by side during the migration —
@@ -73,6 +88,7 @@ type ProductWithRelations struct {
 	*Product
 	Category *CategoryRef
 	Brand    *BrandRef
+	Tags     []TagRef
 }
 
 type Product struct {
@@ -85,7 +101,7 @@ type Product struct {
 	description     json.RawMessage
 	specs           []SpecItem
 	normalizedSpecs []string
-	images          []string
+	images          []ImageAsset
 	labels          []string
 	originalPrice   int64
 	salePrice       *int64
@@ -115,7 +131,8 @@ func NewProduct(
 	description json.RawMessage,
 	specs []SpecItem,
 	normalizedSpecs []string,
-	images, labels []string,
+	images []ImageAsset,
+	labels []string,
 	originalPrice int64,
 	salePrice *int64,
 	discountPercent float64,
@@ -194,7 +211,8 @@ func RehydrateProduct(
 	description json.RawMessage,
 	specs []SpecItem,
 	normalizedSpecs []string,
-	images, labels []string,
+	images []ImageAsset,
+	labels []string,
 	originalPrice int64,
 	salePrice *int64,
 	discountPercent float64,
@@ -228,7 +246,7 @@ func (p *Product) Slug() string                 { return p.slug }
 func (p *Product) Description() json.RawMessage { return p.description }
 func (p *Product) Specs() []SpecItem            { return p.specs }
 func (p *Product) NormalizedSpecs() []string    { return p.normalizedSpecs }
-func (p *Product) Images() []string             { return p.images }
+func (p *Product) Images() []ImageAsset         { return p.images }
 func (p *Product) Labels() []string             { return p.labels }
 func (p *Product) OriginalPrice() int64         { return p.originalPrice }
 func (p *Product) SalePrice() *int64            { return p.salePrice }
@@ -314,7 +332,7 @@ func (p *Product) UpdateSpecs(specs []SpecItem, normalizedSpecs []string) {
 	p.updatedAt = time.Now()
 }
 
-func (p *Product) UpdateImages(images []string) {
+func (p *Product) UpdateImages(images []ImageAsset) {
 	p.images = images
 	p.updatedAt = time.Now()
 }
@@ -459,7 +477,7 @@ type CreateProductInput struct {
 	Slug            string
 	Description     json.RawMessage
 	Specs           []SpecItem
-	Images          []string
+	Images          []ImageAsset
 	Labels          []string
 	OriginalPrice   int64
 	SalePrice       *int64
@@ -474,6 +492,7 @@ type CreateProductInput struct {
 	Seo             Seo
 	MPN             *string
 	GTIN            *string
+	TagIDs          []string
 }
 
 // UpdateProductInput is a partial update — nil/unset means "not part of this
@@ -493,7 +512,7 @@ type UpdateProductInput struct {
 	Slug            *string
 	Description     json.RawMessage
 	Specs           []SpecItem
-	Images          []string
+	Images          []ImageAsset
 	Labels          []string
 	OriginalPrice   *int64
 	SalePrice       *int64
@@ -508,6 +527,7 @@ type UpdateProductInput struct {
 	Seo             *Seo
 	MPN             *string
 	GTIN            *string
+	TagIDs          *[]string
 }
 
 type ProductSortBy string

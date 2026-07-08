@@ -20,8 +20,8 @@ type ProjectRepository interface {
 	// (extra JOIN into products for lowPrice/highPrice/offerCount, used only
 	// by the public project detail page). See docs/project.md.
 	GetBySlug(ctx context.Context, slug string, withPricing bool) (*ProjectWithRelations, error)
-	Create(ctx context.Context, project *Project, categories []CategoryCondition, serviceIDs []string) (*Project, error)
-	Update(ctx context.Context, project *Project, categories *[]CategoryCondition, serviceIDs *[]string) (*Project, error)
+	Create(ctx context.Context, project *Project, categories []CategoryCondition, serviceIDs []string, tagIDs []string) (*Project, error)
+	Update(ctx context.Context, project *Project, categories *[]CategoryCondition, serviceIDs *[]string, tagIDs *[]string) (*Project, error)
 	SoftDelete(ctx context.Context, id string) error
 	Restore(ctx context.Context, id string) error
 	UpdateOrder(ctx context.Context, id string, orderIndex int) error

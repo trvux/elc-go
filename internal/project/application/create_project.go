@@ -19,8 +19,12 @@ func CreateProject(ctx context.Context, repo domain.ProjectRepository, input dom
 		input.MetaDescription,
 		input.Seo,
 		input.OrderIndex,
-		input.CategoryID,
 		input.ProjectTypeID,
+		input.ClientName,
+		input.Location,
+		input.CompletedAt,
+		input.TestimonialQuote,
+		input.TestimonialAuthor,
 	)
 	if err != nil {
 		return nil, err
@@ -30,7 +34,7 @@ func CreateProject(ctx context.Context, repo domain.ProjectRepository, input dom
 		return nil, apperr.NewValidationError("validation failed", map[string][]string{"categories": errs})
 	}
 
-	return repo.Create(ctx, project, input.Categories, input.ServiceIDs)
+	return repo.Create(ctx, project, input.Categories, input.ServiceIDs, input.TagIDs)
 }
 
 func validateCategoryConditions(categories []domain.CategoryCondition) []string {

@@ -7,7 +7,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/media"
 )
+
+// ImageAsset re-exports the shared media type — see catalog/domain/types.go's
+// identical alias for why this is centralized rather than duplicated.
+type ImageAsset = media.ImageAsset
 
 var slugRegex = regexp.MustCompile("^[a-z0-9-]+$")
 
@@ -25,24 +30,48 @@ type News struct {
 	id              string
 	title           string
 	slug            string
-	image           string
+	images          []ImageAsset
 	content         json.RawMessage
+	excerpt         string
 	categoryID      *string
+	authorID        *string
 	isPublished     bool
 	metaTitle       *string
 	metaDescription *string
 	seo             Seo
 	orderIndex      int
+	tags            []TagRef
 	createdAt       time.Time
 	updatedAt       time.Time
 	deletedAt       *time.Time
 }
 
+// TagRef is a lightweight read-only reference to a tag owned by the tag
+// module — resolved via a direct SQL join into `tags`/`news_tags`, same
+// cross-module read pattern project's fetchCategoriesForProjects uses for
+// `categories`.
+type TagRef struct {
+	ID   string
+	Name string
+	Slug string
+}
+
+// Tags is populated by the infrastructure layer after scanning the base
+// row (GetAll/GetByID/GetBySlug) — not part of NewNews/RehydrateNews since
+// tag membership is a separate junction write, same split as Project's
+// Categories/Services relations.
+func (n *News) Tags() []TagRef { return n.tags }
+
+func (n *News) SetTags(tags []TagRef) { n.tags = tags }
+
 // NewNews validates and creates a new entity from user input.
 func NewNews(
-	title, slug, image string,
+	title, slug string,
+	images []ImageAsset,
 	content json.RawMessage,
+	excerpt string,
 	categoryID *string,
+	authorID *string,
 	isPublished bool,
 	metaTitle, metaDescription *string,
 	seo Seo,
@@ -75,9 +104,11 @@ func NewNews(
 	return &News{
 		title:           title,
 		slug:            slug,
-		image:           image,
+		images:          images,
 		content:         content,
+		excerpt:         excerpt,
 		categoryID:      categoryID,
+		authorID:        authorID,
 		isPublished:     isPublished,
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
@@ -91,9 +122,12 @@ func NewNews(
 // RehydrateNews reconstructs from a trusted DB row — no validation. Only the
 // infrastructure layer should call this.
 func RehydrateNews(
-	id, title, slug, image string,
+	id, title, slug string,
+	images []ImageAsset,
 	content json.RawMessage,
+	excerpt string,
 	categoryID *string,
+	authorID *string,
 	isPublished bool,
 	metaTitle, metaDescription *string,
 	seo Seo,
@@ -105,9 +139,11 @@ func RehydrateNews(
 		id:              id,
 		title:           title,
 		slug:            slug,
-		image:           image,
+		images:          images,
 		content:         content,
+		excerpt:         excerpt,
 		categoryID:      categoryID,
+		authorID:        authorID,
 		isPublished:     isPublished,
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
@@ -122,9 +158,11 @@ func RehydrateNews(
 func (n *News) ID() string               { return n.id }
 func (n *News) Title() string            { return n.title }
 func (n *News) Slug() string             { return n.slug }
-func (n *News) Image() string            { return n.image }
+func (n *News) Images() []ImageAsset     { return n.images }
 func (n *News) Content() json.RawMessage { return n.content }
+func (n *News) Excerpt() string          { return n.excerpt }
 func (n *News) CategoryID() *string      { return n.categoryID }
+func (n *News) AuthorID() *string        { return n.authorID }
 func (n *News) IsPublished() bool        { return n.isPublished }
 func (n *News) MetaTitle() *string       { return n.metaTitle }
 func (n *News) MetaDescription() *string { return n.metaDescription }
@@ -156,8 +194,8 @@ func (n *News) UpdateSlug(slug string) error {
 	return nil
 }
 
-func (n *News) UpdateImage(image string) {
-	n.image = image
+func (n *News) UpdateImages(images []ImageAsset) {
+	n.images = images
 	n.updatedAt = time.Now()
 }
 
@@ -171,6 +209,16 @@ func (n *News) UpdateContent(content json.RawMessage) {
 
 func (n *News) UpdateCategoryID(categoryID *string) {
 	n.categoryID = categoryID
+	n.updatedAt = time.Now()
+}
+
+func (n *News) UpdateAuthorID(authorID *string) {
+	n.authorID = authorID
+	n.updatedAt = time.Now()
+}
+
+func (n *News) UpdateExcerpt(excerpt string) {
+	n.excerpt = excerpt
 	n.updatedAt = time.Now()
 }
 
@@ -256,28 +304,34 @@ func validateMetaDescription(metaDescription *string) []string {
 type CreateNewsInput struct {
 	Title           string
 	Slug            string
-	Image           string
+	Images          []ImageAsset
 	Content         json.RawMessage
+	Excerpt         string
 	CategoryID      *string
+	AuthorID        *string
 	IsPublished     bool
 	MetaTitle       *string
 	MetaDescription *string
 	Seo             Seo
 	OrderIndex      int
+	TagIDs          []string
 }
 
 type UpdateNewsInput struct {
 	ID              string
 	Title           *string
 	Slug            *string
-	Image           *string
+	Images          []ImageAsset
 	Content         json.RawMessage
+	Excerpt         *string
 	CategoryID      *string
+	AuthorID        *string
 	IsPublished     *bool
 	MetaTitle       *string
 	MetaDescription *string
 	Seo             *Seo
 	OrderIndex      *int
+	TagIDs          *[]string
 }
 
 type NewsFilter struct {

@@ -7,6 +7,28 @@ import (
 	"github.com/trvux/elc-go/internal/catalog/domain"
 )
 
+type imageAssetDTO struct {
+	URL     string `json:"url"`
+	Alt     string `json:"alt,omitempty"`
+	Caption string `json:"caption,omitempty"`
+}
+
+func toImageAssetDTOList(images []domain.ImageAsset) []imageAssetDTO {
+	result := make([]imageAssetDTO, len(images))
+	for i, img := range images {
+		result[i] = imageAssetDTO{URL: img.URL, Alt: img.Alt, Caption: img.Caption}
+	}
+	return result
+}
+
+func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
+	result := make([]domain.ImageAsset, len(dtos))
+	for i, d := range dtos {
+		result[i] = domain.ImageAsset{URL: d.URL, Alt: d.Alt, Caption: d.Caption}
+	}
+	return result
+}
+
 type seoDTO struct {
 	Title       *string `json:"title,omitempty"`
 	Description *string `json:"description,omitempty"`
@@ -64,6 +86,20 @@ func toSpecItemDomainList(specs []specItemDTO) []domain.SpecItem {
 	return result
 }
 
+type tagRefResponse struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+func toTagRefResponseList(tags []domain.TagRef) []tagRefResponse {
+	result := make([]tagRefResponse, len(tags))
+	for i, t := range tags {
+		result[i] = tagRefResponse{ID: t.ID, Name: t.Name, Slug: t.Slug}
+	}
+	return result
+}
+
 type categoryRefResponse struct {
 	ID              string  `json:"id"`
 	Name            string  `json:"name"`
@@ -97,7 +133,7 @@ type productResponse struct {
 	Slug            string               `json:"slug"`
 	Description     json.RawMessage      `json:"description"`
 	Specs           []specItemDTO        `json:"specs"`
-	Images          []string             `json:"images"`
+	Images          []imageAssetDTO      `json:"images"`
 	Labels          []string             `json:"labels"`
 	OriginalPrice   int64                `json:"original_price"`
 	SalePrice       *int64               `json:"sale_price"`
@@ -117,6 +153,7 @@ type productResponse struct {
 	DeletedAt       *time.Time           `json:"deleted_at"`
 	Category        *categoryRefResponse `json:"category"`
 	Brand           *brandRefResponse    `json:"brand"`
+	Tags            []tagRefResponse     `json:"tags"`
 }
 
 func toProductResponse(p *domain.ProductWithRelations) productResponse {
@@ -134,6 +171,7 @@ func toProductResponse(p *domain.ProductWithRelations) productResponse {
 			IsFeatured: p.Brand.IsFeatured, OrderIndex: p.Brand.OrderIndex,
 		}
 	}
+	resp.Tags = toTagRefResponseList(p.Tags)
 	return resp
 }
 
@@ -150,7 +188,7 @@ func toPlainProductResponse(p *domain.Product) productResponse {
 		Slug:            p.Slug(),
 		Description:     p.Description(),
 		Specs:           toSpecItemDTOList(p.Specs()),
-		Images:          p.Images(),
+		Images:          toImageAssetDTOList(p.Images()),
 		Labels:          p.Labels(),
 		OriginalPrice:   p.OriginalPrice(),
 		SalePrice:       p.SalePrice(),
@@ -248,7 +286,7 @@ type createProductRequest struct {
 	Slug            string          `json:"slug"`
 	Description     json.RawMessage `json:"description"`
 	Specs           []specItemDTO   `json:"specs"`
-	Images          []string        `json:"images"`
+	Images          []imageAssetDTO `json:"images"`
 	Labels          []string        `json:"labels"`
 	OriginalPrice   int64           `json:"original_price"`
 	SalePrice       *int64          `json:"sale_price"`
@@ -263,6 +301,7 @@ type createProductRequest struct {
 	Seo             seoDTO          `json:"seo"`
 	MPN             *string         `json:"mpn"`
 	GTIN            *string         `json:"gtin"`
+	TagIDs          []string        `json:"tag_ids"`
 }
 
 type updateProductRequest struct {
@@ -273,7 +312,7 @@ type updateProductRequest struct {
 	Slug            *string         `json:"slug"`
 	Description     json.RawMessage `json:"description"`
 	Specs           []specItemDTO   `json:"specs"`
-	Images          []string        `json:"images"`
+	Images          []imageAssetDTO `json:"images"`
 	Labels          []string        `json:"labels"`
 	OriginalPrice   *int64          `json:"original_price"`
 	SalePrice       *int64          `json:"sale_price"`
@@ -288,6 +327,7 @@ type updateProductRequest struct {
 	Seo             *seoDTO         `json:"seo"`
 	MPN             *string         `json:"mpn"`
 	GTIN            *string         `json:"gtin"`
+	TagIDs          *[]string       `json:"tag_ids"`
 }
 
 type byIDsRequest struct {

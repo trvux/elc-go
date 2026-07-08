@@ -26,6 +26,28 @@ type refResponse struct {
 	Name string `json:"name"`
 }
 
+type imageAssetDTO struct {
+	URL     string `json:"url"`
+	Alt     string `json:"alt,omitempty"`
+	Caption string `json:"caption,omitempty"`
+}
+
+func toImageAssetDTOList(images []domain.ImageAsset) []imageAssetDTO {
+	result := make([]imageAssetDTO, len(images))
+	for i, img := range images {
+		result[i] = imageAssetDTO{URL: img.URL, Alt: img.Alt, Caption: img.Caption}
+	}
+	return result
+}
+
+func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
+	result := make([]domain.ImageAsset, len(dtos))
+	for i, d := range dtos {
+		result[i] = domain.ImageAsset{URL: d.URL, Alt: d.Alt, Caption: d.Caption}
+	}
+	return result
+}
+
 type serviceResponse struct {
 	ID               string          `json:"id"`
 	Title            string          `json:"title"`
@@ -39,7 +61,7 @@ type serviceResponse struct {
 	Labels           []string        `json:"labels"`
 	Description      *string         `json:"description"`
 	Content          json.RawMessage `json:"content"`
-	Image            *string         `json:"image"`
+	Images           []imageAssetDTO `json:"images"`
 	MetaTitle        *string         `json:"meta_title"`
 	MetaDescription  *string         `json:"meta_description"`
 	Seo              seoDTO          `json:"seo"`
@@ -67,7 +89,7 @@ func toServiceResponse(sr *domain.ServiceWithRelations) serviceResponse {
 		Labels:           sr.Labels(),
 		Description:      sr.Description(),
 		Content:          sr.Content(),
-		Image:            sr.Image(),
+		Images:           toImageAssetDTOList(sr.Images()),
 		MetaTitle:        sr.MetaTitle(),
 		MetaDescription:  sr.MetaDescription(),
 		Seo:              toSeoDTO(sr.Seo()),
@@ -103,7 +125,7 @@ func toPlainServiceResponse(s *domain.Service) serviceResponse {
 		Labels:           s.Labels(),
 		Description:      s.Description(),
 		Content:          s.Content(),
-		Image:            s.Image(),
+		Images:           toImageAssetDTOList(s.Images()),
 		MetaTitle:        s.MetaTitle(),
 		MetaDescription:  s.MetaDescription(),
 		Seo:              toSeoDTO(s.Seo()),
@@ -135,7 +157,7 @@ type createServiceRequest struct {
 	Labels           []string        `json:"labels"`
 	Description      *string         `json:"description"`
 	Content          json.RawMessage `json:"content"`
-	Image            *string         `json:"image"`
+	Images           []imageAssetDTO `json:"images"`
 	MetaTitle        *string         `json:"meta_title"`
 	MetaDescription  *string         `json:"meta_description"`
 	Seo              seoDTO          `json:"seo"`
@@ -155,7 +177,7 @@ type updateServiceRequest struct {
 	Labels           []string        `json:"labels"`
 	Description      *string         `json:"description"`
 	Content          json.RawMessage `json:"content"`
-	Image            *string         `json:"image"`
+	Images           []imageAssetDTO `json:"images"`
 	MetaTitle        *string         `json:"meta_title"`
 	MetaDescription  *string         `json:"meta_description"`
 	Seo              *seoDTO         `json:"seo"`

@@ -7,6 +7,28 @@ import (
 	"github.com/trvux/elc-go/internal/branch/domain"
 )
 
+type imageAssetDTO struct {
+	URL     string `json:"url"`
+	Alt     string `json:"alt,omitempty"`
+	Caption string `json:"caption,omitempty"`
+}
+
+func toImageAssetDTOList(images []domain.ImageAsset) []imageAssetDTO {
+	result := make([]imageAssetDTO, len(images))
+	for i, img := range images {
+		result[i] = imageAssetDTO{URL: img.URL, Alt: img.Alt, Caption: img.Caption}
+	}
+	return result
+}
+
+func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
+	result := make([]domain.ImageAsset, len(dtos))
+	for i, d := range dtos {
+		result[i] = domain.ImageAsset{URL: d.URL, Alt: d.Alt, Caption: d.Caption}
+	}
+	return result
+}
+
 type branchResponse struct {
 	ID              string          `json:"id"`
 	Name            string          `json:"name"`
@@ -17,7 +39,7 @@ type branchResponse struct {
 	MapsURL         string          `json:"maps_url"`
 	MapsEmbed       string          `json:"maps_embed"`
 	Description     json.RawMessage `json:"description"`
-	ImageUrl        *string         `json:"image_url"`
+	Images          []imageAssetDTO `json:"images"`
 	IsPublished     bool            `json:"is_published"`
 	OrderIndex      int             `json:"order_index"`
 	MetaTitle       *string         `json:"meta_title"`
@@ -38,7 +60,7 @@ func toBranchResponse(b *domain.Branch) branchResponse {
 		MapsURL:         b.MapsURL(),
 		MapsEmbed:       b.MapsEmbed(),
 		Description:     b.Description(),
-		ImageUrl:        b.ImageUrl(),
+		Images:          toImageAssetDTOList(b.Images()),
 		IsPublished:     b.IsPublished(),
 		OrderIndex:      b.OrderIndex(),
 		MetaTitle:       b.MetaTitle(),
@@ -66,7 +88,7 @@ type createBranchRequest struct {
 	MapsURL         string          `json:"maps_url"`
 	MapsEmbed       string          `json:"maps_embed"`
 	Description     json.RawMessage `json:"description"`
-	ImageUrl        *string         `json:"image_url"`
+	Images          []imageAssetDTO `json:"images"`
 	IsPublished     bool            `json:"is_published"`
 	OrderIndex      int             `json:"order_index"`
 	MetaTitle       *string         `json:"meta_title"`
@@ -82,7 +104,7 @@ type updateBranchRequest struct {
 	MapsURL         *string         `json:"maps_url"`
 	MapsEmbed       *string         `json:"maps_embed"`
 	Description     json.RawMessage `json:"description"`
-	ImageUrl        *string         `json:"image_url"`
+	Images          []imageAssetDTO `json:"images"`
 	IsPublished     *bool           `json:"is_published"`
 	OrderIndex      *int            `json:"order_index"`
 	MetaTitle       *string         `json:"meta_title"`

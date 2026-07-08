@@ -238,12 +238,12 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 		CategoryID: req.CategoryID, BrandID: req.BrandID,
 		Name: req.Name, SKU: req.SKU, Slug: req.Slug,
 		Description: req.Description, Specs: toSpecItemDomainList(req.Specs),
-		Images: req.Images, Labels: req.Labels,
+		Images: toImageAssetDomainList(req.Images), Labels: req.Labels,
 		OriginalPrice: req.OriginalPrice, SalePrice: req.SalePrice, DiscountPercent: req.DiscountPercent,
 		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
 		StockStatus: req.StockStatus, Condition: req.Condition,
 		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription, Seo: toSeoDomain(req.Seo),
-		MPN: req.MPN, GTIN: req.GTIN,
+		MPN: req.MPN, GTIN: req.GTIN, TagIDs: req.TagIDs,
 	}
 
 	p, err := application.CreateProduct(r.Context(), h.repo, input)
@@ -275,12 +275,12 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		CategoryID: req.CategoryID, BrandID: req.BrandID,
 		Name: req.Name, SKU: req.SKU, Slug: req.Slug,
 		Description: req.Description, Specs: toSpecItemDomainList(req.Specs),
-		Images: req.Images, Labels: req.Labels,
+		Images: toImageAssetDomainList(req.Images), Labels: req.Labels,
 		OriginalPrice: req.OriginalPrice, SalePrice: req.SalePrice, DiscountPercent: req.DiscountPercent,
 		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
 		StockStatus: req.StockStatus, Condition: req.Condition,
 		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription, Seo: seo,
-		MPN: req.MPN, GTIN: req.GTIN,
+		MPN: req.MPN, GTIN: req.GTIN, TagIDs: req.TagIDs,
 	}
 
 	p, err := application.UpdateProduct(r.Context(), h.repo, input)

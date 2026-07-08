@@ -14,7 +14,7 @@ func TestCreateProject(t *testing.T) {
 	ctx := context.Background()
 
 	p, err := CreateProject(ctx, repo, domain.CreateProjectInput{
-		Title: "Nha may A", Slug: "nha-may-a", CategoryID: "cat-1",
+		Title: "Nha may A", Slug: "nha-may-a",
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -28,7 +28,7 @@ func TestCreateProject_ValidationError(t *testing.T) {
 	repo := newFakeProjectRepository()
 	ctx := context.Background()
 
-	_, err := CreateProject(ctx, repo, domain.CreateProjectInput{Title: "", Slug: "", CategoryID: ""})
+	_, err := CreateProject(ctx, repo, domain.CreateProjectInput{Title: "", Slug: ""})
 	if err == nil {
 		t.Fatal("expected validation error, got nil")
 	}
@@ -36,8 +36,8 @@ func TestCreateProject_ValidationError(t *testing.T) {
 	if !errors.As(err, &appErr) || appErr.Code != "VALIDATION_ERROR" {
 		t.Fatalf("expected VALIDATION_ERROR, got %v", err)
 	}
-	if len(appErr.Fields["title"]) == 0 || len(appErr.Fields["slug"]) == 0 || len(appErr.Fields["categoryId"]) == 0 {
-		t.Errorf("expected title/slug/categoryId field errors, got %v", appErr.Fields)
+	if len(appErr.Fields["title"]) == 0 || len(appErr.Fields["slug"]) == 0 {
+		t.Errorf("expected title/slug field errors, got %v", appErr.Fields)
 	}
 }
 
@@ -46,7 +46,7 @@ func TestCreateProject_StoresRelations(t *testing.T) {
 	ctx := context.Background()
 
 	p, err := CreateProject(ctx, repo, domain.CreateProjectInput{
-		Title: "Nha may A", Slug: "nha-may-a", CategoryID: "cat-1",
+		Title: "Nha may A", Slug: "nha-may-a",
 		Categories: []domain.CategoryCondition{{CategoryID: "cat-1", Condition: "new"}},
 		ServiceIDs: []string{"svc-1", "svc-2"},
 	})
@@ -80,7 +80,7 @@ func TestUpdateProject_PartialUpdate(t *testing.T) {
 	ctx := context.Background()
 
 	created, _ := CreateProject(ctx, repo, domain.CreateProjectInput{
-		Title: "Nha may A", Slug: "nha-may-a", CategoryID: "cat-1", OrderIndex: 5,
+		Title: "Nha may A", Slug: "nha-may-a", OrderIndex: 5,
 	})
 
 	newTitle := "Nha may A (sua)"
@@ -110,7 +110,7 @@ func TestUpdateProject_NilVsEmptyRelations(t *testing.T) {
 	ctx := context.Background()
 
 	created, _ := CreateProject(ctx, repo, domain.CreateProjectInput{
-		Title: "Nha may A", Slug: "nha-may-a", CategoryID: "cat-1",
+		Title: "Nha may A", Slug: "nha-may-a",
 		Categories: []domain.CategoryCondition{{CategoryID: "cat-1", Condition: "new"}},
 		ServiceIDs: []string{"svc-1"},
 	})
@@ -146,7 +146,7 @@ func TestDeleteAndRestoreProject(t *testing.T) {
 	ctx := context.Background()
 
 	created, _ := CreateProject(ctx, repo, domain.CreateProjectInput{
-		Title: "Nha may A", Slug: "nha-may-a", CategoryID: "cat-1",
+		Title: "Nha may A", Slug: "nha-may-a",
 	})
 
 	if err := DeleteProject(ctx, repo, created.ID()); err != nil {
@@ -169,7 +169,7 @@ func TestToggleAndReorderProject(t *testing.T) {
 	ctx := context.Background()
 
 	created, _ := CreateProject(ctx, repo, domain.CreateProjectInput{
-		Title: "Nha may A", Slug: "nha-may-a", CategoryID: "cat-1",
+		Title: "Nha may A", Slug: "nha-may-a",
 	})
 
 	if err := ToggleProjectPublish(ctx, repo, created.ID(), true); err != nil {

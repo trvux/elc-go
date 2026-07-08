@@ -9,7 +9,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/media"
 )
+
+// ImageAsset re-exports the shared media type — see catalog/domain/types.go's
+// identical alias for why this is centralized rather than duplicated.
+type ImageAsset = media.ImageAsset
 
 var slugRegex = regexp.MustCompile("^[a-z0-9-]+$")
 
@@ -23,7 +28,7 @@ type Branch struct {
 	mapsURL         string
 	mapsEmbed       string
 	description     json.RawMessage
-	imageUrl        *string
+	images          []ImageAsset
 	isPublished     bool
 	orderIndex      int
 	metaTitle       *string
@@ -37,7 +42,7 @@ type Branch struct {
 func NewBranch(
 	name, slug, address, phone, email, mapsURL, mapsEmbed string,
 	description json.RawMessage,
-	imageUrl *string,
+	images []ImageAsset,
 	isPublished bool,
 	orderIndex int,
 	metaTitle, metaDescription *string,
@@ -80,7 +85,7 @@ func NewBranch(
 		mapsURL:         mapsURL,
 		mapsEmbed:       mapsEmbed,
 		description:     description,
-		imageUrl:        imageUrl,
+		images:          images,
 		isPublished:     isPublished,
 		orderIndex:      orderIndex,
 		metaTitle:       metaTitle,
@@ -94,7 +99,7 @@ func NewBranch(
 func RehydrateBranch(
 	id, name, slug, address, phone, email, mapsURL, mapsEmbed string,
 	description json.RawMessage,
-	imageUrl *string,
+	images []ImageAsset,
 	isPublished bool,
 	orderIndex int,
 	metaTitle, metaDescription *string,
@@ -111,7 +116,7 @@ func RehydrateBranch(
 		mapsURL:         mapsURL,
 		mapsEmbed:       mapsEmbed,
 		description:     description,
-		imageUrl:        imageUrl,
+		images:          images,
 		isPublished:     isPublished,
 		orderIndex:      orderIndex,
 		metaTitle:       metaTitle,
@@ -131,7 +136,7 @@ func (b *Branch) Email() string                { return b.email }
 func (b *Branch) MapsURL() string              { return b.mapsURL }
 func (b *Branch) MapsEmbed() string            { return b.mapsEmbed }
 func (b *Branch) Description() json.RawMessage { return b.description }
-func (b *Branch) ImageUrl() *string            { return b.imageUrl }
+func (b *Branch) Images() []ImageAsset         { return b.images }
 func (b *Branch) IsPublished() bool            { return b.isPublished }
 func (b *Branch) OrderIndex() int              { return b.orderIndex }
 func (b *Branch) MetaTitle() *string           { return b.metaTitle }
@@ -212,8 +217,8 @@ func (b *Branch) UpdateDescription(desc json.RawMessage) {
 	b.updatedAt = time.Now()
 }
 
-func (b *Branch) UpdateImageUrl(img *string) {
-	b.imageUrl = img
+func (b *Branch) UpdateImages(images []ImageAsset) {
+	b.images = images
 	b.updatedAt = time.Now()
 }
 
@@ -248,10 +253,10 @@ func (b *Branch) Restore() {
 
 func validateName(name string) []string {
 	if name == "" {
-		return []string{"Tên cơ sở hạ tầng không được để trống"}
+		return []string{"Tên chi nhánh không được để trống"}
 	}
 	if utf8.RuneCountInString(name) > 100 {
-		return []string{"Tên cơ sở hạ tầng không được quá 100 ký tự"}
+		return []string{"Tên chi nhánh không được quá 100 ký tự"}
 	}
 	return nil
 }
@@ -320,7 +325,7 @@ type CreateBranchInput struct {
 	MapsURL         string
 	MapsEmbed       string
 	Description     json.RawMessage
-	ImageUrl        *string
+	Images          []ImageAsset
 	IsPublished     bool
 	OrderIndex      int
 	MetaTitle       *string
@@ -337,7 +342,7 @@ type UpdateBranchInput struct {
 	MapsURL         *string
 	MapsEmbed       *string
 	Description     json.RawMessage
-	ImageUrl        *string
+	Images          []ImageAsset
 	IsPublished     *bool
 	OrderIndex      *int
 	MetaTitle       *string

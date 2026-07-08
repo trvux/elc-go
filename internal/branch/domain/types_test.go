@@ -10,13 +10,13 @@ import (
 
 func TestNewBranch(t *testing.T) {
 	desc := json.RawMessage(`{"text": "Chi nhánh miền Nam"}`)
-	img := "https://example.com/branch.png"
+	images := []ImageAsset{{URL: "https://example.com/branch.png"}}
 
 	t.Run("valid input creates a branch", func(t *testing.T) {
 		b, err := NewBranch(
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "https://maps.google.com/q1", "<iframe></iframe>",
-			desc, &img, true, 1, nil, nil,
+			desc, images, true, 1, nil, nil,
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -33,7 +33,7 @@ func TestNewBranch(t *testing.T) {
 		_, err := NewBranch(
 			"", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "https://maps.google.com/q1", "<iframe></iframe>",
-			desc, &img, true, 1, nil, nil,
+			desc, images, true, 1, nil, nil,
 		)
 		if err == nil {
 			t.Fatal("expected validation error")
@@ -51,7 +51,7 @@ func TestNewBranch(t *testing.T) {
 		_, err := NewBranch(
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"invalid-email", "https://maps.google.com/q1", "<iframe></iframe>",
-			desc, &img, true, 1, nil, nil,
+			desc, images, true, 1, nil, nil,
 		)
 		if err == nil {
 			t.Fatal("expected validation error")
@@ -69,7 +69,7 @@ func TestNewBranch(t *testing.T) {
 		_, err := NewBranch(
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "not-a-valid-url", "<iframe></iframe>",
-			desc, &img, true, 1, nil, nil,
+			desc, images, true, 1, nil, nil,
 		)
 		if err == nil {
 			t.Fatal("expected validation error")

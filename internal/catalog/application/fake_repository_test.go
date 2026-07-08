@@ -82,7 +82,7 @@ func (r *fakeProductRepository) GetByIDs(ctx context.Context, ids []string) ([]*
 	return result, nil
 }
 
-func (r *fakeProductRepository) Create(ctx context.Context, product *domain.Product) (*domain.Product, error) {
+func (r *fakeProductRepository) Create(ctx context.Context, product *domain.Product, tagIDs []string) (*domain.Product, error) {
 	id := fmt.Sprintf("id-%d", len(r.items)+1)
 	now := time.Now()
 	created := domain.RehydrateProduct(
@@ -100,7 +100,7 @@ func (r *fakeProductRepository) Create(ctx context.Context, product *domain.Prod
 	return created, nil
 }
 
-func (r *fakeProductRepository) Update(ctx context.Context, product *domain.Product) (*domain.Product, error) {
+func (r *fakeProductRepository) Update(ctx context.Context, product *domain.Product, tagIDs *[]string) (*domain.Product, error) {
 	r.items[product.ID()] = product
 	return product, nil
 }

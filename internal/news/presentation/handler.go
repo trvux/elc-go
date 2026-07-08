@@ -118,14 +118,17 @@ func (h *NewsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	input := domain.CreateNewsInput{
 		Title:           req.Title,
 		Slug:            req.Slug,
-		Image:           req.Image,
+		Images:          toImageAssetDomainList(req.Images),
 		Content:         req.Content,
+		Excerpt:         req.Excerpt,
 		CategoryID:      req.CategoryID,
+		AuthorID:        req.AuthorID,
 		IsPublished:     req.IsPublished,
 		MetaTitle:       req.MetaTitle,
 		MetaDescription: req.MetaDescription,
 		Seo:             toSeoDomain(req.Seo),
 		OrderIndex:      req.OrderIndex,
+		TagIDs:          req.TagIDs,
 	}
 
 	n, err := application.CreateNews(r.Context(), h.repo, input)
@@ -156,14 +159,17 @@ func (h *NewsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ID:              id,
 		Title:           req.Title,
 		Slug:            req.Slug,
-		Image:           req.Image,
+		Images:          toImageAssetDomainList(req.Images),
 		Content:         req.Content,
+		Excerpt:         req.Excerpt,
 		CategoryID:      req.CategoryID,
+		AuthorID:        req.AuthorID,
 		IsPublished:     req.IsPublished,
 		MetaTitle:       req.MetaTitle,
 		MetaDescription: req.MetaDescription,
 		Seo:             seo,
 		OrderIndex:      req.OrderIndex,
+		TagIDs:          req.TagIDs,
 	}
 
 	n, err := application.UpdateNews(r.Context(), h.repo, input)

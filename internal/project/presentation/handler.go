@@ -30,9 +30,6 @@ func parseProjectFilter(r *http.Request) domain.ProjectFilter {
 		OrderBy:        q.Get("order_by"),
 		OrderDirection: q.Get("order_direction"),
 	}
-	if v := q.Get("category_id"); v != "" {
-		filter.CategoryID = &v
-	}
 	if v := q.Get("project_type_id"); v != "" {
 		filter.ProjectTypeID = &v
 	}
@@ -137,20 +134,25 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input := domain.CreateProjectInput{
-		Title:           req.Title,
-		Slug:            req.Slug,
-		Description:     req.Description,
-		Images:          req.Images,
-		IsFeatured:      req.IsFeatured,
-		IsPublished:     req.IsPublished,
-		MetaTitle:       req.MetaTitle,
-		MetaDescription: req.MetaDescription,
-		Seo:             toSeoDomain(req.Seo),
-		OrderIndex:      req.OrderIndex,
-		CategoryID:      req.CategoryID,
-		ProjectTypeID:   req.ProjectTypeID,
-		ServiceIDs:      req.ServiceIDs,
-		Categories:      toCategoryConditionDomainList(req.Categories),
+		Title:             req.Title,
+		Slug:              req.Slug,
+		Description:       req.Description,
+		Images:            toImageAssetDomainList(req.Images),
+		IsFeatured:        req.IsFeatured,
+		IsPublished:       req.IsPublished,
+		MetaTitle:         req.MetaTitle,
+		MetaDescription:   req.MetaDescription,
+		Seo:               toSeoDomain(req.Seo),
+		OrderIndex:        req.OrderIndex,
+		ProjectTypeID:     req.ProjectTypeID,
+		ServiceIDs:        req.ServiceIDs,
+		Categories:        toCategoryConditionDomainList(req.Categories),
+		TagIDs:            req.TagIDs,
+		ClientName:        req.ClientName,
+		Location:          req.Location,
+		CompletedAt:       req.CompletedAt,
+		TestimonialQuote:  req.TestimonialQuote,
+		TestimonialAuthor: req.TestimonialAuthor,
 	}
 
 	p, err := application.CreateProject(r.Context(), h.repo, input)
@@ -178,21 +180,26 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input := domain.UpdateProjectInput{
-		ID:              id,
-		Title:           req.Title,
-		Slug:            req.Slug,
-		Description:     req.Description,
-		Images:          req.Images,
-		IsFeatured:      req.IsFeatured,
-		IsPublished:     req.IsPublished,
-		MetaTitle:       req.MetaTitle,
-		MetaDescription: req.MetaDescription,
-		Seo:             seo,
-		OrderIndex:      req.OrderIndex,
-		CategoryID:      req.CategoryID,
-		ProjectTypeID:   req.ProjectTypeID,
-		ServiceIDs:      req.ServiceIDs,
-		Categories:      toCategoryConditionDomainPtr(req.Categories),
+		ID:                id,
+		Title:             req.Title,
+		Slug:              req.Slug,
+		Description:       req.Description,
+		Images:            toImageAssetDomainList(req.Images),
+		IsFeatured:        req.IsFeatured,
+		IsPublished:       req.IsPublished,
+		MetaTitle:         req.MetaTitle,
+		MetaDescription:   req.MetaDescription,
+		Seo:               seo,
+		OrderIndex:        req.OrderIndex,
+		ProjectTypeID:     req.ProjectTypeID,
+		ServiceIDs:        req.ServiceIDs,
+		Categories:        toCategoryConditionDomainPtr(req.Categories),
+		TagIDs:            req.TagIDs,
+		ClientName:        req.ClientName,
+		Location:          req.Location,
+		CompletedAt:       req.CompletedAt,
+		TestimonialQuote:  req.TestimonialQuote,
+		TestimonialAuthor: req.TestimonialAuthor,
 	}
 
 	p, err := application.UpdateProject(r.Context(), h.repo, input)

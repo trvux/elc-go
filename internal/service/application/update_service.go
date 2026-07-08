@@ -63,8 +63,8 @@ func UpdateService(ctx context.Context, repo domain.ServiceRepository, input dom
 	if input.Content != nil {
 		service.UpdateContent(input.Content)
 	}
-	if input.Image != nil {
-		service.UpdateImage(input.Image)
+	if input.Images != nil {
+		service.UpdateImages(input.Images)
 	}
 	if input.MetaTitle != nil {
 		service.UpdateMetaTitle(input.MetaTitle)

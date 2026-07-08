@@ -10,9 +10,11 @@ func CreateNews(ctx context.Context, repo domain.NewsRepository, input domain.Cr
 	news, err := domain.NewNews(
 		input.Title,
 		input.Slug,
-		input.Image,
+		input.Images,
 		input.Content,
+		input.Excerpt,
 		input.CategoryID,
+		input.AuthorID,
 		input.IsPublished,
 		input.MetaTitle,
 		input.MetaDescription,
@@ -23,5 +25,5 @@ func CreateNews(ctx context.Context, repo domain.NewsRepository, input domain.Cr
 		return nil, err
 	}
 
-	return repo.Create(ctx, news)
+	return repo.Create(ctx, news, input.TagIDs)
 }

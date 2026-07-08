@@ -37,7 +37,7 @@ func TestPostgresProductRepository_CRUD(t *testing.T) {
 
 	p, err := domain.NewProduct(
 		categoryID, brandID, "Integration Test Product 1.5HP", "integration-test-sku-xyz", "integration-test-product-xyz",
-		nil, specs, normalizedSpecs, []string{"https://example.com/a.webp"}, []string{"moi"},
+		nil, specs, normalizedSpecs, []domain.ImageAsset{{URL: "https://example.com/a.webp"}}, []string{"moi"},
 		100000, nil, 10,
 		false, true, 0,
 		"in_stock", "new",
@@ -48,7 +48,7 @@ func TestPostgresProductRepository_CRUD(t *testing.T) {
 		t.Fatalf("NewProduct failed: %v", err)
 	}
 
-	created, err := repo.Create(ctx, p)
+	created, err := repo.Create(ctx, p, nil)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestPostgresProductRepository_CRUD(t *testing.T) {
 	// application layer's job, see application/create_product.go) — Create
 	// just persists whatever the entity carries, so sale_price stays nil as
 	// given, which is expected at this layer.
-	if len(created.Images()) != 1 || created.Images()[0] != "https://example.com/a.webp" {
+	if len(created.Images()) != 1 || created.Images()[0].URL != "https://example.com/a.webp" {
 		t.Errorf("expected images to round-trip, got %v", created.Images())
 	}
 	if len(created.NormalizedSpecs()) == 0 {
@@ -106,7 +106,7 @@ func TestPostgresProductRepository_CRUD(t *testing.T) {
 	if err := fetched.Product.UpdateName("Integration Test Product 1.5HP Updated"); err != nil {
 		t.Fatalf("UpdateName failed: %v", err)
 	}
-	updated, err := repo.Update(ctx, fetched.Product)
+	updated, err := repo.Update(ctx, fetched.Product, nil)
 	if err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}

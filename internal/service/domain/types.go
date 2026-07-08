@@ -5,7 +5,12 @@ import (
 	"time"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/media"
 )
+
+// ImageAsset re-exports the shared media type — see catalog/domain/types.go's
+// identical alias for why this is centralized rather than duplicated.
+type ImageAsset = media.ImageAsset
 
 // Seo is the unified SEO metadata shape stored as jsonb, replacing the old
 // flat MetaTitle/MetaDescription pair (kept alongside during the migration).
@@ -29,7 +34,7 @@ type Service struct {
 	labels           []string
 	description      *string
 	content          json.RawMessage
-	image            *string
+	images           []ImageAsset
 	metaTitle        *string
 	metaDescription  *string
 	seo              Seo
@@ -76,7 +81,8 @@ func NewService(
 	labels []string,
 	description *string,
 	content json.RawMessage,
-	image, metaTitle, metaDescription *string,
+	images []ImageAsset,
+	metaTitle, metaDescription *string,
 	seo Seo,
 	isFeatured, isPublished bool,
 	orderIndex int,
@@ -106,7 +112,7 @@ func NewService(
 		labels:           labels,
 		description:      description,
 		content:          content,
-		image:            image,
+		images:           images,
 		metaTitle:        metaTitle,
 		metaDescription:  metaDescription,
 		seo:              seo,
@@ -129,7 +135,8 @@ func RehydrateService(
 	labels []string,
 	description *string,
 	content json.RawMessage,
-	image, metaTitle, metaDescription *string,
+	images []ImageAsset,
+	metaTitle, metaDescription *string,
 	seo Seo,
 	isFeatured, isPublished bool,
 	orderIndex int,
@@ -142,7 +149,7 @@ func RehydrateService(
 		originalPrice: originalPrice, discountPercent: discountPercent,
 		priceDisplayText: priceDisplayText, labels: labels,
 		description: description, content: content,
-		image: image, metaTitle: metaTitle, metaDescription: metaDescription, seo: seo,
+		images: images, metaTitle: metaTitle, metaDescription: metaDescription, seo: seo,
 		isFeatured: isFeatured, isPublished: isPublished, orderIndex: orderIndex,
 		createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt,
 	}
@@ -159,7 +166,7 @@ func (s *Service) PriceDisplayText() *string { return s.priceDisplayText }
 func (s *Service) Labels() []string          { return s.labels }
 func (s *Service) Description() *string      { return s.description }
 func (s *Service) Content() json.RawMessage  { return s.content }
-func (s *Service) Image() *string            { return s.image }
+func (s *Service) Images() []ImageAsset      { return s.images }
 func (s *Service) MetaTitle() *string        { return s.metaTitle }
 func (s *Service) MetaDescription() *string  { return s.metaDescription }
 func (s *Service) Seo() Seo                  { return s.seo }
@@ -248,8 +255,8 @@ func (s *Service) UpdateContent(content json.RawMessage) {
 	s.updatedAt = time.Now()
 }
 
-func (s *Service) UpdateImage(image *string) {
-	s.image = image
+func (s *Service) UpdateImages(images []ImageAsset) {
+	s.images = images
 	s.updatedAt = time.Now()
 }
 
@@ -317,7 +324,7 @@ type CreateServiceInput struct {
 	Labels           []string
 	Description      *string
 	Content          json.RawMessage
-	Image            *string
+	Images           []ImageAsset
 	MetaTitle        *string
 	MetaDescription  *string
 	Seo              Seo
@@ -338,7 +345,7 @@ type UpdateServiceInput struct {
 	Labels           []string
 	Description      *string
 	Content          json.RawMessage
-	Image            *string
+	Images           []ImageAsset
 	MetaTitle        *string
 	MetaDescription  *string
 	Seo              *Seo
