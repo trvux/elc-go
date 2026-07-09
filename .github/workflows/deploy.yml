@@ -110,6 +110,16 @@ jobs:
             DATABASE_URL="postgresql://elc:${POSTGRES_PASSWORD}@postgres:5432/elc" \
               ./scripts/migrate-all.sh
 
+            # Backup + seed + migrate legacy products.specs -> structured
+            # attribute_definitions/product_attribute_values. Idempotent
+            # (see script header) -- safe no-op on every deploy after the
+            # first. Runs after migrate-all.sh (needs the new tables to
+            # exist) and before the container swap, same safety reasoning
+            # as migrate-all.sh above: a failure here leaves the OLD elc-go
+            # container running untouched.
+            DATABASE_URL="postgresql://elc:${POSTGRES_PASSWORD}@postgres:5432/elc" \
+              ./scripts/deploy-attribute-migration.sh
+
             # --wait doi container moi qua HEALTHCHECK (curl /brands) roi moi
             # tra ve thanh cong -- khong con coi deploy la "xong" ngay khi tien
             # trinh moi khoi dong nhung chua thuc su san sang nhan request.

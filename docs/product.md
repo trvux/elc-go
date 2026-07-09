@@ -1,9 +1,124 @@
-# Module: catalog
+# Module: product (renamed from `catalog`)
 
-**Status**: Phase 1 (this migration) — Go backend built and verified against
-the real DB. **Phase 2 (separate, later)**: cutting `elc-tem` over to call
-these endpoints instead of Supabase directly has NOT happened yet — see "How
-`elc-tem` calls this" below.
+**Status**: v2 (variants/options/bundles/product lines) built and live on
+the self-hosted dev DB as of 2026-07-08 — see the "v2: variants, options,
+product lines" section below for the as-built shape and
+[product-v2-design.md](product-v2-design.md) for the original design/
+rationale. The section further down ("Data model" onward) still describes
+the original flat single-SKU shape, which is **unchanged and still what
+`elc-tem` reads** — nothing below was removed or altered by v2, it was
+purely additive. `elc-tem` cutover to call these endpoints instead of
+Supabase directly has NOT happened yet — see "How `elc-tem` calls this"
+below.
+
+## v2: variants, options, product lines
+
+Adds the `Product → Option/Variant → VariantComponent` model from
+docs/product-v2-design.md on top of the untouched flat schema. New tables:
+`product_lines`, `product_options`, `product_option_values`,
+`product_variants`, `product_variant_option_values`,
+`product_variant_components` (migration
+`internal/product/migrations/000005_add_variants.up.sql`). New columns on
+`products`: `product_line_id`, `short_description`, `warranty_months`,
+`warranty_terms`, plus four **write-time denormalized read-cache columns**
+— `default_variant_id`, `display_price`, `display_stock_status`,
+`price_min`, `price_max` — recomputed by
+`infrastructure.RecomputeDisplayCache` inside the same transaction as any
+variant write (same technique as `normalized_specs`: compute once at write
+time, read via a plain column, never join/aggregate at list-read time).
+
+**Why this exists**: the flat model couldn't represent a real appliance
+retailer's catalog — one Daikin AC model comes in 5 brand tiers
+(FTF/FTKB/FTKF/FTKY/FTKZ → `product_lines`), most units are an indoor+
+outdoor split system with two separate manufacturer part numbers sold as
+one purchasable set (→ `product_variant_components`, `is_standalone=false`
+on the parts), and `sku` was being misused as if it were the manufacturer's
+own code (a live row stored `"FTKB25ZVMV / RKB25ZVMV"` — two real MPNs
+concatenated — in what should have been an internal-only warehouse field).
+v2 moves `mpn` (required, the field customers actually search for) and
+`sku`/`gtin` down to the variant level.
+
+**Performance**: `GET /products` (list/grid) is **unchanged, still zero
+joins to variant tables** — it reads `display_price`/`price_min`/
+`price_max`/`display_stock_status` straight off `products`. Only
+`GET /products/{id}` / `GET /products/slug/{slug}` (single-product reads)
+load the full option/variant/component tree, via separate batched queries
+keyed by product id (`fetchOptionsForProduct`/`fetchVariantsForProduct` in
+`infrastructure/variant_repository.go`) — never a single big JOIN, for the
+same row-multiplication reason `fetchTagsForProducts` is already separate
+from the category/brand JOIN.
+
+**Update replaces the variant tree wholesale** (delete options+variants+
+components, reinsert), same convention `project-type` already uses for
+`project_type_category` — not an ID-matched upsert. This means variant IDs
+are not stable across an update that touches the variant tree. Deliberate
+simplification for this pass: nothing yet references `product_variants.id`
+across requests (no order/pricing module exists yet), so there's no
+consumer that would notice. Revisit (ID-matched upsert) once an order or
+pricing module is built that holds a `variant_id` reference across
+requests.
+
+**The repository itself does not enforce "exactly one default variant"**
+— that rule (`resolveDefaultVariant`) lives in the application layer
+(`application/create_product.go`/`update_product.go`): a single-variant
+product is auto-defaulted, multiple variants with none marked default
+default the first one, multiple explicit defaults is a validation error.
+The DB only enforces the invariant defensively via a partial unique index
+(`product_variants_one_default_active`).
+
+**`ProductLine` is its own repository/handler** (`PostgresProductLineRepository`,
+`ProductLineHandler`, mounted at `/product-lines`) but lives inside this
+same Go module rather than a separate `internal/product-line` — it
+currently has exactly one consumer (`Product`), so a separate bounded
+context would be premature.
+
+### Backfill (2026-07-08, run once against the self-hosted dev DB)
+
+`cmd/backfill-product-variants` gave all 197 pre-existing `products` rows
+exactly one `product_variants` row (`mpn` from the old `mpn` column, or the
+old `sku` string as a fallback; `sku`/prices/stock-status copied as-is,
+`stock_status` mapped `out_of_stock`/`pre_order` → `order_from_supplier`,
+`discontinued` → `discontinued`, everything else → `in_stock`). Ran inside
+one transaction with a row-count verification before commit. **Found real
+duplicate legacy MPNs** (17 of 197) — e.g. two different products both had
+`mpn = "FBFC100DVM9"` already set — which collided with the new
+unique-among-active constraint on `product_variants.mpn`. Rather than block
+the whole backfill on a legacy data-quality issue, the tool disambiguates:
+first claim wins, every subsequent collision gets a `-DUPn` suffix and is
+printed to stdout. **These 17 products need manual MPN correction via the
+normal admin edit UI** — the tool only prevented data loss, it didn't fix
+the underlying duplicate. Re-running the tool is safe (only touches
+products with zero existing variants, so already-backfilled rows are
+skipped).
+
+### API additions
+
+New nested `options`/`variants` in `POST /products` and `PUT /products/{id}`
+bodies (variant option selections reference by `{option_name, value}`, not
+ID — those don't exist yet for a tree created in the same request; bundle
+components reference by index into the same `variants` array, not ID).
+`GET /products/{id}`/`GET /products/slug/{slug}` responses now include
+`options[]`/`variants[]` (variant response omits `cost_price` — internal
+margin data, never exposed). New: `GET/POST /product-lines`,
+`GET/PUT/POST/DELETE /product-lines/{id}`, `POST /product-lines/{id}/restore`.
+
+### Testing
+
+`go test ./internal/product/...` (domain: variant/line validation,
+`DisplayPrice` fallback; application: `resolveDefaultVariant`'s four
+scenarios). `go test -tags=integration ./internal/product/infrastructure/...`
+— real round trip creating a product with 2 option values × a split-system
+bundle (2 components + 2 sellable color variants), verifying
+`product_variant_option_values`/`product_variant_components` land
+correctly and `display_price`/`price_min`/`price_max` recompute correctly
+on both create and a full variant-tree replace via update; separate
+`ProductLine` CRUD round trip. Both self-clean via `defer`. Run against the
+self-hosted dev Postgres — note this container is on OrbStack, where
+`localhost:<published-port>` can silently fail to forward (see
+`docs/README.md`-linked migration conventions memory / `ARCHITECTURE.md`
+for the workaround: run the Go test itself inside a container on the same
+Compose network, targeting `postgres:5432` by service name, not the
+published host port).
 **Purpose**: Products (máy lạnh, máy lọc không khí, etc.) shown on the public
 catalog pages and managed in the admin dashboard. The richest module migrated
 so far — full-text search, faceted filtering, and HVAC spec normalization,
