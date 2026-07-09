@@ -16,6 +16,21 @@
 # schema_migrations_<module> (see Makefile's `migrations_table`), so
 # re-running against an already-up-to-date DB is a safe no-op.
 #
+# GOTCHA (hit in production 2026-07-09, catalog -> product rename): the
+# tracking table name is derived from the CURRENT directory name
+# (internal/<module>/migrations), not any stable module identity. Renaming
+# a module's directory orphans its migration history — the new tracking
+# table starts empty, so this script re-attempts every migration from
+# 000001, including old ones that already ran under the OLD table name.
+# Most are safe no-ops (IF NOT EXISTS), but a migration that does a real
+# data transform (e.g. drop-and-rename a column) is NOT safely re-runnable
+# and will fail, leaving the tracking table dirty=true and blocking every
+# later migration in the chain for that module. Before renaming a module
+# directory: manually seed the new schema_migrations_<newname> table with
+# the old table's (version, dirty) row on every environment (dev AND
+# production), or split the rename into its own deploy with no other
+# migrations riding along, so a stuck chain is easy to isolate and fix.
+#
 # sslmode=disable: golang-migrate's Postgres driver defaults to
 # sslmode=require and hard-fails ("SSL is not enabled on the server")
 # against our self-hosted postgres:17-alpine container (no TLS cert

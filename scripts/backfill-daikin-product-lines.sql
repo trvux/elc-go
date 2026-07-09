@@ -48,7 +48,11 @@ WHERE p.brand_id = b.id
   AND p.deleted_at IS NULL
   AND pl.brand_id = b.id
   AND pl.deleted_at IS NULL
-  AND EXISTS (SELECT 1 FROM unnest(pl.mpn_prefixes) prefix WHERE p.mpn LIKE prefix || '%');
+  AND EXISTS (
+    SELECT 1 FROM product_variants v, unnest(pl.mpn_prefixes) prefix
+    WHERE v.product_id = p.id AND v.is_default = true AND v.deleted_at IS NULL
+      AND v.mpn LIKE prefix || '%'
+  );
 
 -- Report what happened before committing, for a human to eyeball.
 SELECT pl.code, pl.name, count(p.id) AS assigned_products
@@ -57,11 +61,11 @@ LEFT JOIN products p ON p.product_line_id = pl.id AND p.deleted_at IS NULL
 GROUP BY pl.id, pl.code, pl.name, pl.tier_rank
 ORDER BY pl.tier_rank;
 
-SELECT p.mpn, p.name
+SELECT v.mpn, p.name
 FROM products p
 JOIN brands b ON b.id = p.brand_id
+JOIN product_variants v ON v.product_id = p.id AND v.is_default = true AND v.deleted_at IS NULL
 WHERE b.name = 'Daikin' AND p.product_line_id IS NULL AND p.deleted_at IS NULL
-  AND p.mpn IS NOT NULL
-ORDER BY p.mpn;
+ORDER BY v.mpn;
 
 COMMIT;

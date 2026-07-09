@@ -182,8 +182,12 @@ WHERE p.brand_id = pl.brand_id
   AND p.product_line_id IS NULL
   AND p.deleted_at IS NULL
   AND pl.deleted_at IS NULL
-  AND p.mpn IS NOT NULL AND p.mpn <> ''
-  AND EXISTS (SELECT 1 FROM unnest(pl.mpn_prefixes) prefix WHERE p.mpn LIKE prefix || '%');
+  AND EXISTS (
+    SELECT 1 FROM product_variants v, unnest(pl.mpn_prefixes) prefix
+    WHERE v.product_id = p.id AND v.is_default = true AND v.deleted_at IS NULL
+      AND v.mpn IS NOT NULL AND v.mpn <> ''
+      AND v.mpn LIKE prefix || '%'
+  );
 
 SELECT b.name AS brand, pl.code, pl.name, pl.tier_rank, count(p.id) AS assigned_products
 FROM product_lines pl
