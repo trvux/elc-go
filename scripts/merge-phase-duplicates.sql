@@ -63,7 +63,12 @@ DECLARE
     val_1pha uuid;
     val_3pha uuid;
     survivor_variant_id uuid;
-    loser_row products%ROWTYPE;
+    -- Reads from product_variants, not products — migration 000007
+    -- (variant-only pricing) already dropped products.sku/original_price/
+    -- sale_price/discount_percent/stock_status by the time this runs; the
+    -- loser's real values now live on its own (already-backfilled) default
+    -- variant instead.
+    loser_variant product_variants%ROWTYPE;
 BEGIN
     FOR pair IN SELECT * FROM phase_pairs LOOP
         -- Skip pairs already processed by a prior run of this script.
@@ -71,7 +76,8 @@ BEGIN
             CONTINUE;
         END IF;
 
-        SELECT * INTO loser_row FROM products WHERE id = pair.loser_id;
+        SELECT * INTO loser_variant FROM product_variants
+        WHERE product_id = pair.loser_id AND deleted_at IS NULL AND is_default = true LIMIT 1;
 
         -- 1. Strip the phase suffix from the survivor's name.
         UPDATE products
@@ -102,19 +108,16 @@ BEGIN
 
         -- 5. New variant for the "3 pha" data, linked to "3 pha". mpn is
         -- temporarily the loser's old combined sku (unique, cleaned up by
-        -- the bundle-split script next).
+        -- the bundle-split script next). stock_status is already the
+        -- correct enum value (product_variants, not the old products text
+        -- column), no remapping needed.
         INSERT INTO product_variants (
             product_id, mpn, sku, is_default, is_standalone, stock_status,
             original_price, sale_price, discount_percent, is_active, order_index
         ) VALUES (
-            pair.survivor_id, loser_row.sku, loser_row.sku, false, true,
-            CASE loser_row.stock_status
-                WHEN 'out_of_stock' THEN 'order_from_supplier'
-                WHEN 'pre_order' THEN 'order_from_supplier'
-                WHEN 'discontinued' THEN 'discontinued'
-                ELSE 'in_stock'
-            END::product_variant_stock_status,
-            loser_row.original_price, NULLIF(loser_row.sale_price, 0), loser_row.discount_percent, true, 1
+            pair.survivor_id, loser_variant.sku, loser_variant.sku, false, true,
+            loser_variant.stock_status,
+            loser_variant.original_price, NULLIF(loser_variant.sale_price, 0), loser_variant.discount_percent, true, 1
         )
         RETURNING id INTO survivor_variant_id; -- reused var, now holds the NEW variant's id
 
