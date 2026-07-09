@@ -5,8 +5,8 @@ import "context"
 // CategoryRepository — GetAll/GetByID/GetBySlug return *CategoryWithRelations
 // (joined with group_categories) so the HTTP response can carry the nested
 // group object without a second round trip; Create/Update return a plain
-// *Category — same split catalog/service already use for their own
-// relations, see internal/catalog/domain/repository.go.
+// *Category — same split product/service already use for their own
+// relations, see internal/product/domain/repository.go.
 type CategoryRepository interface {
 	GetAll(ctx context.Context, filter CategoryFilter) ([]*CategoryWithRelations, error)
 	Count(ctx context.Context, filter CategoryFilter) (int, error)

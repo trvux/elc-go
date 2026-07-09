@@ -9,14 +9,14 @@ import (
 	"github.com/trvux/elc-go/internal/platform/media"
 )
 
-// ImageAsset re-exports the shared media type — see catalog/domain/types.go's
+// ImageAsset re-exports the shared media type — see product/domain/types.go's
 // identical alias for why this is centralized rather than duplicated.
 type ImageAsset = media.ImageAsset
 
 // Seo is the unified SEO metadata shape stored as jsonb, replacing the old
 // flat MetaTitle/MetaDescription pair (kept alongside during the migration).
 // Duplicated per-module rather than shared, same reasoning as
-// CategoryRef/BrandRef in catalog/domain/types.go.
+// CategoryRef/BrandRef in product/domain/types.go.
 type Seo struct {
 	Title       *string `json:"title,omitempty"`
 	Description *string `json:"description,omitempty"`
@@ -128,7 +128,7 @@ type TagRef struct {
 // CategoryCondition is one entry of the project_category join table's
 // payload at write time: a category id plus the condition (new/used) it's
 // attached under. condition is modeled as a plain string + validation, same
-// choice internal/catalog/domain/types.go made for the identical
+// choice internal/product/domain/types.go made for the identical
 // product_condition Postgres enum — not a Go enum type.
 type CategoryCondition struct {
 	CategoryID string
@@ -384,7 +384,7 @@ func validateSlug(slug string) []string {
 }
 
 // ValidateCondition enforces the product_condition Postgres enum's two
-// allowed values — same rule internal/catalog/domain/types.go's
+// allowed values — same rule internal/product/domain/types.go's
 // validateCondition uses for the identical enum.
 func ValidateCondition(condition string) []string {
 	if condition != "new" && condition != "used" {

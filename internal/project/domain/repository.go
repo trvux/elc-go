@@ -31,7 +31,7 @@ type ProjectRepository interface {
 	// back to the full published catalog of projects when that project type
 	// has fewer than 2 published siblings — same "same-group siblings
 	// first, fall back to everything published" rule as
-	// internal/catalog/domain/repository.go's GetAdjacent, pushed down to
+	// internal/product/domain/repository.go's GetAdjacent, pushed down to
 	// SQL instead of the old TS application layer loading everything into
 	// memory to sort (see modules/project/application/getAdjacentProjects.ts).
 	GetAdjacent(ctx context.Context, projectTypeID *string, currentID string) (prev, next *AdjacentProject, err error)

@@ -12,6 +12,8 @@ import (
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 
+	attributeinfra "github.com/trvux/elc-go/internal/attribute/infrastructure"
+	attributepresentation "github.com/trvux/elc-go/internal/attribute/presentation"
 	authdomain "github.com/trvux/elc-go/internal/auth/domain"
 	authinfra "github.com/trvux/elc-go/internal/auth/infrastructure"
 	authpresentation "github.com/trvux/elc-go/internal/auth/presentation"
@@ -21,8 +23,6 @@ import (
 	branchpresentation "github.com/trvux/elc-go/internal/branch/presentation"
 	brandinfra "github.com/trvux/elc-go/internal/brand/infrastructure"
 	brandpresentation "github.com/trvux/elc-go/internal/brand/presentation"
-	catalogInfra "github.com/trvux/elc-go/internal/catalog/infrastructure"
-	catalogPresentation "github.com/trvux/elc-go/internal/catalog/presentation"
 	categoryinfra "github.com/trvux/elc-go/internal/category/infrastructure"
 	categorypresentation "github.com/trvux/elc-go/internal/category/presentation"
 	contactinfra "github.com/trvux/elc-go/internal/contact/infrastructure"
@@ -41,6 +41,8 @@ import (
 	"github.com/trvux/elc-go/internal/platform/db"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
 	"github.com/trvux/elc-go/internal/platform/logger"
+	productInfra "github.com/trvux/elc-go/internal/product/infrastructure"
+	productPresentation "github.com/trvux/elc-go/internal/product/presentation"
 	projecttypeinfra "github.com/trvux/elc-go/internal/project-type/infrastructure"
 	projecttypepresentation "github.com/trvux/elc-go/internal/project-type/presentation"
 	projectinfra "github.com/trvux/elc-go/internal/project/infrastructure"
@@ -176,9 +178,17 @@ func main() {
 	tagHandler := tagpresentation.NewTagHandler(tagRepo)
 	tagpresentation.RegisterRoutes(router, tagHandler, tokenIssuer)
 
-	catalogRepo := catalogInfra.NewPostgresProductRepository(pool)
-	catalogHandler := catalogPresentation.NewProductHandler(catalogRepo)
-	catalogPresentation.RegisterRoutes(router, catalogHandler, tokenIssuer)
+	attributeDefinitionRepo := attributeinfra.NewPostgresAttributeDefinitionRepository(pool)
+	attributeDefinitionHandler := attributepresentation.NewAttributeDefinitionHandler(attributeDefinitionRepo)
+	attributepresentation.RegisterRoutes(router, attributeDefinitionHandler, tokenIssuer)
+
+	productRepo := productInfra.NewPostgresProductRepository(pool)
+	productHandler := productPresentation.NewProductHandler(productRepo)
+	productPresentation.RegisterRoutes(router, productHandler, tokenIssuer)
+
+	productLineRepo := productInfra.NewPostgresProductLineRepository(pool)
+	productLineHandler := productPresentation.NewProductLineHandler(productLineRepo)
+	productPresentation.RegisterProductLineRoutes(router, productLineHandler, tokenIssuer)
 
 	reviewRepo := reviewinfra.NewPostgresReviewRepository(pool)
 	reviewHandler := reviewpresentation.NewReviewHandler(reviewRepo)

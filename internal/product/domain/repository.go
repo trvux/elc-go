@@ -1,0 +1,90 @@
+package domain
+
+import "context"
+
+// BrandFacet/SpecFacet/ProductFacets/ProductListResult/AdjacentProduct are
+// pure repository-result shapes (not persistent entities), same spirit as
+// ServiceWithRelations but for the aggregate list-with-facets read that
+// catalog needs and service doesn't.
+type BrandFacet struct {
+	ID   string
+	Name string
+	Slug string
+}
+
+// SpecFacet groups the flat "Label::Value" normalized_specs entries back
+// into one UI-facing facet per label, e.g. {Label: "Công suất", Values:
+// ["1 HP", "1.5 HP", "2 HP"]}.
+type SpecFacet struct {
+	Label  string
+	Values []string
+}
+
+type ProductFacets struct {
+	Brands   []BrandFacet
+	Specs    []SpecFacet
+	MinPrice int64
+	MaxPrice int64
+}
+
+type ProductListResult struct {
+	Products   []*ProductWithRelations
+	TotalCount int
+	Facets     ProductFacets
+}
+
+type AdjacentProduct struct {
+	Name string
+	Slug string
+}
+
+// ProductRepository — GetByID/GetBySlug/GetByIDs return *ProductWithRelations
+// (not the bare *Product the original task sketch showed) so the HTTP
+// response can carry nested category/brand objects without a second round
+// trip; Create/Update return a plain *Product, exactly the same split
+// service already uses (ServiceWithRelations for reads, *Service for
+// writes) — see internal/service/domain/repository.go for the precedent
+// this follows.
+type ProductRepository interface {
+	GetAll(ctx context.Context, filter ProductFilter) (*ProductListResult, error)
+	Count(ctx context.Context, filter ProductFilter) (int, error)
+	GetByID(ctx context.Context, id string) (*ProductWithRelations, error)
+	GetBySlug(ctx context.Context, slug string) (*ProductWithRelations, error)
+	GetByIDs(ctx context.Context, ids []string) ([]*ProductWithRelations, error)
+	// tagIDs on Create is the initial tag set; on Update, nil means "leave
+	// tags untouched", a non-nil pointer means "replace all tags with this
+	// set" — same convention as project's Categories/ServiceIDs. options/
+	// variants follow the same nil-vs-non-nil convention on Update (nil =
+	// leave the variant tree untouched); on Create they're the initial tree.
+	// attributeValues follows the same nil-vs-non-nil convention as options/
+	// variants on Update: nil leaves existing product_attribute_values
+	// untouched, a non-nil pointer replaces the whole set. Unlike options/
+	// variants, attribute values are only ever fetched on single-product
+	// reads (GetByID/GetBySlug) — see attachAttributeValuesToProducts's doc
+	// comment — never on GetAll/GetByIDs, since specs aren't needed for list/
+	// card rendering.
+	Create(ctx context.Context, product *Product, tagIDs []string, options []ProductOptionInput, variants []ProductVariantInput, attributeValues []ProductAttributeValueInput) (*Product, error)
+	Update(ctx context.Context, product *Product, tagIDs *[]string, options *[]ProductOptionInput, variants *[]ProductVariantInput, attributeValues *[]ProductAttributeValueInput) (*Product, error)
+	SoftDelete(ctx context.Context, id string) error
+	Restore(ctx context.Context, id string) error
+	// GetAdjacent resolves prev/next within categoryID first, falling back to
+	// the full published catalog when that category has fewer than 2
+	// published siblings — see application/get_adjacent_products.go for why
+	// the fallback *decision* still lives in the application layer even
+	// though both queries run here.
+	GetAdjacent(ctx context.Context, categoryID, currentID string) (prev, next *AdjacentProduct, err error)
+}
+
+// ProductLineRepository is intentionally a separate interface (not folded
+// into ProductRepository) even though it lives in the same Go package/table
+// migration — it's a simple independent CRUD lookup, same shape as
+// brand/category's own repositories, not something Product's read/write
+// paths depend on beyond a plain ID reference.
+type ProductLineRepository interface {
+	List(ctx context.Context, brandID *string, includeDeleted bool) ([]*ProductLine, error)
+	GetByID(ctx context.Context, id string) (*ProductLine, error)
+	Create(ctx context.Context, line *ProductLine) (*ProductLine, error)
+	Update(ctx context.Context, line *ProductLine) (*ProductLine, error)
+	SoftDelete(ctx context.Context, id string) error
+	Restore(ctx context.Context, id string) error
+}

@@ -20,7 +20,7 @@ This folder is the "what", `ARCHITECTURE.md` is the "how".
 | brand         | Migrated (fully clean) | [brand.md](brand.md) |
 | group         | Migrated (fully clean) | [group.md](group.md) |
 | category      | Migrated (fully clean) — doc file missing, pre-existing gap not introduced by this migration | — |
-| catalog       | Migrated (fully clean) — status corrected here; `elc-tem` cutover (previously listed as "Phase 2, not started") had actually already happened (verified: `application`/`infrastructure` are gone from `modules/catalog` in `elc-tem`) | [catalog.md](catalog.md) |
+| product       | v2 core slice done (renamed from `catalog`; variants/options/bundle-components/product-lines built, migrated, backfilled for all 197 existing rows on the self-hosted dev DB) — flat single-SKU columns kept unchanged alongside it, `elc-tem` cutover NOT done. Pricing-by-customer-group/promotions/generalized attributes/highlights/services/relations are separate future passes, see [product-v2-design.md](product-v2-design.md) | [product.md](product.md) |
 | project       | Migrated (fully clean) | [project.md](project.md) |
 | news          | Migrated (fully clean) | [news.md](news.md) |
 | branch        | Migrated (fully clean) — missing from this table until now, pre-existing gap not introduced by this migration | [branch.md](branch.md) |

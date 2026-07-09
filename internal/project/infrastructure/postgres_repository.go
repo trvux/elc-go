@@ -37,7 +37,7 @@ const projectColumns = `p.id, p.title, p.description, p.images,
 
 // marshalSeo/unmarshalSeo hand-roll the jsonb <-> domain.Seo conversion —
 // the shared pool runs pgx.QueryExecModeSimpleProtocol (PgBouncer fix), which
-// can't infer an OID for an arbitrary struct, same reasoning as catalog's
+// can't infer an OID for an arbitrary struct, same reasoning as product's
 // marshalSpecs/unmarshalSpecs. seo is NOT NULL DEFAULT '{}' object-shaped, so
 // an empty/zero Seo marshals to "{}".
 func marshalSeo(seo domain.Seo) (json.RawMessage, error) {
@@ -864,7 +864,7 @@ type adjacentProjectRow struct {
 	id, title, slug string
 }
 
-// GetAdjacent ports internal/catalog's GetAdjacent pattern (same "same-group
+// GetAdjacent ports internal/product's GetAdjacent pattern (same "same-group
 // siblings first, fall back to full published set" rule) — the old TS
 // getAdjacentProjects.ts loaded every published project into memory to sort;
 // this pushes that down to two indexed SQL queries at most (the fallback

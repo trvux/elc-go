@@ -32,8 +32,8 @@ type Category struct {
 
 // GroupRef is a lightweight, read-only reference to a group_categories row,
 // populated by a LEFT JOIN in this module's own SQL (internal/category/infrastructure)
-// rather than importing internal/group — same pattern catalog uses for its own
-// CategoryRef/BrandRef, see internal/catalog/domain/types.go.
+// rather than importing internal/group — same pattern product uses for its own
+// CategoryRef/BrandRef, see internal/product/domain/types.go.
 type GroupRef struct {
 	ID              string
 	Name            string

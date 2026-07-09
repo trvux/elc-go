@@ -10,7 +10,7 @@ import (
 	"github.com/trvux/elc-go/internal/platform/media"
 )
 
-// ImageAsset re-exports the shared media type — see catalog/domain/types.go's
+// ImageAsset re-exports the shared media type — see product/domain/types.go's
 // identical alias for why this is centralized rather than duplicated.
 type ImageAsset = media.ImageAsset
 
@@ -19,7 +19,7 @@ var slugRegex = regexp.MustCompile("^[a-z0-9-]+$")
 // Seo is the unified SEO metadata shape stored as jsonb, replacing the old
 // flat MetaTitle/MetaDescription pair (kept alongside during the migration).
 // Duplicated per-module rather than shared, same reasoning as
-// CategoryRef/BrandRef in catalog/domain/types.go.
+// CategoryRef/BrandRef in product/domain/types.go.
 type Seo struct {
 	Title       *string `json:"title,omitempty"`
 	Description *string `json:"description,omitempty"`

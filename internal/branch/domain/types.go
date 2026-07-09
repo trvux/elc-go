@@ -12,7 +12,7 @@ import (
 	"github.com/trvux/elc-go/internal/platform/media"
 )
 
-// ImageAsset re-exports the shared media type — see catalog/domain/types.go's
+// ImageAsset re-exports the shared media type — see product/domain/types.go's
 // identical alias for why this is centralized rather than duplicated.
 type ImageAsset = media.ImageAsset
 

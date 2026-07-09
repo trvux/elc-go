@@ -58,7 +58,7 @@ per migrated module. This table is just the at-a-glance status.
 | brand         | migrated (fully clean) | see [docs/brand.md](docs/brand.md) |
 | group         | migrated (fully clean) | see [docs/group.md](docs/group.md) |
 | category      | migrated (fully clean) | doc file missing, pre-existing gap |
-| catalog       | migrated (fully clean) | see [docs/catalog.md](docs/catalog.md) |
+| product       | v2 core slice done (renamed from catalog) | see [docs/product.md](docs/product.md) |
 | project       | migrated (fully clean) | see [docs/project.md](docs/project.md) |
 | news          | migrated (fully clean) | see [docs/news.md](docs/news.md) |
 | branch        | migrated (fully clean) | see [docs/branch.md](docs/branch.md) |
