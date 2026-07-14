@@ -75,23 +75,14 @@ type ServiceGroupRef struct {
 }
 
 // ProjectCategory is one row of the project_category join — a category
-// attached to a project under a specific condition (new/used). LowPrice/
-// HighPrice/OfferCount are only computed when the caller asks for pricing
-// (GetBySlug(..., withPricing=true)) — zero otherwise. This mirrors the old
-// TS split: modules/project/infrastructure/projectRepo.ts's
-// mapToDomainWithCategory never computed these three fields; only
-// modules/project/infrastructure/resolveProjectPath.ts (used by the public
-// project detail page) did, via a separate join into `products`.
+// attached to a project under a specific condition (new/used).
 type ProjectCategory struct {
-	ID         string
-	Name       string
-	Slug       string
-	GroupID    *string
-	Condition  string
-	Group      *CategoryGroupRef
-	LowPrice   int64
-	HighPrice  int64
-	OfferCount int
+	ID        string
+	Name      string
+	Slug      string
+	GroupID   *string
+	Condition string
+	Group     *CategoryGroupRef
 }
 
 // ProjectServiceRef is one row of the project_service join.

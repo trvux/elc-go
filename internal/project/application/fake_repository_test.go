@@ -72,7 +72,7 @@ func (r *fakeProjectRepository) GetByID(ctx context.Context, id string) (*domain
 	return r.withRelations(p), nil
 }
 
-func (r *fakeProjectRepository) GetBySlug(ctx context.Context, slug string, withPricing bool) (*domain.ProjectWithRelations, error) {
+func (r *fakeProjectRepository) GetBySlug(ctx context.Context, slug string) (*domain.ProjectWithRelations, error) {
 	for _, p := range r.items {
 		if p.Slug() == slug && !p.IsDeleted() {
 			return r.withRelations(p), nil

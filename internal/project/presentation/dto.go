@@ -75,15 +75,12 @@ type serviceGroupRefResponse struct {
 }
 
 type projectCategoryResponse struct {
-	ID         string                    `json:"id"`
-	Name       string                    `json:"name"`
-	Slug       string                    `json:"slug"`
-	GroupID    *string                   `json:"group_id"`
-	Condition  string                    `json:"condition"`
-	Group      *categoryGroupRefResponse `json:"group"`
-	LowPrice   int64                     `json:"low_price"`
-	HighPrice  int64                     `json:"high_price"`
-	OfferCount int                       `json:"offer_count"`
+	ID        string                    `json:"id"`
+	Name      string                    `json:"name"`
+	Slug      string                    `json:"slug"`
+	GroupID   *string                   `json:"group_id"`
+	Condition string                    `json:"condition"`
+	Group     *categoryGroupRefResponse `json:"group"`
 }
 
 type projectServiceResponse struct {
@@ -134,7 +131,7 @@ func toProjectResponse(p *domain.ProjectWithRelations) projectResponse {
 		}
 		categories[i] = projectCategoryResponse{
 			ID: c.ID, Name: c.Name, Slug: c.Slug, GroupID: c.GroupID, Condition: c.Condition,
-			Group: group, LowPrice: c.LowPrice, HighPrice: c.HighPrice, OfferCount: c.OfferCount,
+			Group: group,
 		}
 	}
 

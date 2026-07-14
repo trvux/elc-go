@@ -296,7 +296,7 @@ func (r *PostgresProjectRepository) GetAll(ctx context.Context, filter domain.Pr
 		return nil, fmt.Errorf("project repository getAll rows: %w", err)
 	}
 
-	categoriesByProject, err := r.fetchCategoriesForProjects(ctx, ids, false)
+	categoriesByProject, err := r.fetchCategoriesForProjects(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -351,10 +351,10 @@ func (r *PostgresProjectRepository) GetByID(ctx context.Context, id string) (*do
 		return nil, fmt.Errorf("project repository getById: %w", err)
 	}
 
-	return r.attachRelations(ctx, p, pt, false)
+	return r.attachRelations(ctx, p, pt)
 }
 
-func (r *PostgresProjectRepository) GetBySlug(ctx context.Context, slug string, withPricing bool) (*domain.ProjectWithRelations, error) {
+func (r *PostgresProjectRepository) GetBySlug(ctx context.Context, slug string) (*domain.ProjectWithRelations, error) {
 	query := "SELECT " + projectColumns + `, pt.id, pt.name, pt.slug
 		FROM projects p
 		LEFT JOIN project_type pt ON pt.id = p.project_type_id
@@ -369,11 +369,11 @@ func (r *PostgresProjectRepository) GetBySlug(ctx context.Context, slug string, 
 		return nil, fmt.Errorf("project repository getBySlug: %w", err)
 	}
 
-	return r.attachRelations(ctx, p, pt, withPricing)
+	return r.attachRelations(ctx, p, pt)
 }
 
-func (r *PostgresProjectRepository) attachRelations(ctx context.Context, p *domain.Project, pt *domain.ProjectTypeRef, withPricing bool) (*domain.ProjectWithRelations, error) {
-	categoriesByProject, err := r.fetchCategoriesForProjects(ctx, []string{p.ID()}, withPricing)
+func (r *PostgresProjectRepository) attachRelations(ctx context.Context, p *domain.Project, pt *domain.ProjectTypeRef) (*domain.ProjectWithRelations, error) {
+	categoriesByProject, err := r.fetchCategoriesForProjects(ctx, []string{p.ID()})
 	if err != nil {
 		return nil, err
 	}
@@ -459,41 +459,17 @@ func insertProjectTags(ctx context.Context, tx pgx.Tx, projectID string, tagIDs 
 
 // fetchCategoriesForProjects batch-loads project_category rows (+ category +
 // its group) for every project id in one round trip, keyed by project id —
-// avoids the N+1 the naive per-project version would cause. withPricing
-// turns on the LATERAL join into `products` that computes lowPrice/
-// highPrice/offerCount — mirrors the old TS split between
-// projectRepo.ts's getAll/getById/getBySlug (no pricing) and
-// infrastructure/resolveProjectPath.ts (pricing), see docs/project.md.
-func (r *PostgresProjectRepository) fetchCategoriesForProjects(ctx context.Context, projectIDs []string, withPricing bool) (map[string][]domain.ProjectCategory, error) {
+// avoids the N+1 the naive per-project version would cause.
+func (r *PostgresProjectRepository) fetchCategoriesForProjects(ctx context.Context, projectIDs []string) (map[string][]domain.ProjectCategory, error) {
 	if len(projectIDs) == 0 {
 		return map[string][]domain.ProjectCategory{}, nil
 	}
 
-	priceSelect := "0::bigint, 0::bigint, 0::int"
-	priceJoin := ""
-	if withPricing {
-		// Mirrors the old TS `p.sale_price || p.original_price || 0` (JS
-		// treats 0 as falsy too) via COALESCE+NULLIF, then only counts/
-		// ranges over strictly-positive prices — same as the old
-		// `.filter((p) => p > 0)` in resolveProjectPath.ts.
-		priceSelect = "COALESCE(price_agg.low_price, 0), COALESCE(price_agg.high_price, 0), COALESCE(price_agg.offer_count, 0)"
-		priceJoin = `
-		LEFT JOIN LATERAL (
-			SELECT MIN(price) AS low_price, MAX(price) AS high_price, COUNT(*) AS offer_count
-			FROM (
-				SELECT COALESCE(NULLIF(pr.sale_price, 0), NULLIF(pr.original_price, 0), 0) AS price
-				FROM products pr
-				WHERE pr.category_id = c.id AND pr.is_published = true AND pr.deleted_at IS NULL
-			) prices
-			WHERE price > 0
-		) price_agg ON true`
-	}
-
 	query := `
-		SELECT pc.project_id, pc.condition, c.id, c.name, c.slug, c.group_id, gc.id, gc.name, ` + priceSelect + `
+		SELECT pc.project_id, pc.condition, c.id, c.name, c.slug, c.group_id, gc.id, gc.name
 		FROM project_category pc
 		JOIN categories c ON c.id = pc.category_id
-		LEFT JOIN group_categories gc ON gc.id = c.group_id` + priceJoin + `
+		LEFT JOIN group_categories gc ON gc.id = c.group_id
 		WHERE pc.project_id = ANY($1)`
 
 	rows, err := r.pool.Query(ctx, query, projectIDs)
@@ -509,12 +485,9 @@ func (r *PostgresProjectRepository) fetchCategoriesForProjects(ctx context.Conte
 			catSlug                              *string
 			groupID                              *string
 			groupCatID, groupCatName             *string
-			lowPrice, highPrice                  int64
-			offerCount                           int
 		)
 		if err := rows.Scan(
 			&projectID, &condition, &catID, &catName, &catSlug, &groupID, &groupCatID, &groupCatName,
-			&lowPrice, &highPrice, &offerCount,
 		); err != nil {
 			return nil, fmt.Errorf("project repository fetchCategories scan: %w", err)
 		}
@@ -526,7 +499,7 @@ func (r *PostgresProjectRepository) fetchCategoriesForProjects(ctx context.Conte
 
 		result[projectID] = append(result[projectID], domain.ProjectCategory{
 			ID: catID, Name: catName, Slug: derefStr(catSlug), GroupID: groupID, Condition: condition,
-			Group: group, LowPrice: lowPrice, HighPrice: highPrice, OfferCount: offerCount,
+			Group: group,
 		})
 	}
 	if err := rows.Err(); err != nil {

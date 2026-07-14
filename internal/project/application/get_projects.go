@@ -18,11 +18,8 @@ func GetProjectByID(ctx context.Context, repo domain.ProjectRepository, id strin
 	return repo.GetByID(ctx, id)
 }
 
-// GetProjectBySlug's withPricing mirrors the old TS split between
-// projectRepo.ts's getBySlug (no pricing) and infrastructure/
-// resolveProjectPath.ts (pricing) — see domain/repository.go.
-func GetProjectBySlug(ctx context.Context, repo domain.ProjectRepository, slug string, withPricing bool) (*domain.ProjectWithRelations, error) {
-	return repo.GetBySlug(ctx, slug, withPricing)
+func GetProjectBySlug(ctx context.Context, repo domain.ProjectRepository, slug string) (*domain.ProjectWithRelations, error) {
+	return repo.GetBySlug(ctx, slug)
 }
 
 // GetAdjacentProjects delegates the actual sibling lookup + fallback

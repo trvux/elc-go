@@ -242,7 +242,7 @@ func TestPostgresProjectRepository_GetAdjacent(t *testing.T) {
 	}
 }
 
-func TestPostgresProjectRepository_GetBySlugWithPricing(t *testing.T) {
+func TestPostgresProjectRepository_GetBySlug(t *testing.T) {
 	ctx := context.Background()
 
 	pool, err := db.New(ctx, os.Getenv("DATABASE_URL"))
@@ -260,19 +260,7 @@ func TestPostgresProjectRepository_GetBySlugWithPricing(t *testing.T) {
 
 	repo := NewPostgresProjectRepository(pool)
 
-	withoutPricing, err := repo.GetBySlug(ctx, slug, false)
-	if err != nil {
-		t.Fatalf("GetBySlug(withPricing=false) failed: %v", err)
-	}
-	for _, c := range withoutPricing.Categories {
-		if c.LowPrice != 0 || c.HighPrice != 0 || c.OfferCount != 0 {
-			t.Errorf("expected zero pricing when withPricing=false, got %+v", c)
-		}
-	}
-
-	// Just verifying the pricing-enabled query runs without error against
-	// real data — actual price values depend on live product data.
-	if _, err := repo.GetBySlug(ctx, slug, true); err != nil {
-		t.Fatalf("GetBySlug(withPricing=true) failed: %v", err)
+	if _, err := repo.GetBySlug(ctx, slug); err != nil {
+		t.Fatalf("GetBySlug failed: %v", err)
 	}
 }

@@ -111,9 +111,8 @@ func (h *ProjectHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 func (h *ProjectHandler) GetBySlug(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	withPricing := r.URL.Query().Get("with_pricing") == "true"
 
-	p, err := application.GetProjectBySlug(r.Context(), h.repo, slug, withPricing)
+	p, err := application.GetProjectBySlug(r.Context(), h.repo, slug)
 	if err != nil {
 		httpserver.WriteError(w, err)
 		return

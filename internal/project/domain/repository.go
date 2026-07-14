@@ -14,12 +14,7 @@ type ProjectRepository interface {
 	GetAll(ctx context.Context, filter ProjectFilter) ([]*ProjectWithRelations, error)
 	Count(ctx context.Context, filter ProjectFilter) (int, error)
 	GetByID(ctx context.Context, id string) (*ProjectWithRelations, error)
-	// GetBySlug's withPricing flag mirrors the old TS split: false is the
-	// old projectRepo.ts's getBySlug shape (categories without pricing,
-	// cheap), true is the old infrastructure/resolveProjectPath.ts's shape
-	// (extra JOIN into products for lowPrice/highPrice/offerCount, used only
-	// by the public project detail page). See docs/project.md.
-	GetBySlug(ctx context.Context, slug string, withPricing bool) (*ProjectWithRelations, error)
+	GetBySlug(ctx context.Context, slug string) (*ProjectWithRelations, error)
 	Create(ctx context.Context, project *Project, categories []CategoryCondition, serviceIDs []string, tagIDs []string) (*Project, error)
 	Update(ctx context.Context, project *Project, categories *[]CategoryCondition, serviceIDs *[]string, tagIDs *[]string) (*Project, error)
 	SoftDelete(ctx context.Context, id string) error
