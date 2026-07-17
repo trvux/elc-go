@@ -41,7 +41,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -197,8 +196,6 @@ func matchSectionRoute(section, norm string) (string, bool) {
 	return code, ok
 }
 
-var numberRegex = regexp.MustCompile(`^[0-9][0-9,]*(\.[0-9]+)?$`)
-
 // normalizeLabel prepares a label for comparison — critically including
 // Unicode NFC normalization (2026-07-17 finding): the old specs jsonb has
 // Vietnamese text entered inconsistently, some diacritics as a single
@@ -313,7 +310,45 @@ type pendingValue struct {
 	boo   *bool
 }
 
+// leadingNumber extracts a usable numeric value from a raw spec value that
+// may carry a comparison prefix ("<=12"), a parenthetical min-max range
+// ("930 (120 ~ 1,100)"), and/or thousands commas — found 2026-07-18 sampling
+// products whose sub-items separate value from unit (see flatLikeValue):
+// weight/length/power/area fields in this data consistently use comma
+// (never dot, unlike BTU — see capacityNumberFromMultiUnit) as the
+// thousands separator, and a parenthetical suffix is always a supplementary
+// min-max range, never the primary reading. Taking the leading/rated figure
+// before it is the same judgment call already validated for BTU, applied
+// consistently rather than case-by-case.
+func leadingNumber(raw string) (float64, bool) {
+	s := strings.TrimSpace(raw)
+	s = strings.TrimLeft(s, "<>=~≈ \t")
+	if i := strings.IndexByte(s, '('); i >= 0 {
+		s = strings.TrimSpace(s[:i])
+	}
+	s = strings.ReplaceAll(s, ",", "")
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, false
+	}
+	n, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
 func setValueForDataType(target attributeDef, rawValue string) (pendingValue, bool) {
+	return setValueForDataTypeWithUnit(target, rawValue, "")
+}
+
+// setValueForDataTypeWithUnit is setValueForDataType plus an optional
+// subUnit — when a spec sub-item carries its unit as a separate JSON field
+// rather than embedded in the value text (see flatLikeValue's doc
+// comment), there is nothing to strip from the value string, so
+// stripOwnUnit is skipped entirely rather than risking it eating part of a
+// genuine number.
+func setValueForDataTypeWithUnit(target attributeDef, rawValue, subUnit string) (pendingValue, bool) {
 	value := strings.TrimSpace(rawValue)
 	if value == "" {
 		return pendingValue{}, false
@@ -332,12 +367,12 @@ func setValueForDataType(target attributeDef, rawValue string) (pendingValue, bo
 		}
 		return pendingValue{}, false
 	case "number":
-		cleaned := strings.ReplaceAll(stripOwnUnit(value, target.unit), ",", "")
-		if !numberRegex.MatchString(cleaned) {
-			return pendingValue{}, false
+		v := value
+		if subUnit == "" {
+			v = stripOwnUnit(value, target.unit)
 		}
-		n, err := strconv.ParseFloat(cleaned, 64)
-		if err != nil {
+		n, ok := leadingNumber(v)
+		if !ok {
 			return pendingValue{}, false
 		}
 		return pendingValue{defID: target.id, num: &n}, true
@@ -356,6 +391,36 @@ func setValueForDataType(target attributeDef, rawValue string) (pendingValue, bo
 		return pendingValue{defID: target.id, boo: &b}, true
 	}
 	return pendingValue{}, false
+}
+
+// flatLikeValue unwraps an item into an equivalent flat (value, unit) pair
+// if it's already flat, OR if it's a nested group with exactly one
+// blank-labeled sub-item — a data-entry style (found 2026-07-18) where even
+// single scalar values get wrapped in items[] with the unit on the
+// sub-item rather than the parent (e.g. "Trọng lượng" ->
+// items:[{unit:"kg", value:"9"}]). Returns ok=false for genuine multi-part
+// groups (HP/kW/BTU triples, feature lists, etc.), which stay on the
+// specialized Rule 1/Rule 3 path below.
+func flatLikeValue(item specItem) (value string, unit string, ok bool) {
+	if item.Items == nil {
+		if item.Value == nil {
+			return "", "", false
+		}
+		u := ""
+		if item.Unit != nil {
+			u = *item.Unit
+		}
+		return *item.Value, u, true
+	}
+	if len(item.Items) == 1 && strings.TrimSpace(item.Items[0].Label) == "" {
+		sub := item.Items[0]
+		u := ""
+		if sub.Unit != nil {
+			u = *sub.Unit
+		}
+		return sub.Value, u, true
+	}
+	return "", "", false
 }
 
 func main() {
@@ -500,7 +565,8 @@ func main() {
 				continue
 			}
 
-			// Rule 2: section header.
+			// Rule 2: section header (always genuinely flat in every
+			// sample seen — never single-item-wrapped).
 			if item.Items == nil && item.Value != nil {
 				if hdr, ok := sectionHeaders[norm]; ok {
 					section = hdr.section
@@ -516,7 +582,66 @@ func main() {
 				}
 			}
 
-			// Rule 1: multi-unit same-value group (unlabeled sub-items).
+			// Flat-like path: covers both genuinely flat {label,value}
+			// entries and single-blank-sub-item nested groups (see
+			// flatLikeValue doc comment) through one unified pipeline —
+			// section-routing, acSynonym/menredSynonym, then name match.
+			if fv, funit, ok := flatLikeValue(item); ok {
+				totalEntries++
+				value := strings.TrimSpace(fv)
+				if value == "" {
+					continue
+				}
+
+				if section != "" {
+					if code, ok := matchSectionRoute(section, norm); ok {
+						if def, ok := byCodeCandidate(code); ok {
+							if pv, ok := setValueForDataTypeWithUnit(def, value, funit); ok {
+								pending[def.id] = pv
+								matched++
+								continue
+							}
+						}
+					}
+				}
+
+				var target *attributeDef
+				if code, ok := acSynonymOrDirect(norm, isAC); ok {
+					if d, ok := byCodeCandidate(code); ok {
+						target = &d
+					}
+				}
+				if target == nil && isMenred {
+					if code, ok := menredSynonyms[norm]; ok {
+						if d, ok := byCodeCandidate(code); ok {
+							target = &d
+						}
+					}
+				}
+				if target == nil {
+					for _, d := range candidates {
+						if normalizeLabel(d.name) == norm {
+							target = &d
+							break
+						}
+					}
+				}
+				if target == nil {
+					skipped++
+					continue
+				}
+				if pv, ok := setValueForDataTypeWithUnit(*target, value, funit); ok {
+					pending[target.id] = pv
+					matched++
+				} else {
+					skipped++
+				}
+				continue
+			}
+
+			// Rule 1: multi-unit same-value group (unlabeled sub-items,
+			// more than one — the single-sub-item case above already
+			// handled by flatLikeValue).
 			if item.Items != nil {
 				totalEntries++
 				allBlank := true
@@ -577,11 +702,16 @@ func main() {
 					}
 					// Positional fallback for the matching select-type HP field
 					// (phan_khuc_hp) — same [HP, kW, BTU/h] group, index 0.
-					if hpDef, ok := byCodeCandidate("phan_khuc_hp"); ok {
-						if opt, ok := hpOptionFromMultiUnit(item.Items[0].Value); ok {
-							if pv, ok := setValueForDataType(hpDef, opt); ok {
-								pending[hpDef.id] = pv
-								matched++
+					// Gated on isBTUField + exactly 3 items so this never
+					// misfires against an unrelated 2-item number group
+					// (e.g. "Sử dụng cho phòng" -> [m², m³]).
+					if isBTUField && len(item.Items) == 3 {
+						if hpDef, ok := byCodeCandidate("phan_khuc_hp"); ok {
+							if opt, ok := hpOptionFromMultiUnit(item.Items[0].Value); ok {
+								if pv, ok := setValueForDataType(hpDef, opt); ok {
+									pending[hpDef.id] = pv
+									matched++
+								}
 							}
 						}
 					}
@@ -611,61 +741,6 @@ func main() {
 				}
 				skipped++
 				continue
-			}
-
-			if item.Value == nil {
-				continue
-			}
-			totalEntries++
-			value := strings.TrimSpace(*item.Value)
-			if value == "" {
-				continue
-			}
-
-			// Section-routed generic labels (prefix match — see
-			// sectionRoutedLabels doc comment for why this is safe).
-			if section != "" {
-				if code, ok := matchSectionRoute(section, norm); ok {
-					if def, ok := byCodeCandidate(code); ok {
-						if pv, ok := setValueForDataType(def, value); ok {
-							pending[def.id] = pv
-							matched++
-							continue
-						}
-					}
-				}
-			}
-
-			var target *attributeDef
-			if code, ok := acSynonymOrDirect(norm, isAC); ok {
-				if d, ok := byCodeCandidate(code); ok {
-					target = &d
-				}
-			}
-			if target == nil && isMenred {
-				if code, ok := menredSynonyms[norm]; ok {
-					if d, ok := byCodeCandidate(code); ok {
-						target = &d
-					}
-				}
-			}
-			if target == nil {
-				for _, d := range candidates {
-					if normalizeLabel(d.name) == norm {
-						target = &d
-						break
-					}
-				}
-			}
-			if target == nil {
-				skipped++
-				continue
-			}
-			if pv, ok := setValueForDataType(*target, value); ok {
-				pending[target.id] = pv
-				matched++
-			} else {
-				skipped++
 			}
 		}
 
