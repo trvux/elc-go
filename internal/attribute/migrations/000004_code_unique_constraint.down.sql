@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS attribute_definitions_code_unique_active;
