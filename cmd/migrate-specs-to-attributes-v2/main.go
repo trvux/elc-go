@@ -46,6 +46,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/text/unicode/norm"
 )
 
 type specSubItem struct {
@@ -155,16 +156,61 @@ var sectionHeaders = map[string]struct{ section, captureCode string }{
 	"thông tin chung":    {"", ""},
 }
 
-// sectionRoutedLabels: exact bare labels only re-routed while a section is
-// active — deliberately narrow (see file doc comment).
+// sectionRoutedLabels: labels re-routed while a section is active, matched
+// by PREFIX (see sectionRoutePrefixes below) — verified safe against real
+// data (2026-07-17): across every AC sub-category sampled, "Kích thước
+// Điều hoà"/"Kích thước Máy lạnh"/"Kích thước dàn lạnh"/"Kích thước (Cao x
+// Rộng x Dày)" etc. are ALL just inconsistent wording for "kích thước của
+// khối vừa được nêu tên ở section header phía trên" — staff used "Điều
+// hoà"/"Máy lạnh" as interchangeable (and, confusingly, not literally
+// meaningful) words for "dàn lạnh"/"dàn nóng" depending on which section
+// they were filling in, not as a distinct third concept. The section
+// header immediately above is the reliable signal, not the suffix wording.
 var sectionRoutedLabels = map[string]map[string]string{
-	"dan_lanh": {"kích thước": "kich_thuoc_dan_lanh", "trọng lượng": "trong_luong_dan_lanh", "độ ồn": "do_on_dan_lanh"},
-	"dan_nong": {"kích thước": "kich_thuoc_dan_nong", "trọng lượng": "trong_luong_dan_nong", "độ ồn": "do_on_dan_nong"},
+	"dan_lanh": {"kích thước": "kich_thuoc_dan_lanh", "trọng lượng": "trong_luong_dan_lanh", "khối lượng": "trong_luong_dan_lanh", "độ ồn": "do_on_dan_lanh"},
+	"dan_nong": {"kích thước": "kich_thuoc_dan_nong", "trọng lượng": "trong_luong_dan_nong", "khối lượng": "trong_luong_dan_nong", "độ ồn": "do_on_dan_nong"},
+	"mat_na":   {"kích thước": "kich_thuoc_mat_na", "trọng lượng": "trong_luong_mat_na", "khối lượng": "trong_luong_mat_na"},
+}
+
+// sectionRoutePrefixes are matched against the START of a normalized label
+// (not exact-equality) — e.g. "kích thước điều hoà" and "kích thước (cao x
+// rộng x dày)" both start with "kích thước".
+var sectionRoutePrefixes = []string{"kích thước", "trọng lượng", "khối lượng", "độ ồn"}
+
+// matchSectionRoute finds the longest sectionRoutePrefixes entry that norm
+// starts with, and returns its routed code for the given section (if any).
+func matchSectionRoute(section, norm string) (string, bool) {
+	routes, ok := sectionRoutedLabels[section]
+	if !ok {
+		return "", false
+	}
+	best := ""
+	for _, prefix := range sectionRoutePrefixes {
+		if strings.HasPrefix(norm, prefix) && len(prefix) > len(best) {
+			best = prefix
+		}
+	}
+	if best == "" {
+		return "", false
+	}
+	code, ok := routes[best]
+	return code, ok
 }
 
 var numberRegex = regexp.MustCompile(`^[0-9][0-9,]*(\.[0-9]+)?$`)
 
+// normalizeLabel prepares a label for comparison — critically including
+// Unicode NFC normalization (2026-07-17 finding): the old specs jsonb has
+// Vietnamese text entered inconsistently, some diacritics as a single
+// precomposed codepoint ("ấ" = U+1EA5) and others as a base letter plus a
+// combining accent ("â" U+00E2 + combining acute U+0301) — visually
+// identical, byte-different, so a plain string compare silently failed to
+// match real labels against attribute_definitions.name/acSynonyms. Without
+// this, `normalizeLabel(d.name) == norm` and every synonym-map lookup
+// below would randomly miss matches depending on which normalization form
+// a given product's data happened to use.
 func normalizeLabel(s string) string {
+	s = norm.NFC.String(s)
 	s = strings.TrimSpace(s)
 	s = strings.Join(strings.Fields(s), " ")
 	return strings.ToLower(s)
@@ -197,6 +243,66 @@ func stripOwnUnit(value, unit string) string {
 		}
 	}
 	return value
+}
+
+// capacityNumberFromMultiUnit extracts the leading number from a capacity
+// sub-item value like "11.100 Btu/h" or "24,200 (4,100 -25,600)" — real
+// aircon spec data (2026-07-17 audit) expresses the same [HP, kW, BTU/h]
+// capacity group two ways: a clean "<number> <unit>" triple, or a rated
+// value followed by a parenthetical min-max range with no unit text at
+// all, with "," and "." both used inconsistently as thousands separators
+// (never as a decimal point — BTU capacities are always whole numbers in
+// the thousands, unlike the HP/kW entries in the same group). Cuts at the
+// first "(", strips all grouping punctuation, and requires the result to
+// be a plausible capacity magnitude before trusting it as a whole number
+// rather than a genuine small decimal (e.g. a kW value read by mistake).
+func capacityNumberFromMultiUnit(raw string) (float64, bool) {
+	s := strings.TrimSpace(raw)
+	if i := strings.IndexByte(s, '('); i >= 0 {
+		s = strings.TrimSpace(s[:i])
+	}
+	end := 0
+	for end < len(s) && (s[end] >= '0' && s[end] <= '9' || s[end] == ',' || s[end] == '.') {
+		end++
+	}
+	numPart := strings.TrimRight(s[:end], ",.")
+	if numPart == "" {
+		return 0, false
+	}
+	stripped := strings.NewReplacer(",", "", ".", "").Replace(numPart)
+	n, err := strconv.ParseFloat(stripped, 64)
+	if err != nil {
+		return 0, false
+	}
+	if n < 100 {
+		return 0, false
+	}
+	return n, true
+}
+
+// hpOptionFromMultiUnit extracts a plain HP number (e.g. "1.5" from
+// "1.5 HP (1.5 Ngựa)" or "2 ) ") and formats it to match this business's
+// "<N> HP" select options — HP values in this group are always the first
+// sub-item and never use thousands separators (unlike BTU), so this is
+// simpler than capacityNumberFromMultiUnit.
+func hpOptionFromMultiUnit(raw string) (string, bool) {
+	s := strings.TrimSpace(raw)
+	end := 0
+	for end < len(s) && (s[end] >= '0' && s[end] <= '9' || s[end] == '.') {
+		end++
+	}
+	numPart := strings.Trim(s[:end], ".")
+	if numPart == "" {
+		return "", false
+	}
+	n, err := strconv.ParseFloat(numPart, 64)
+	if err != nil || n <= 0 {
+		return "", false
+	}
+	if n == float64(int64(n)) {
+		return fmt.Sprintf("%d HP", int64(n)), true
+	}
+	return fmt.Sprintf("%g HP", n), true
 }
 
 // pendingValue is what we've decided to write, before the final DB write.
@@ -435,16 +541,48 @@ func main() {
 					}
 				}
 				if allBlank && target != nil && target.dataType == "number" && target.unit != "" {
+					isBTUField := target.code == "cong_suat_lam_lanh_btu" || target.code == "cong_suat_suoi_btu"
 					unitLower := strings.ToLower(target.unit)
 					found := false
 					for _, sub := range item.Items {
 						if strings.Contains(strings.ToLower(sub.Value), unitLower) {
-							if pv, ok := setValueForDataType(*target, sub.Value); ok {
+							// BTU fields always use the thousands-separator-
+							// aware parser (see capacityNumberFromMultiUnit
+							// doc comment) — a plain strconv.ParseFloat on
+							// "11.100 Btu/h" silently misreads the Vietnamese
+							// thousands dot as a decimal point (-> 11.1).
+							if isBTUField {
+								if n, ok := capacityNumberFromMultiUnit(sub.Value); ok {
+									pending[target.id] = pendingValue{defID: target.id, num: &n}
+									matched++
+									found = true
+								}
+							} else if pv, ok := setValueForDataType(*target, sub.Value); ok {
 								pending[target.id] = pv
 								matched++
 								found = true
 							}
 							break
+						}
+					}
+					// Positional fallback, BTU fields only: real data
+					// consistently orders this group [HP, kW, BTU/h] even
+					// when the BTU sub-item carries no unit text at all.
+					if !found && len(item.Items) == 3 && isBTUField {
+						if n, ok := capacityNumberFromMultiUnit(item.Items[2].Value); ok {
+							pending[target.id] = pendingValue{defID: target.id, num: &n}
+							matched++
+							found = true
+						}
+					}
+					// Positional fallback for the matching select-type HP field
+					// (phan_khuc_hp) — same [HP, kW, BTU/h] group, index 0.
+					if hpDef, ok := byCodeCandidate("phan_khuc_hp"); ok {
+						if opt, ok := hpOptionFromMultiUnit(item.Items[0].Value); ok {
+							if pv, ok := setValueForDataType(hpDef, opt); ok {
+								pending[hpDef.id] = pv
+								matched++
+							}
 						}
 					}
 					if !found {
@@ -484,16 +622,15 @@ func main() {
 				continue
 			}
 
-			// Section-routed generic labels (only exact bare matches).
+			// Section-routed generic labels (prefix match — see
+			// sectionRoutedLabels doc comment for why this is safe).
 			if section != "" {
-				if routes, ok := sectionRoutedLabels[section]; ok {
-					if code, ok := routes[norm]; ok {
-						if def, ok := byCodeCandidate(code); ok {
-							if pv, ok := setValueForDataType(def, value); ok {
-								pending[def.id] = pv
-								matched++
-								continue
-							}
+				if code, ok := matchSectionRoute(section, norm); ok {
+					if def, ok := byCodeCandidate(code); ok {
+						if pv, ok := setValueForDataType(def, value); ok {
+							pending[def.id] = pv
+							matched++
+							continue
 						}
 					}
 				}
