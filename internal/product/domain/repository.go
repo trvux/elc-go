@@ -40,6 +40,14 @@ type ProductRepository interface {
 	Restore(ctx context.Context, id string) error
 }
 
+// CatalogPageRepository manages the single product_catalog_page row —
+// deliberately no Create/Delete/List, the row already exists (seeded by
+// migration) and is never removed.
+type CatalogPageRepository interface {
+	Get(ctx context.Context) (*CatalogPage, error)
+	Update(ctx context.Context, input UpdateCatalogPageInput) (*CatalogPage, error)
+}
+
 // ProductLineRepository is intentionally a separate interface (not folded
 // into ProductRepository) even though it lives in the same Go package/table
 // migration — it's a simple independent CRUD lookup, same shape as

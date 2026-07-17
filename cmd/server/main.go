@@ -156,6 +156,10 @@ func main() {
 	productLineHandler := productPresentation.NewProductLineHandler(productLineRepo)
 	productPresentation.RegisterProductLineRoutes(router, productLineHandler, tokenIssuer)
 
+	catalogPageRepo := productInfra.NewPostgresCatalogPageRepository(pool)
+	catalogPageHandler := productPresentation.NewCatalogPageHandler(catalogPageRepo)
+	productPresentation.RegisterCatalogPageRoutes(router, catalogPageHandler, tokenIssuer)
+
 	branchRepo := branchinfra.NewPostgresBranchRepository(pool)
 	branchHandler := branchpresentation.NewBranchHandler(branchRepo)
 	branchpresentation.RegisterRoutes(router, branchHandler, tokenIssuer)
