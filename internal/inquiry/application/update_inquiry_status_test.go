@@ -7,9 +7,9 @@ import (
 	"github.com/trvux/elc-go/internal/inquiry/domain"
 )
 
-func seedInquiry(t *testing.T, repo *fakeInquiryRepository, notifier *fakeLeadNotifier) *domain.Inquiry {
+func seedInquiry(t *testing.T, repo *fakeInquiryRepository) *domain.Inquiry {
 	t.Helper()
-	inquiry, err := CreateInquiry(context.Background(), repo, notifier, domain.CreateInquiryInput{
+	inquiry, err := CreateInquiry(context.Background(), repo, domain.CreateInquiryInput{
 		Name:  "Nguyen Van A",
 		Phone: "0901234567",
 	})
@@ -21,7 +21,7 @@ func seedInquiry(t *testing.T, repo *fakeInquiryRepository, notifier *fakeLeadNo
 
 func TestUpdateInquiryStatus(t *testing.T) {
 	repo := newFakeInquiryRepository()
-	seeded := seedInquiry(t, repo, &fakeLeadNotifier{})
+	seeded := seedInquiry(t, repo)
 	ctx := context.Background()
 
 	updated, err := UpdateInquiryStatus(ctx, repo, UpdateInquiryStatusInput{
@@ -51,7 +51,7 @@ func TestUpdateInquiryStatus_NotFound(t *testing.T) {
 
 func TestUpdateInquiryStatus_InvalidStatus(t *testing.T) {
 	repo := newFakeInquiryRepository()
-	seeded := seedInquiry(t, repo, &fakeLeadNotifier{})
+	seeded := seedInquiry(t, repo)
 	ctx := context.Background()
 
 	_, err := UpdateInquiryStatus(ctx, repo, UpdateInquiryStatusInput{
@@ -65,7 +65,7 @@ func TestUpdateInquiryStatus_InvalidStatus(t *testing.T) {
 
 func TestUpdateInquiryStatus_InternalNoteOnly(t *testing.T) {
 	repo := newFakeInquiryRepository()
-	seeded := seedInquiry(t, repo, &fakeLeadNotifier{})
+	seeded := seedInquiry(t, repo)
 	ctx := context.Background()
 
 	note := "Called, no answer"

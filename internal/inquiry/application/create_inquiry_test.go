@@ -9,7 +9,6 @@ import (
 
 func TestCreateInquiry(t *testing.T) {
 	repo := newFakeInquiryRepository()
-	notifier := &fakeLeadNotifier{}
 	ctx := context.Background()
 
 	input := domain.CreateInquiryInput{
@@ -17,7 +16,7 @@ func TestCreateInquiry(t *testing.T) {
 		Phone: "0901234567",
 	}
 
-	inquiry, err := CreateInquiry(ctx, repo, notifier, input)
+	inquiry, err := CreateInquiry(ctx, repo, input)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -27,33 +26,25 @@ func TestCreateInquiry(t *testing.T) {
 	if inquiry.Status() != domain.InquiryStatusNew {
 		t.Errorf("expected status new, got %s", inquiry.Status())
 	}
-	if len(notifier.notified) != 1 {
-		t.Errorf("expected notifier to be called once, got %d", len(notifier.notified))
-	}
 }
 
 func TestCreateInquiry_ValidationError(t *testing.T) {
 	repo := newFakeInquiryRepository()
-	notifier := &fakeLeadNotifier{}
 	ctx := context.Background()
 
-	_, err := CreateInquiry(ctx, repo, notifier, domain.CreateInquiryInput{})
+	_, err := CreateInquiry(ctx, repo, domain.CreateInquiryInput{})
 	if err == nil {
 		t.Fatal("expected validation error, got nil")
-	}
-	if len(notifier.notified) != 0 {
-		t.Error("expected notifier not to be called when create fails")
 	}
 }
 
 func TestCreateInquiry_RejectsMultipleEntityRefs(t *testing.T) {
 	repo := newFakeInquiryRepository()
-	notifier := &fakeLeadNotifier{}
 	ctx := context.Background()
 
 	productID := "product-1"
 	projectID := "project-1"
-	_, err := CreateInquiry(ctx, repo, notifier, domain.CreateInquiryInput{
+	_, err := CreateInquiry(ctx, repo, domain.CreateInquiryInput{
 		Name:      "Nguyen Van A",
 		Phone:     "0901234567",
 		ProductID: &productID,

@@ -17,14 +17,12 @@ import (
 // InquiryHandler is the composition root for the inquiry module.
 type InquiryHandler struct {
 	repo          domain.InquiryRepository
-	notifier      domain.LeadNotifier
 	createLimiter *ratelimit.Limiter
 }
 
-func NewInquiryHandler(repo domain.InquiryRepository, notifier domain.LeadNotifier) *InquiryHandler {
+func NewInquiryHandler(repo domain.InquiryRepository) *InquiryHandler {
 	return &InquiryHandler{
-		repo:     repo,
-		notifier: notifier,
+		repo: repo,
 		// 5 submissions per IP per 10 minutes — generous enough for a real
 		// visitor to retry a typo, tight enough to blunt a naive spam script.
 		createLimiter: ratelimit.New(5, 10*time.Minute),
@@ -72,7 +70,7 @@ func (h *InquiryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		UserAgent: &userAgent,
 	}
 
-	inquiry, err := application.CreateInquiry(r.Context(), h.repo, h.notifier, input)
+	inquiry, err := application.CreateInquiry(r.Context(), h.repo, input)
 	if err != nil {
 		httpserver.WriteError(w, err)
 		return
