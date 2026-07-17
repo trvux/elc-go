@@ -12,16 +12,6 @@ import (
 // identical alias for why this is centralized rather than duplicated.
 type ImageAsset = media.ImageAsset
 
-// Seo is the unified SEO metadata shape stored as jsonb, replacing the old
-// flat MetaTitle/MetaDescription pair (kept alongside during the migration).
-// Duplicated per-module rather than shared, same reasoning as
-// CategoryRef/BrandRef in product/domain/types.go.
-type Seo struct {
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Noindex     bool    `json:"noindex,omitempty"`
-}
-
 type Service struct {
 	id               string
 	title            string
@@ -37,7 +27,6 @@ type Service struct {
 	images           []ImageAsset
 	metaTitle        *string
 	metaDescription  *string
-	seo              Seo
 	isFeatured       bool
 	isPublished      bool
 	orderIndex       int
@@ -83,7 +72,6 @@ func NewService(
 	content json.RawMessage,
 	images []ImageAsset,
 	metaTitle, metaDescription *string,
-	seo Seo,
 	isFeatured, isPublished bool,
 	orderIndex int,
 ) (*Service, error) {
@@ -115,7 +103,6 @@ func NewService(
 		images:           images,
 		metaTitle:        metaTitle,
 		metaDescription:  metaDescription,
-		seo:              seo,
 		isFeatured:       isFeatured,
 		isPublished:      isPublished,
 		orderIndex:       orderIndex,
@@ -137,7 +124,6 @@ func RehydrateService(
 	content json.RawMessage,
 	images []ImageAsset,
 	metaTitle, metaDescription *string,
-	seo Seo,
 	isFeatured, isPublished bool,
 	orderIndex int,
 	createdAt, updatedAt time.Time,
@@ -149,7 +135,7 @@ func RehydrateService(
 		originalPrice: originalPrice, discountPercent: discountPercent,
 		priceDisplayText: priceDisplayText, labels: labels,
 		description: description, content: content,
-		images: images, metaTitle: metaTitle, metaDescription: metaDescription, seo: seo,
+		images: images, metaTitle: metaTitle, metaDescription: metaDescription,
 		isFeatured: isFeatured, isPublished: isPublished, orderIndex: orderIndex,
 		createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt,
 	}
@@ -169,7 +155,6 @@ func (s *Service) Content() json.RawMessage  { return s.content }
 func (s *Service) Images() []ImageAsset      { return s.images }
 func (s *Service) MetaTitle() *string        { return s.metaTitle }
 func (s *Service) MetaDescription() *string  { return s.metaDescription }
-func (s *Service) Seo() Seo                  { return s.seo }
 func (s *Service) IsFeatured() bool          { return s.isFeatured }
 func (s *Service) IsPublished() bool         { return s.isPublished }
 func (s *Service) OrderIndex() int           { return s.orderIndex }
@@ -270,11 +255,6 @@ func (s *Service) UpdateMetaDescription(metaDescription *string) {
 	s.updatedAt = time.Now()
 }
 
-func (s *Service) UpdateSeo(seo Seo) {
-	s.seo = seo
-	s.updatedAt = time.Now()
-}
-
 func (s *Service) SetFeatured(isFeatured bool) {
 	s.isFeatured = isFeatured
 	s.updatedAt = time.Now()
@@ -327,7 +307,6 @@ type CreateServiceInput struct {
 	Images           []ImageAsset
 	MetaTitle        *string
 	MetaDescription  *string
-	Seo              Seo
 	IsFeatured       bool
 	IsPublished      bool
 	OrderIndex       int
@@ -348,7 +327,6 @@ type UpdateServiceInput struct {
 	Images           []ImageAsset
 	MetaTitle        *string
 	MetaDescription  *string
-	Seo              *Seo
 	IsFeatured       *bool
 	IsPublished      *bool
 	OrderIndex       *int

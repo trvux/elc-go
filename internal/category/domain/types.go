@@ -17,6 +17,7 @@ type Category struct {
 	metaTitle       *string
 	metaDescription *string
 	isFeatured      bool
+	isHidden        bool
 	orderIndex      int
 	content         json.RawMessage
 	createdAt       time.Time
@@ -36,6 +37,7 @@ type GroupRef struct {
 	MetaTitle       *string
 	MetaDescription *string
 	IsFeatured      bool
+	IsHidden        bool
 	OrderIndex      int
 }
 
@@ -53,6 +55,7 @@ func NewCategory(
 	imageUrl *string,
 	metaTitle, metaDescription *string,
 	isFeatured bool,
+	isHidden bool,
 	orderIndex int,
 	content json.RawMessage,
 ) (*Category, error) {
@@ -78,6 +81,7 @@ func NewCategory(
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
 		isFeatured:      isFeatured,
+		isHidden:        isHidden,
 		orderIndex:      orderIndex,
 		content:         content,
 		createdAt:       now,
@@ -93,6 +97,7 @@ func RehydrateCategory(
 	imageUrl *string,
 	metaTitle, metaDescription *string,
 	isFeatured bool,
+	isHidden bool,
 	orderIndex int,
 	content json.RawMessage,
 	createdAt, updatedAt time.Time,
@@ -107,6 +112,7 @@ func RehydrateCategory(
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
 		isFeatured:      isFeatured,
+		isHidden:        isHidden,
 		orderIndex:      orderIndex,
 		content:         content,
 		createdAt:       createdAt,
@@ -123,6 +129,7 @@ func (c *Category) ImageURL() *string        { return c.imageUrl }
 func (c *Category) MetaTitle() *string       { return c.metaTitle }
 func (c *Category) MetaDescription() *string { return c.metaDescription }
 func (c *Category) IsFeatured() bool         { return c.isFeatured }
+func (c *Category) IsHidden() bool           { return c.isHidden }
 func (c *Category) OrderIndex() int          { return c.orderIndex }
 func (c *Category) Content() json.RawMessage { return c.content }
 func (c *Category) CreatedAt() time.Time     { return c.createdAt }
@@ -176,6 +183,11 @@ func (c *Category) SetFeatured(isFeatured bool) {
 	c.updatedAt = time.Now()
 }
 
+func (c *Category) SetHidden(isHidden bool) {
+	c.isHidden = isHidden
+	c.updatedAt = time.Now()
+}
+
 func (c *Category) Reorder(orderIndex int) {
 	c.orderIndex = orderIndex
 	c.updatedAt = time.Now()
@@ -223,6 +235,7 @@ type CreateCategoryInput struct {
 	MetaTitle       *string
 	MetaDescription *string
 	IsFeatured      bool
+	IsHidden        bool
 	OrderIndex      int
 	Content         json.RawMessage
 }
@@ -236,6 +249,7 @@ type UpdateCategoryInput struct {
 	MetaTitle       *string
 	MetaDescription *string
 	IsFeatured      *bool
+	IsHidden        *bool
 	OrderIndex      *int
 	Content         json.RawMessage
 }

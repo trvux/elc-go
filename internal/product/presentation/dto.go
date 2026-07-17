@@ -32,63 +32,6 @@ func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
 	return result
 }
 
-type seoDTO struct {
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Noindex     bool    `json:"noindex,omitempty"`
-}
-
-func toSeoDTO(seo domain.Seo) seoDTO {
-	return seoDTO{Title: seo.Title, Description: seo.Description, Noindex: seo.Noindex}
-}
-
-func toSeoDomain(seo seoDTO) domain.Seo {
-	return domain.Seo{Title: seo.Title, Description: seo.Description, Noindex: seo.Noindex}
-}
-
-type specSubItemDTO struct {
-	Label string  `json:"label"`
-	Value string  `json:"value"`
-	Unit  *string `json:"unit,omitempty"`
-}
-
-type specItemDTO struct {
-	Label string           `json:"label"`
-	Value *string          `json:"value,omitempty"`
-	Unit  *string          `json:"unit,omitempty"`
-	Items []specSubItemDTO `json:"items,omitempty"`
-}
-
-func toSpecItemDTOList(specs []domain.SpecItem) []specItemDTO {
-	if specs == nil {
-		return nil
-	}
-	result := make([]specItemDTO, len(specs))
-	for i, s := range specs {
-		items := make([]specSubItemDTO, len(s.Items))
-		for j, sub := range s.Items {
-			items[j] = specSubItemDTO{Label: sub.Label, Value: sub.Value, Unit: sub.Unit}
-		}
-		result[i] = specItemDTO{Label: s.Label, Value: s.Value, Unit: s.Unit, Items: items}
-	}
-	return result
-}
-
-func toSpecItemDomainList(specs []specItemDTO) []domain.SpecItem {
-	if specs == nil {
-		return nil
-	}
-	result := make([]domain.SpecItem, len(specs))
-	for i, s := range specs {
-		items := make([]domain.SpecSubItem, len(s.Items))
-		for j, sub := range s.Items {
-			items[j] = domain.SpecSubItem{Label: sub.Label, Value: sub.Value, Unit: sub.Unit}
-		}
-		result[i] = domain.SpecItem{Label: s.Label, Value: s.Value, Unit: s.Unit, Items: items}
-	}
-	return result
-}
-
 type tagRefResponse struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -122,11 +65,6 @@ type brandRefResponse struct {
 	OrderIndex      int     `json:"order_index"`
 }
 
-// productResponse deliberately does NOT include normalized_specs — it's an
-// internal write-time facet-indexing detail (see domain/spec_normalizer.go),
-// never something any UI reads directly, same reasoning brand/service never
-// expose derived state on their entities. `specs` here is always the
-// ORIGINAL []SpecItem the client sent, not the derived facets.
 type productResponse struct {
 	ID                 string                   `json:"id"`
 	CategoryID         string                   `json:"category_id"`
@@ -134,7 +72,6 @@ type productResponse struct {
 	Name               string                   `json:"name"`
 	Slug               string                   `json:"slug"`
 	Description        json.RawMessage          `json:"description"`
-	Specs              []specItemDTO            `json:"specs"`
 	Images             []imageAssetDTO          `json:"images"`
 	Labels             []string                 `json:"labels"`
 	IsFeatured         bool                     `json:"is_featured"`
@@ -143,7 +80,6 @@ type productResponse struct {
 	Condition          string                   `json:"condition"`
 	MetaTitle          *string                  `json:"meta_title"`
 	MetaDescription    *string                  `json:"meta_description"`
-	Seo                seoDTO                   `json:"seo"`
 	ProductLineID      *string                  `json:"product_line_id"`
 	ShortDescription   *string                  `json:"short_description"`
 	WarrantyMonths     *int                     `json:"warranty_months"`
@@ -203,7 +139,6 @@ func toPlainProductResponse(p *domain.Product) productResponse {
 		Name:               p.Name(),
 		Slug:               p.Slug(),
 		Description:        p.Description(),
-		Specs:              toSpecItemDTOList(p.Specs()),
 		Images:             toImageAssetDTOList(p.Images()),
 		Labels:             p.Labels(),
 		IsFeatured:         p.IsFeatured(),
@@ -212,7 +147,6 @@ func toPlainProductResponse(p *domain.Product) productResponse {
 		Condition:          p.Condition(),
 		MetaTitle:          p.MetaTitle(),
 		MetaDescription:    p.MetaDescription(),
-		Seo:                toSeoDTO(p.Seo()),
 		ProductLineID:      p.ProductLineID(),
 		ShortDescription:   p.ShortDescription(),
 		WarrantyMonths:     p.WarrantyMonths(),
@@ -478,7 +412,6 @@ type createProductRequest struct {
 	Name             string                    `json:"name"`
 	Slug             string                    `json:"slug"`
 	Description      json.RawMessage           `json:"description"`
-	Specs            []specItemDTO             `json:"specs"`
 	Images           []imageAssetDTO           `json:"images"`
 	Labels           []string                  `json:"labels"`
 	IsFeatured       bool                      `json:"is_featured"`
@@ -487,7 +420,6 @@ type createProductRequest struct {
 	Condition        string                    `json:"condition"`
 	MetaTitle        *string                   `json:"meta_title"`
 	MetaDescription  *string                   `json:"meta_description"`
-	Seo              seoDTO                    `json:"seo"`
 	TagIDs           []string                  `json:"tag_ids"`
 	ProductLineID    *string                   `json:"product_line_id,omitempty"`
 	ShortDescription *string                   `json:"short_description,omitempty"`
@@ -505,7 +437,6 @@ type updateProductRequest struct {
 	Name             *string         `json:"name"`
 	Slug             *string         `json:"slug"`
 	Description      json.RawMessage `json:"description"`
-	Specs            []specItemDTO   `json:"specs"`
 	Images           []imageAssetDTO `json:"images"`
 	Labels           []string        `json:"labels"`
 	IsFeatured       *bool           `json:"is_featured"`
@@ -514,7 +445,6 @@ type updateProductRequest struct {
 	Condition        *string         `json:"condition"`
 	MetaTitle        *string         `json:"meta_title"`
 	MetaDescription  *string         `json:"meta_description"`
-	Seo              *seoDTO         `json:"seo"`
 	TagIDs           *[]string       `json:"tag_ids"`
 	ProductLineID    *string         `json:"product_line_id"`
 	ShortDescription *string         `json:"short_description"`

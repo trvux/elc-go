@@ -24,7 +24,7 @@ func NewPostgresGroupRepository(pool *pgxpool.Pool) *PostgresGroupRepository {
 }
 
 const groupColumns = `id, name, slug, image_url, meta_title, meta_description,
-	is_featured, order_index, content, created_at, updated_at, deleted_at`
+	is_featured, is_hidden, order_index, content, created_at, updated_at, deleted_at`
 
 func (r *PostgresGroupRepository) GetAll(ctx context.Context, filter domain.GroupFilter) ([]*domain.Group, error) {
 	query := "SELECT " + groupColumns + " FROM group_categories"
@@ -121,14 +121,14 @@ func (r *PostgresGroupRepository) Create(ctx context.Context, group *domain.Grou
 		query := `
 			UPDATE group_categories
 			SET name = $1, image_url = $2, meta_title = $3, meta_description = $4,
-				is_featured = $5, order_index = $6, content = $7,
-				deleted_at = NULL, updated_at = $8
-			WHERE id = $9
+				is_featured = $5, is_hidden = $6, order_index = $7, content = $8,
+				deleted_at = NULL, updated_at = $9
+			WHERE id = $10
 			RETURNING ` + groupColumns
 
 		row := r.pool.QueryRow(ctx, query,
 			group.Name(), group.ImageURL(), group.MetaTitle(), group.MetaDescription(),
-			group.IsFeatured(), group.OrderIndex(), group.Content(),
+			group.IsFeatured(), group.IsHidden(), group.OrderIndex(), group.Content(),
 			time.Now(), existingID,
 		)
 		resurrected, err := scanGroup(row)
@@ -140,13 +140,13 @@ func (r *PostgresGroupRepository) Create(ctx context.Context, group *domain.Grou
 
 	// No soft-deleted row, insert as new
 	query := `
-		INSERT INTO group_categories (name, slug, image_url, meta_title, meta_description, is_featured, order_index, content)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO group_categories (name, slug, image_url, meta_title, meta_description, is_featured, is_hidden, order_index, content)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING ` + groupColumns
 
 	row := r.pool.QueryRow(ctx, query,
 		group.Name(), group.Slug(), group.ImageURL(), group.MetaTitle(), group.MetaDescription(),
-		group.IsFeatured(), group.OrderIndex(), group.Content(),
+		group.IsFeatured(), group.IsHidden(), group.OrderIndex(), group.Content(),
 	)
 	created, err := scanGroup(row)
 	if err != nil {
@@ -159,13 +159,13 @@ func (r *PostgresGroupRepository) Update(ctx context.Context, group *domain.Grou
 	query := `
 		UPDATE group_categories
 		SET name = $1, slug = $2, image_url = $3, meta_title = $4, meta_description = $5,
-			is_featured = $6, order_index = $7, content = $8, updated_at = $9
-		WHERE id = $10
+			is_featured = $6, is_hidden = $7, order_index = $8, content = $9, updated_at = $10
+		WHERE id = $11
 		RETURNING ` + groupColumns
 
 	row := r.pool.QueryRow(ctx, query,
 		group.Name(), group.Slug(), group.ImageURL(), group.MetaTitle(), group.MetaDescription(),
-		group.IsFeatured(), group.OrderIndex(), group.Content(),
+		group.IsFeatured(), group.IsHidden(), group.OrderIndex(), group.Content(),
 		group.UpdatedAt(), group.ID(),
 	)
 	updated, err := scanGroup(row)
@@ -259,6 +259,7 @@ func scanGroup(row rowScanner) (*domain.Group, error) {
 		id, name, slug                       string
 		imageUrl, metaTitle, metaDescription *string
 		isFeatured                           bool
+		isHidden                             bool
 		orderIndex                           int
 		content                              json.RawMessage
 		createdAt, updatedAt                 time.Time
@@ -267,13 +268,13 @@ func scanGroup(row rowScanner) (*domain.Group, error) {
 
 	if err := row.Scan(
 		&id, &name, &slug, &imageUrl, &metaTitle, &metaDescription,
-		&isFeatured, &orderIndex, &content, &createdAt, &updatedAt, &deletedAt,
+		&isFeatured, &isHidden, &orderIndex, &content, &createdAt, &updatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
 	}
 
 	return domain.RehydrateGroup(
 		id, name, slug, imageUrl, metaTitle, metaDescription,
-		isFeatured, orderIndex, content, createdAt, updatedAt, deletedAt,
+		isFeatured, isHidden, orderIndex, content, createdAt, updatedAt, deletedAt,
 	), nil
 }

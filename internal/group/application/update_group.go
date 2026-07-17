@@ -38,6 +38,9 @@ func UpdateGroup(ctx context.Context, repo domain.GroupRepository, input domain.
 	if input.IsFeatured != nil {
 		g.SetFeatured(*input.IsFeatured)
 	}
+	if input.IsHidden != nil {
+		g.SetHidden(*input.IsHidden)
+	}
 	if input.OrderIndex != nil {
 		g.Reorder(*input.OrderIndex)
 	}

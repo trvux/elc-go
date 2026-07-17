@@ -179,11 +179,11 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 	input := domain.CreateProductInput{
 		CategoryID: req.CategoryID, BrandID: req.BrandID,
 		Name: req.Name, Slug: req.Slug,
-		Description: req.Description, Specs: toSpecItemDomainList(req.Specs),
-		Images: toImageAssetDomainList(req.Images), Labels: req.Labels,
+		Description: req.Description,
+		Images:      toImageAssetDomainList(req.Images), Labels: req.Labels,
 		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
 		Condition: req.Condition,
-		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription, Seo: toSeoDomain(req.Seo),
+		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
 		TagIDs:        req.TagIDs,
 		ProductLineID: req.ProductLineID, ShortDescription: req.ShortDescription,
 		WarrantyMonths: req.WarrantyMonths, WarrantyTerms: req.WarrantyTerms,
@@ -210,21 +210,15 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var seo *domain.Seo
-	if req.Seo != nil {
-		s := toSeoDomain(*req.Seo)
-		seo = &s
-	}
-
 	input := domain.UpdateProductInput{
 		ID:         id,
 		CategoryID: req.CategoryID, BrandID: req.BrandID,
 		Name: req.Name, Slug: req.Slug,
-		Description: req.Description, Specs: toSpecItemDomainList(req.Specs),
-		Images: toImageAssetDomainList(req.Images), Labels: req.Labels,
+		Description: req.Description,
+		Images:      toImageAssetDomainList(req.Images), Labels: req.Labels,
 		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
 		Condition: req.Condition,
-		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription, Seo: seo,
+		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
 		TagIDs:        req.TagIDs,
 		ProductLineID: req.ProductLineID, ShortDescription: req.ShortDescription,
 		WarrantyMonths: req.WarrantyMonths, WarrantyTerms: req.WarrantyTerms,

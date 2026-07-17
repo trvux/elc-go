@@ -18,7 +18,6 @@ func CreateNews(ctx context.Context, repo domain.NewsRepository, input domain.Cr
 		input.IsPublished,
 		input.MetaTitle,
 		input.MetaDescription,
-		input.Seo,
 		input.OrderIndex,
 	)
 	if err != nil {

@@ -13,25 +13,6 @@ import (
 // internal/platform/media directly.
 type ImageAsset = media.ImageAsset
 
-// SpecSubItem/SpecItem model the jsonb shape stored in products.specs — ported
-// verbatim from elc-tem's modules/catalog/domain/types.ts (SpecSubItem/SpecItem).
-// Value is a plain string on SpecSubItem (always present in the old TS type)
-// but a pointer on SpecItem (optional — a SpecItem either carries a single
-// Value or a nested Items list, never both in practice, mirroring the TS
-// `value?: string` / `items?: SpecSubItem[]`).
-type SpecSubItem struct {
-	Label string  `json:"label"`
-	Value string  `json:"value"`
-	Unit  *string `json:"unit,omitempty"`
-}
-
-type SpecItem struct {
-	Label string        `json:"label"`
-	Value *string       `json:"value,omitempty"`
-	Unit  *string       `json:"unit,omitempty"`
-	Items []SpecSubItem `json:"items,omitempty"`
-}
-
 // CategoryRef/BrandRef are lightweight, read-only references to entities
 // owned by other modules (category, brand) — deliberately NOT the full
 // category/brand.Brand domain types, same reasoning as service's
@@ -68,18 +49,6 @@ type TagRef struct {
 	Slug string
 }
 
-// Seo is the unified SEO metadata shape stored as jsonb on products/news/
-// projects (see docs/catalog.md), replacing the old flat MetaTitle/
-// MetaDescription pair. Both fields kept side by side during the migration —
-// MetaTitle/MetaDescription are not removed yet. Noindex lets an editor
-// exclude one entity's detail page from search indexing without touching
-// robots logic anywhere else.
-type Seo struct {
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Noindex     bool    `json:"noindex,omitempty"`
-}
-
 // ProductWithRelations is what read queries (GetAll/GetByID/GetBySlug/
 // GetByIDs/GetAdjacent's siblings) return — a Product plus the joined
 // category/brand display refs. Create/Update only ever deal with a plain
@@ -114,7 +83,6 @@ type Product struct {
 	name             string
 	slug             string
 	description      json.RawMessage
-	specs            []SpecItem
 	images           []ImageAsset
 	labels           []string
 	isFeatured       bool
@@ -123,7 +91,6 @@ type Product struct {
 	condition        string
 	metaTitle        *string
 	metaDescription  *string
-	seo              Seo
 	productLineID    *string
 	shortDescription *string
 	warrantyMonths   *int
@@ -151,14 +118,12 @@ type Product struct {
 func NewProduct(
 	categoryID, brandID, name, slug string,
 	description json.RawMessage,
-	specs []SpecItem,
 	images []ImageAsset,
 	labels []string,
 	isFeatured, isPublished bool,
 	orderIndex int,
 	condition string,
 	metaTitle, metaDescription *string,
-	seo Seo,
 	productLineID, shortDescription *string,
 	warrantyMonths *int,
 	warrantyTerms *string,
@@ -196,7 +161,6 @@ func NewProduct(
 		name:             name,
 		slug:             slug,
 		description:      description,
-		specs:            specs,
 		images:           images,
 		labels:           labels,
 		isFeatured:       isFeatured,
@@ -205,7 +169,6 @@ func NewProduct(
 		condition:        condition,
 		metaTitle:        metaTitle,
 		metaDescription:  metaDescription,
-		seo:              seo,
 		productLineID:    productLineID,
 		shortDescription: shortDescription,
 		warrantyMonths:   warrantyMonths,
@@ -220,14 +183,12 @@ func NewProduct(
 func RehydrateProduct(
 	id, categoryID, brandID, name, slug string,
 	description json.RawMessage,
-	specs []SpecItem,
 	images []ImageAsset,
 	labels []string,
 	isFeatured, isPublished bool,
 	orderIndex int,
 	condition string,
 	metaTitle, metaDescription *string,
-	seo Seo,
 	productLineID, shortDescription *string,
 	warrantyMonths *int,
 	warrantyTerms *string,
@@ -242,11 +203,11 @@ func RehydrateProduct(
 	return &Product{
 		id: id, categoryID: categoryID, brandID: brandID,
 		name: name, slug: slug,
-		description: description, specs: specs,
-		images: images, labels: labels,
+		description: description,
+		images:      images, labels: labels,
 		isFeatured: isFeatured, isPublished: isPublished, orderIndex: orderIndex,
 		condition: condition,
-		metaTitle: metaTitle, metaDescription: metaDescription, seo: seo,
+		metaTitle: metaTitle, metaDescription: metaDescription,
 		productLineID: productLineID, shortDescription: shortDescription,
 		warrantyMonths: warrantyMonths, warrantyTerms: warrantyTerms,
 		defaultVariantID: defaultVariantID, displayPrice: displayPrice,
@@ -262,7 +223,6 @@ func (p *Product) BrandID() string              { return p.brandID }
 func (p *Product) Name() string                 { return p.name }
 func (p *Product) Slug() string                 { return p.slug }
 func (p *Product) Description() json.RawMessage { return p.description }
-func (p *Product) Specs() []SpecItem            { return p.specs }
 func (p *Product) Images() []ImageAsset         { return p.images }
 func (p *Product) Labels() []string             { return p.labels }
 func (p *Product) IsFeatured() bool             { return p.isFeatured }
@@ -271,7 +231,6 @@ func (p *Product) OrderIndex() int              { return p.orderIndex }
 func (p *Product) Condition() string            { return p.condition }
 func (p *Product) MetaTitle() *string           { return p.metaTitle }
 func (p *Product) MetaDescription() *string     { return p.metaDescription }
-func (p *Product) Seo() Seo                     { return p.seo }
 func (p *Product) ProductLineID() *string       { return p.productLineID }
 func (p *Product) ShortDescription() *string    { return p.shortDescription }
 func (p *Product) WarrantyMonths() *int         { return p.warrantyMonths }
@@ -331,11 +290,6 @@ func (p *Product) UpdateDescription(description json.RawMessage) {
 	p.updatedAt = time.Now()
 }
 
-func (p *Product) UpdateSpecs(specs []SpecItem) {
-	p.specs = specs
-	p.updatedAt = time.Now()
-}
-
 func (p *Product) UpdateImages(images []ImageAsset) {
 	p.images = images
 	p.updatedAt = time.Now()
@@ -377,11 +331,6 @@ func (p *Product) UpdateMetaTitle(metaTitle *string) {
 
 func (p *Product) UpdateMetaDescription(metaDescription *string) {
 	p.metaDescription = metaDescription
-	p.updatedAt = time.Now()
-}
-
-func (p *Product) UpdateSeo(seo Seo) {
-	p.seo = seo
 	p.updatedAt = time.Now()
 }
 
@@ -460,7 +409,6 @@ type CreateProductInput struct {
 	Name             string
 	Slug             string
 	Description      json.RawMessage
-	Specs            []SpecItem
 	Images           []ImageAsset
 	Labels           []string
 	IsFeatured       bool
@@ -469,7 +417,6 @@ type CreateProductInput struct {
 	Condition        string
 	MetaTitle        *string
 	MetaDescription  *string
-	Seo              Seo
 	TagIDs           []string
 	ProductLineID    *string
 	ShortDescription *string
@@ -494,7 +441,6 @@ type UpdateProductInput struct {
 	Name             *string
 	Slug             *string
 	Description      json.RawMessage
-	Specs            []SpecItem
 	Images           []ImageAsset
 	Labels           []string
 	IsFeatured       *bool
@@ -503,7 +449,6 @@ type UpdateProductInput struct {
 	Condition        *string
 	MetaTitle        *string
 	MetaDescription  *string
-	Seo              *Seo
 	TagIDs           *[]string
 	ProductLineID    *string
 	ShortDescription *string

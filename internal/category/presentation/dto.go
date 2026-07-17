@@ -15,6 +15,7 @@ type groupRefResponse struct {
 	MetaTitle       *string `json:"meta_title"`
 	MetaDescription *string `json:"meta_description"`
 	IsFeatured      bool    `json:"is_featured"`
+	IsHidden        bool    `json:"is_hidden"`
 	OrderIndex      int     `json:"order_index"`
 }
 
@@ -28,6 +29,7 @@ type categoryResponse struct {
 	MetaTitle       *string           `json:"meta_title"`
 	MetaDescription *string           `json:"meta_description"`
 	IsFeatured      bool              `json:"is_featured"`
+	IsHidden        bool              `json:"is_hidden"`
 	OrderIndex      int               `json:"order_index"`
 	Content         json.RawMessage   `json:"content"`
 	CreatedAt       time.Time         `json:"created_at"`
@@ -46,6 +48,7 @@ func toCategoryResponse(c *domain.CategoryWithRelations) categoryResponse {
 			MetaTitle:       c.Group.MetaTitle,
 			MetaDescription: c.Group.MetaDescription,
 			IsFeatured:      c.Group.IsFeatured,
+			IsHidden:        c.Group.IsHidden,
 			OrderIndex:      c.Group.OrderIndex,
 		}
 	}
@@ -60,6 +63,7 @@ func toCategoryResponse(c *domain.CategoryWithRelations) categoryResponse {
 		MetaTitle:       c.MetaTitle(),
 		MetaDescription: c.MetaDescription(),
 		IsFeatured:      c.IsFeatured(),
+		IsHidden:        c.IsHidden(),
 		OrderIndex:      c.OrderIndex(),
 		Content:         c.Content(),
 		CreatedAt:       c.CreatedAt(),
@@ -90,6 +94,7 @@ type createCategoryRequest struct {
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
 	IsFeatured      bool            `json:"is_featured"`
+	IsHidden        bool            `json:"is_hidden"`
 	OrderIndex      int             `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
 }
@@ -102,6 +107,7 @@ type updateCategoryRequest struct {
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
 	IsFeatured      *bool           `json:"is_featured"`
+	IsHidden        *bool           `json:"is_hidden"`
 	OrderIndex      *int            `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
 }

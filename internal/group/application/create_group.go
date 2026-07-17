@@ -14,6 +14,7 @@ func CreateGroup(ctx context.Context, repo domain.GroupRepository, input domain.
 		input.MetaTitle,
 		input.MetaDescription,
 		input.IsFeatured,
+		input.IsHidden,
 		input.OrderIndex,
 		input.Content,
 	)

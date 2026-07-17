@@ -11,7 +11,7 @@ import (
 func TestNewGroup(t *testing.T) {
 	t.Run("valid input creates a group", func(t *testing.T) {
 		imageUrl := "https://example.com/logo.png"
-		g, err := NewGroup("Air Conditioners", "air-conditioners", &imageUrl, nil, nil, false, 0, nil)
+		g, err := NewGroup("Air Conditioners", "air-conditioners", &imageUrl, nil, nil, false, false, 0, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -24,7 +24,7 @@ func TestNewGroup(t *testing.T) {
 	})
 
 	t.Run("empty name fails validation", func(t *testing.T) {
-		_, err := NewGroup("", "air-conditioners", nil, nil, nil, false, 0, nil)
+		_, err := NewGroup("", "air-conditioners", nil, nil, nil, false, false, 0, nil)
 		if err == nil {
 			t.Fatal("expected validation error")
 		}
@@ -36,14 +36,14 @@ func TestNewGroup(t *testing.T) {
 
 	t.Run("overlong name fails validation", func(t *testing.T) {
 		longName := strings.Repeat("a", 101)
-		_, err := NewGroup(longName, "air-conditioners", nil, nil, nil, false, 0, nil)
+		_, err := NewGroup(longName, "air-conditioners", nil, nil, nil, false, false, 0, nil)
 		if err == nil {
 			t.Fatal("expected validation error")
 		}
 	})
 
 	t.Run("empty slug fails validation", func(t *testing.T) {
-		_, err := NewGroup("Air Conditioners", "", nil, nil, nil, false, 0, nil)
+		_, err := NewGroup("Air Conditioners", "", nil, nil, nil, false, false, 0, nil)
 		if err == nil {
 			t.Fatal("expected validation error")
 		}
@@ -51,7 +51,7 @@ func TestNewGroup(t *testing.T) {
 }
 
 func TestGroup_UpdateName(t *testing.T) {
-	g, _ := NewGroup("Air Conditioners", "air-conditioners", nil, nil, nil, false, 0, nil)
+	g, _ := NewGroup("Air Conditioners", "air-conditioners", nil, nil, nil, false, false, 0, nil)
 
 	if err := g.UpdateName("Air Conditioners Updated"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -66,7 +66,7 @@ func TestGroup_UpdateName(t *testing.T) {
 }
 
 func TestGroup_UpdateSlug(t *testing.T) {
-	g, _ := NewGroup("Air Conditioners", "air-conditioners", nil, nil, nil, false, 0, nil)
+	g, _ := NewGroup("Air Conditioners", "air-conditioners", nil, nil, nil, false, false, 0, nil)
 
 	if err := g.UpdateSlug("ac"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -81,7 +81,7 @@ func TestGroup_UpdateSlug(t *testing.T) {
 }
 
 func TestGroup_MarkDeletedAndRestore(t *testing.T) {
-	g, _ := NewGroup("Air Conditioners", "air-conditioners", nil, nil, nil, false, 0, nil)
+	g, _ := NewGroup("Air Conditioners", "air-conditioners", nil, nil, nil, false, false, 0, nil)
 
 	g.MarkDeleted(g.CreatedAt())
 	if !g.IsDeleted() {

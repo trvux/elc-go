@@ -28,13 +28,13 @@ func NewPostgresCategoryRepository(pool *pgxpool.Pool) *PostgresCategoryReposito
 // (with a "c" alias) are used for the read queries that LEFT JOIN
 // group_categories.
 const categoryColumns = `id, name, slug, group_id, image_url, meta_title, meta_description,
-	is_featured, order_index, content, created_at, updated_at, deleted_at`
+	is_featured, is_hidden, order_index, content, created_at, updated_at, deleted_at`
 
 const categoryColumnsAliased = `c.id, c.name, c.slug, c.group_id, c.image_url, c.meta_title, c.meta_description,
-	c.is_featured, c.order_index, c.content, c.created_at, c.updated_at, c.deleted_at`
+	c.is_featured, c.is_hidden, c.order_index, c.content, c.created_at, c.updated_at, c.deleted_at`
 
 const categoryJoin = `SELECT ` + categoryColumnsAliased + `,
-	g.id, g.name, g.slug, g.image_url, g.meta_title, g.meta_description, g.is_featured, g.order_index
+	g.id, g.name, g.slug, g.image_url, g.meta_title, g.meta_description, g.is_featured, g.is_hidden, g.order_index
 	FROM categories c LEFT JOIN group_categories g ON g.id = c.group_id`
 
 func (r *PostgresCategoryRepository) GetAll(ctx context.Context, filter domain.CategoryFilter) ([]*domain.CategoryWithRelations, error) {
@@ -166,14 +166,14 @@ func (r *PostgresCategoryRepository) Create(ctx context.Context, category *domai
 		query := `
 			UPDATE categories
 			SET name = $1, group_id = $2, image_url = $3, meta_title = $4, meta_description = $5,
-				is_featured = $6, order_index = $7, content = $8,
-				deleted_at = NULL, updated_at = $9
-			WHERE id = $10
+				is_featured = $6, is_hidden = $7, order_index = $8, content = $9,
+				deleted_at = NULL, updated_at = $10
+			WHERE id = $11
 			RETURNING ` + categoryColumns
 
 		row := r.pool.QueryRow(ctx, query,
 			category.Name(), category.GroupID(), category.ImageURL(), category.MetaTitle(), category.MetaDescription(),
-			category.IsFeatured(), category.OrderIndex(), category.Content(),
+			category.IsFeatured(), category.IsHidden(), category.OrderIndex(), category.Content(),
 			time.Now(), existingID,
 		)
 		resurrected, err := scanCategory(row)
@@ -184,13 +184,13 @@ func (r *PostgresCategoryRepository) Create(ctx context.Context, category *domai
 	}
 
 	query := `
-		INSERT INTO categories (name, slug, group_id, image_url, meta_title, meta_description, is_featured, order_index, content)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO categories (name, slug, group_id, image_url, meta_title, meta_description, is_featured, is_hidden, order_index, content)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING ` + categoryColumns
 
 	row := r.pool.QueryRow(ctx, query,
 		category.Name(), category.Slug(), category.GroupID(), category.ImageURL(), category.MetaTitle(), category.MetaDescription(),
-		category.IsFeatured(), category.OrderIndex(), category.Content(),
+		category.IsFeatured(), category.IsHidden(), category.OrderIndex(), category.Content(),
 	)
 	created, err := scanCategory(row)
 	if err != nil {
@@ -203,13 +203,13 @@ func (r *PostgresCategoryRepository) Update(ctx context.Context, category *domai
 	query := `
 		UPDATE categories
 		SET name = $1, slug = $2, group_id = $3, image_url = $4, meta_title = $5, meta_description = $6,
-			is_featured = $7, order_index = $8, content = $9, updated_at = $10
-		WHERE id = $11
+			is_featured = $7, is_hidden = $8, order_index = $9, content = $10, updated_at = $11
+		WHERE id = $12
 		RETURNING ` + categoryColumns
 
 	row := r.pool.QueryRow(ctx, query,
 		category.Name(), category.Slug(), category.GroupID(), category.ImageURL(), category.MetaTitle(), category.MetaDescription(),
-		category.IsFeatured(), category.OrderIndex(), category.Content(),
+		category.IsFeatured(), category.IsHidden(), category.OrderIndex(), category.Content(),
 		category.UpdatedAt(), category.ID(),
 	)
 	updated, err := scanCategory(row)
@@ -277,6 +277,7 @@ func scanCategory(row rowScanner) (*domain.Category, error) {
 		groupID                              *string
 		imageUrl, metaTitle, metaDescription *string
 		isFeatured                           bool
+		isHidden                             bool
 		orderIndex                           int
 		content                              json.RawMessage
 		createdAt, updatedAt                 time.Time
@@ -285,14 +286,14 @@ func scanCategory(row rowScanner) (*domain.Category, error) {
 
 	if err := row.Scan(
 		&id, &name, &slug, &groupID, &imageUrl, &metaTitle, &metaDescription,
-		&isFeatured, &orderIndex, &content, &createdAt, &updatedAt, &deletedAt,
+		&isFeatured, &isHidden, &orderIndex, &content, &createdAt, &updatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
 	}
 
 	return domain.RehydrateCategory(
 		id, name, slug, groupID, imageUrl, metaTitle, metaDescription,
-		isFeatured, orderIndex, content, createdAt, updatedAt, deletedAt,
+		isFeatured, isHidden, orderIndex, content, createdAt, updatedAt, deletedAt,
 	), nil
 }
 
@@ -304,6 +305,7 @@ func scanCategoryWithRelations(row rowScanner) (*domain.CategoryWithRelations, e
 		groupID                              *string
 		imageUrl, metaTitle, metaDescription *string
 		isFeatured                           bool
+		isHidden                             bool
 		orderIndex                           int
 		content                              json.RawMessage
 		createdAt, updatedAt                 time.Time
@@ -312,20 +314,21 @@ func scanCategoryWithRelations(row rowScanner) (*domain.CategoryWithRelations, e
 		gID, gName, gSlug                       *string
 		gImageUrl, gMetaTitle, gMetaDescription *string
 		gIsFeatured                             *bool
+		gIsHidden                               *bool
 		gOrderIndex                             *int
 	)
 
 	if err := row.Scan(
 		&id, &name, &slug, &groupID, &imageUrl, &metaTitle, &metaDescription,
-		&isFeatured, &orderIndex, &content, &createdAt, &updatedAt, &deletedAt,
-		&gID, &gName, &gSlug, &gImageUrl, &gMetaTitle, &gMetaDescription, &gIsFeatured, &gOrderIndex,
+		&isFeatured, &isHidden, &orderIndex, &content, &createdAt, &updatedAt, &deletedAt,
+		&gID, &gName, &gSlug, &gImageUrl, &gMetaTitle, &gMetaDescription, &gIsFeatured, &gIsHidden, &gOrderIndex,
 	); err != nil {
 		return nil, err
 	}
 
 	category := domain.RehydrateCategory(
 		id, name, slug, groupID, imageUrl, metaTitle, metaDescription,
-		isFeatured, orderIndex, content, createdAt, updatedAt, deletedAt,
+		isFeatured, isHidden, orderIndex, content, createdAt, updatedAt, deletedAt,
 	)
 
 	var group *domain.GroupRef
@@ -338,6 +341,7 @@ func scanCategoryWithRelations(row rowScanner) (*domain.CategoryWithRelations, e
 			MetaTitle:       gMetaTitle,
 			MetaDescription: gMetaDescription,
 			IsFeatured:      gIsFeatured != nil && *gIsFeatured,
+			IsHidden:        gIsHidden != nil && *gIsHidden,
 			OrderIndex:      derefInt(gOrderIndex),
 		}
 	}

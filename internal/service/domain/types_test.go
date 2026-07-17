@@ -23,7 +23,7 @@ func TestService_SalePrice(t *testing.T) {
 			s := RehydrateService(
 				"id-1", "Title", "slug", nil, nil,
 				tt.originalPrice, tt.discountPercent, nil, nil, nil, nil,
-				nil, nil, nil, Seo{}, false, true, 0,
+				nil, nil, nil, false, true, 0,
 				time.Now(), time.Now(), nil,
 			)
 
@@ -42,7 +42,7 @@ func TestService_UpdatePricing_NeverGoesStale(t *testing.T) {
 	s := RehydrateService(
 		"id-1", "Title", "slug", nil, nil,
 		ptrInt64(100000), ptrInt(10), nil, nil, nil, nil,
-		nil, nil, nil, Seo{}, false, true, 0,
+		nil, nil, nil, false, true, 0,
 		time.Now(), time.Now(), nil,
 	)
 

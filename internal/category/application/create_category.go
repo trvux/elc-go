@@ -15,6 +15,7 @@ func CreateCategory(ctx context.Context, repo domain.CategoryRepository, input d
 		input.MetaTitle,
 		input.MetaDescription,
 		input.IsFeatured,
+		input.IsHidden,
 		input.OrderIndex,
 		input.Content,
 	)

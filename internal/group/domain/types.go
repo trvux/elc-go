@@ -16,6 +16,7 @@ type Group struct {
 	metaTitle       *string
 	metaDescription *string
 	isFeatured      bool
+	isHidden        bool
 	orderIndex      int
 	content         json.RawMessage
 	createdAt       time.Time
@@ -29,6 +30,7 @@ func NewGroup(
 	imageUrl *string,
 	metaTitle, metaDescription *string,
 	isFeatured bool,
+	isHidden bool,
 	orderIndex int,
 	content json.RawMessage,
 ) (*Group, error) {
@@ -53,6 +55,7 @@ func NewGroup(
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
 		isFeatured:      isFeatured,
+		isHidden:        isHidden,
 		orderIndex:      orderIndex,
 		content:         content,
 		createdAt:       now,
@@ -67,6 +70,7 @@ func RehydrateGroup(
 	imageUrl *string,
 	metaTitle, metaDescription *string,
 	isFeatured bool,
+	isHidden bool,
 	orderIndex int,
 	content json.RawMessage,
 	createdAt, updatedAt time.Time,
@@ -80,6 +84,7 @@ func RehydrateGroup(
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
 		isFeatured:      isFeatured,
+		isHidden:        isHidden,
 		orderIndex:      orderIndex,
 		content:         content,
 		createdAt:       createdAt,
@@ -95,6 +100,7 @@ func (g *Group) ImageURL() *string        { return g.imageUrl }
 func (g *Group) MetaTitle() *string       { return g.metaTitle }
 func (g *Group) MetaDescription() *string { return g.metaDescription }
 func (g *Group) IsFeatured() bool         { return g.isFeatured }
+func (g *Group) IsHidden() bool           { return g.isHidden }
 func (g *Group) OrderIndex() int          { return g.orderIndex }
 func (g *Group) Content() json.RawMessage { return g.content }
 func (g *Group) CreatedAt() time.Time     { return g.createdAt }
@@ -140,6 +146,11 @@ func (g *Group) UpdateMetaDescription(metaDescription *string) {
 
 func (g *Group) SetFeatured(isFeatured bool) {
 	g.isFeatured = isFeatured
+	g.updatedAt = time.Now()
+}
+
+func (g *Group) SetHidden(isHidden bool) {
+	g.isHidden = isHidden
 	g.updatedAt = time.Now()
 }
 
@@ -189,6 +200,7 @@ type CreateGroupInput struct {
 	MetaTitle       *string
 	MetaDescription *string
 	IsFeatured      bool
+	IsHidden        bool
 	OrderIndex      int
 	Content         json.RawMessage
 }
@@ -201,6 +213,7 @@ type UpdateGroupInput struct {
 	MetaTitle       *string
 	MetaDescription *string
 	IsFeatured      *bool
+	IsHidden        *bool
 	OrderIndex      *int
 	Content         json.RawMessage
 }

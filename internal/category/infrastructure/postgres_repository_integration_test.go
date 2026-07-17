@@ -29,7 +29,7 @@ func TestPostgresCategoryRepository_CRUD(t *testing.T) {
 
 	c, err := domain.NewCategory(
 		"Integration Test Category", "integration-test-category-xyz", nil, &imageUrl,
-		nil, nil, false, 999, content,
+		nil, nil, false, false, 999, content,
 	)
 	if err != nil {
 		t.Fatalf("NewCategory failed: %v", err)
@@ -105,7 +105,7 @@ func TestPostgresCategoryRepository_CRUD(t *testing.T) {
 	}
 	resurrectInput, err := domain.NewCategory(
 		"Resurrected Category", "integration-test-category-xyz", nil, nil,
-		nil, nil, false, 0, nil,
+		nil, nil, false, false, 0, nil,
 	)
 	if err != nil {
 		t.Fatalf("NewCategory (resurrect) failed: %v", err)

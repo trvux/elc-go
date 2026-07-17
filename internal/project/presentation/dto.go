@@ -32,20 +32,6 @@ func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
 	return result
 }
 
-type seoDTO struct {
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Noindex     bool    `json:"noindex,omitempty"`
-}
-
-func toSeoDTO(seo domain.Seo) seoDTO {
-	return seoDTO{Title: seo.Title, Description: seo.Description, Noindex: seo.Noindex}
-}
-
-func toSeoDomain(seo seoDTO) domain.Seo {
-	return domain.Seo{Title: seo.Title, Description: seo.Description, Noindex: seo.Noindex}
-}
-
 type tagRefResponse struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -103,7 +89,6 @@ type projectResponse struct {
 	IsPublished       bool                      `json:"is_published"`
 	MetaTitle         *string                   `json:"meta_title"`
 	MetaDescription   *string                   `json:"meta_description"`
-	Seo               seoDTO                    `json:"seo"`
 	OrderIndex        int                       `json:"order_index"`
 	ProjectTypeID     *string                   `json:"project_type_id"`
 	ClientName        string                    `json:"client_name"`
@@ -157,7 +142,6 @@ func toProjectResponse(p *domain.ProjectWithRelations) projectResponse {
 		IsPublished:       p.IsPublished(),
 		MetaTitle:         p.MetaTitle(),
 		MetaDescription:   p.MetaDescription(),
-		Seo:               toSeoDTO(p.Seo()),
 		OrderIndex:        p.OrderIndex(),
 		ProjectTypeID:     p.ProjectTypeID(),
 		ClientName:        p.ClientName(),
@@ -226,7 +210,6 @@ type createProjectRequest struct {
 	IsPublished       bool                   `json:"is_published"`
 	MetaTitle         *string                `json:"meta_title"`
 	MetaDescription   *string                `json:"meta_description"`
-	Seo               seoDTO                 `json:"seo"`
 	OrderIndex        int                    `json:"order_index"`
 	ProjectTypeID     *string                `json:"project_type_id"`
 	ServiceIDs        []string               `json:"service_ids"`
@@ -248,7 +231,6 @@ type updateProjectRequest struct {
 	IsPublished       *bool                   `json:"is_published"`
 	MetaTitle         *string                 `json:"meta_title"`
 	MetaDescription   *string                 `json:"meta_description"`
-	Seo               *seoDTO                 `json:"seo"`
 	OrderIndex        *int                    `json:"order_index"`
 	ProjectTypeID     *string                 `json:"project_type_id"`
 	ServiceIDs        *[]string               `json:"service_ids"`

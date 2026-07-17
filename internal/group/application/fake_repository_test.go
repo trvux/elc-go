@@ -55,7 +55,7 @@ func (r *fakeGroupRepository) Create(ctx context.Context, group *domain.Group) (
 			resurrected := domain.RehydrateGroup(
 				id, group.Name(), group.Slug(), group.ImageURL(),
 				group.MetaTitle(), group.MetaDescription(),
-				group.IsFeatured(), group.OrderIndex(), group.Content(),
+				group.IsFeatured(), group.IsHidden(), group.OrderIndex(), group.Content(),
 				g.CreatedAt(), time.Now(), nil,
 			)
 			r.items[id] = resurrected
@@ -68,7 +68,7 @@ func (r *fakeGroupRepository) Create(ctx context.Context, group *domain.Group) (
 	created := domain.RehydrateGroup(
 		id, group.Name(), group.Slug(), group.ImageURL(),
 		group.MetaTitle(), group.MetaDescription(),
-		group.IsFeatured(), group.OrderIndex(), group.Content(),
+		group.IsFeatured(), group.IsHidden(), group.OrderIndex(), group.Content(),
 		now, now, nil,
 	)
 	r.items[id] = created

@@ -30,7 +30,7 @@ func TestPostgresGroupRepository_CRUD(t *testing.T) {
 
 	g, err := domain.NewGroup(
 		"Integration Test Group", "integration-test-group-xyz", &imageUrl,
-		nil, nil, false, 999, content,
+		nil, nil, false, false, 999, content,
 	)
 	if err != nil {
 		t.Fatalf("NewGroup failed: %v", err)
@@ -92,7 +92,7 @@ func TestPostgresGroupRepository_CRUD(t *testing.T) {
 	// Resurrect-on-create logic: creating a new group with the same slug should resurrect the old one.
 	resInput, err := domain.NewGroup(
 		"Resurrected Group", "integration-test-group-xyz", &imageUrl,
-		nil, nil, true, 100, nil,
+		nil, nil, true, false, 100, nil,
 	)
 	if err != nil {
 		t.Fatalf("NewGroup (resurrect) failed: %v", err)
@@ -124,7 +124,7 @@ func TestPostgresGroupRepository_SoftDeleteCascade(t *testing.T) {
 	repo := NewPostgresGroupRepository(pool)
 
 	// 1. Create group category
-	g, _ := domain.NewGroup("Cascade Test Group", "cascade-test-group-xyz", nil, nil, nil, false, 0, nil)
+	g, _ := domain.NewGroup("Cascade Test Group", "cascade-test-group-xyz", nil, nil, nil, false, false, 0, nil)
 	group, err := repo.Create(ctx, g)
 	if err != nil {
 		t.Fatalf("failed to create group: %v", err)

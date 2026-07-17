@@ -11,11 +11,10 @@ func newTestProduct(t *testing.T) *Product {
 	t.Helper()
 	p, err := NewProduct(
 		"cat-1", "brand-1", "Máy lạnh Daikin", "may-lanh-daikin",
-		nil, nil, nil, nil,
+		nil, nil, nil,
 		false, true, 0,
 		"",
 		nil, nil,
-		Seo{},
 		nil, nil, nil, nil,
 	)
 	if err != nil {
@@ -39,27 +38,27 @@ func TestNewProduct(t *testing.T) {
 	})
 
 	t.Run("empty name fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "", "slug", nil, nil, nil, nil, false, true, 0, "", nil, nil, Seo{}, nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "brand-1", "", "slug", nil, nil, nil, false, true, 0, "", nil, nil, nil, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty slug fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "name", "", nil, nil, nil, nil, false, true, 0, "", nil, nil, Seo{}, nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "brand-1", "name", "", nil, nil, nil, false, true, 0, "", nil, nil, nil, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty category_id fails validation", func(t *testing.T) {
-		_, err := NewProduct("", "brand-1", "name", "slug", nil, nil, nil, nil, false, true, 0, "", nil, nil, Seo{}, nil, nil, nil, nil)
+		_, err := NewProduct("", "brand-1", "name", "slug", nil, nil, nil, false, true, 0, "", nil, nil, nil, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty brand_id fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "", "name", "slug", nil, nil, nil, nil, false, true, 0, "", nil, nil, Seo{}, nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "", "name", "slug", nil, nil, nil, false, true, 0, "", nil, nil, nil, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 
 	t.Run("invalid condition fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "name", "slug", nil, nil, nil, nil, false, true, 0, "refurbished", nil, nil, Seo{}, nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "brand-1", "name", "slug", nil, nil, nil, false, true, 0, "refurbished", nil, nil, nil, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 }
@@ -86,18 +85,6 @@ func TestProduct_UpdateName(t *testing.T) {
 	}
 	if err := p.UpdateName(""); err == nil {
 		t.Fatal("expected validation error for empty name")
-	}
-}
-
-func TestProduct_UpdateSpecs(t *testing.T) {
-	p := newTestProduct(t)
-
-	value := "1.5 HP"
-	specs := []SpecItem{{Label: "Công suất", Value: &value}}
-	p.UpdateSpecs(specs)
-
-	if len(p.Specs()) != 1 {
-		t.Fatalf("expected specs to be set, got %+v", p.Specs())
 	}
 }
 

@@ -13,7 +13,6 @@ func CreateService(ctx context.Context, repo domain.ServiceRepository, input dom
 		input.OriginalPrice, input.DiscountPercent,
 		input.PriceDisplayText, input.Labels, input.Description, input.Content,
 		input.Images, input.MetaTitle, input.MetaDescription,
-		input.Seo,
 		input.IsFeatured, input.IsPublished, input.OrderIndex,
 	)
 	if err != nil {

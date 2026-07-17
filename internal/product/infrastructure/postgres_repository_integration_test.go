@@ -31,16 +31,12 @@ func TestPostgresProductRepository_CRUD(t *testing.T) {
 
 	repo := NewPostgresProductRepository(pool)
 
-	value := "1.5 HP"
-	specs := []domain.SpecItem{{Label: "Công suất", Value: &value}}
-
 	p, err := domain.NewProduct(
 		categoryID, brandID, "Integration Test Product 1.5HP", "integration-test-product-xyz",
-		nil, specs, []domain.ImageAsset{{URL: "https://example.com/a.webp"}}, []string{"moi"},
+		nil, []domain.ImageAsset{{URL: "https://example.com/a.webp"}}, []string{"moi"},
 		false, true, 0,
 		"new",
 		nil, nil,
-		domain.Seo{},
 		nil, nil, nil, nil,
 	)
 	if err != nil {
@@ -63,9 +59,6 @@ func TestPostgresProductRepository_CRUD(t *testing.T) {
 	}
 	if len(created.Images()) != 1 || created.Images()[0].URL != "https://example.com/a.webp" {
 		t.Errorf("expected images to round-trip, got %v", created.Images())
-	}
-	if len(created.Specs()) != 1 || created.Specs()[0].Label != "Công suất" {
-		t.Errorf("expected specs to round-trip, got %+v", created.Specs())
 	}
 
 	fetched, err := repo.GetByID(ctx, created.ID())

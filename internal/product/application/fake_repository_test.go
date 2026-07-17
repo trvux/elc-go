@@ -83,12 +83,11 @@ func (r *fakeProductRepository) Create(ctx context.Context, product *domain.Prod
 	now := time.Now()
 	created := domain.RehydrateProduct(
 		id, product.CategoryID(), product.BrandID(), product.Name(), product.Slug(),
-		product.Description(), product.Specs(),
+		product.Description(),
 		product.Images(), product.Labels(),
 		product.IsFeatured(), product.IsPublished(), product.OrderIndex(),
 		product.Condition(),
 		product.MetaTitle(), product.MetaDescription(),
-		product.Seo(),
 		product.ProductLineID(), product.ShortDescription(), product.WarrantyMonths(), product.WarrantyTerms(),
 		nil, nil, nil, nil, nil, "",
 		now, now, nil,

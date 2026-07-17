@@ -10,12 +10,11 @@ import (
 func CreateProduct(ctx context.Context, repo domain.ProductRepository, input domain.CreateProductInput) (*domain.Product, error) {
 	product, err := domain.NewProduct(
 		input.CategoryID, input.BrandID, input.Name, input.Slug,
-		input.Description, input.Specs,
+		input.Description,
 		input.Images, input.Labels,
 		input.IsFeatured, input.IsPublished, input.OrderIndex,
 		input.Condition,
 		input.MetaTitle, input.MetaDescription,
-		input.Seo,
 		input.ProductLineID, input.ShortDescription, input.WarrantyMonths, input.WarrantyTerms,
 	)
 	if err != nil {

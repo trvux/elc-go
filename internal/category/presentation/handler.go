@@ -123,6 +123,7 @@ func (h *CategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		MetaTitle:       req.MetaTitle,
 		MetaDescription: req.MetaDescription,
 		IsFeatured:      req.IsFeatured,
+		IsHidden:        req.IsHidden,
 		OrderIndex:      req.OrderIndex,
 		Content:         req.Content,
 	}
@@ -154,6 +155,7 @@ func (h *CategoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		MetaTitle:       req.MetaTitle,
 		MetaDescription: req.MetaDescription,
 		IsFeatured:      req.IsFeatured,
+		IsHidden:        req.IsHidden,
 		OrderIndex:      req.OrderIndex,
 		Content:         req.Content,
 	}

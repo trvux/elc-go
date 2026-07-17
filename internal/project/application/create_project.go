@@ -17,7 +17,6 @@ func CreateProject(ctx context.Context, repo domain.ProjectRepository, input dom
 		input.IsPublished,
 		input.MetaTitle,
 		input.MetaDescription,
-		input.Seo,
 		input.OrderIndex,
 		input.ProjectTypeID,
 		input.ClientName,

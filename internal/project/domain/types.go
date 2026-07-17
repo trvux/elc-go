@@ -13,16 +13,6 @@ import (
 // identical alias for why this is centralized rather than duplicated.
 type ImageAsset = media.ImageAsset
 
-// Seo is the unified SEO metadata shape stored as jsonb, replacing the old
-// flat MetaTitle/MetaDescription pair (kept alongside during the migration).
-// Duplicated per-module rather than shared, same reasoning as
-// CategoryRef/BrandRef in product/domain/types.go.
-type Seo struct {
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Noindex     bool    `json:"noindex,omitempty"`
-}
-
 type Project struct {
 	id                string
 	title             string
@@ -33,7 +23,6 @@ type Project struct {
 	isPublished       bool
 	metaTitle         *string
 	metaDescription   *string
-	seo               Seo
 	orderIndex        int
 	projectTypeID     *string
 	clientName        string
@@ -139,7 +128,6 @@ func NewProject(
 	images []ImageAsset,
 	isFeatured, isPublished bool,
 	metaTitle, metaDescription *string,
-	seo Seo,
 	orderIndex int,
 	projectTypeID *string,
 	clientName, location string,
@@ -176,7 +164,6 @@ func NewProject(
 		isPublished:       isPublished,
 		metaTitle:         metaTitle,
 		metaDescription:   metaDescription,
-		seo:               seo,
 		orderIndex:        orderIndex,
 		projectTypeID:     projectTypeID,
 		clientName:        clientName,
@@ -197,7 +184,6 @@ func RehydrateProject(
 	images []ImageAsset,
 	isFeatured, isPublished bool,
 	metaTitle, metaDescription *string,
-	seo Seo,
 	orderIndex int,
 	projectTypeID *string,
 	clientName, location string,
@@ -216,7 +202,6 @@ func RehydrateProject(
 		isPublished:       isPublished,
 		metaTitle:         metaTitle,
 		metaDescription:   metaDescription,
-		seo:               seo,
 		orderIndex:        orderIndex,
 		projectTypeID:     projectTypeID,
 		clientName:        clientName,
@@ -239,7 +224,6 @@ func (p *Project) IsFeatured() bool             { return p.isFeatured }
 func (p *Project) IsPublished() bool            { return p.isPublished }
 func (p *Project) MetaTitle() *string           { return p.metaTitle }
 func (p *Project) MetaDescription() *string     { return p.metaDescription }
-func (p *Project) Seo() Seo                     { return p.seo }
 func (p *Project) OrderIndex() int              { return p.orderIndex }
 func (p *Project) ProjectTypeID() *string       { return p.projectTypeID }
 func (p *Project) ClientName() string           { return p.clientName }
@@ -306,11 +290,6 @@ func (p *Project) UpdateMetaTitle(metaTitle *string) {
 
 func (p *Project) UpdateMetaDescription(metaDescription *string) {
 	p.metaDescription = metaDescription
-	p.updatedAt = time.Now()
-}
-
-func (p *Project) UpdateSeo(seo Seo) {
-	p.seo = seo
 	p.updatedAt = time.Now()
 }
 
@@ -393,7 +372,6 @@ type CreateProjectInput struct {
 	IsPublished       bool
 	MetaTitle         *string
 	MetaDescription   *string
-	Seo               Seo
 	OrderIndex        int
 	ProjectTypeID     *string
 	ServiceIDs        []string
@@ -416,7 +394,6 @@ type UpdateProjectInput struct {
 	IsPublished     *bool
 	MetaTitle       *string
 	MetaDescription *string
-	Seo             *Seo
 	OrderIndex      *int
 	ProjectTypeID   *string
 	// ServiceIDs/Categories: nil means "leave relations untouched", a

@@ -41,10 +41,6 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, input dom
 		product.UpdateDescription(input.Description)
 	}
 
-	if input.Specs != nil {
-		product.UpdateSpecs(input.Specs)
-	}
-
 	if input.Images != nil {
 		product.UpdateImages(input.Images)
 	}
@@ -71,9 +67,6 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, input dom
 	}
 	if input.MetaDescription != nil {
 		product.UpdateMetaDescription(input.MetaDescription)
-	}
-	if input.Seo != nil {
-		product.UpdateSeo(*input.Seo)
 	}
 	if input.ProductLineID != nil {
 		product.UpdateProductLineID(input.ProductLineID)

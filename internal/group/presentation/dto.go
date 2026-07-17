@@ -15,6 +15,7 @@ type groupResponse struct {
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
 	IsFeatured      bool            `json:"is_featured"`
+	IsHidden        bool            `json:"is_hidden"`
 	OrderIndex      int             `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
 	CreatedAt       time.Time       `json:"created_at"`
@@ -31,6 +32,7 @@ func toGroupResponse(g *domain.Group) groupResponse {
 		MetaTitle:       g.MetaTitle(),
 		MetaDescription: g.MetaDescription(),
 		IsFeatured:      g.IsFeatured(),
+		IsHidden:        g.IsHidden(),
 		OrderIndex:      g.OrderIndex(),
 		Content:         g.Content(),
 		CreatedAt:       g.CreatedAt(),
@@ -54,6 +56,7 @@ type createGroupRequest struct {
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
 	IsFeatured      bool            `json:"is_featured"`
+	IsHidden        bool            `json:"is_hidden"`
 	OrderIndex      int             `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
 }
@@ -65,6 +68,7 @@ type updateGroupRequest struct {
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
 	IsFeatured      *bool           `json:"is_featured"`
+	IsHidden        *bool           `json:"is_hidden"`
 	OrderIndex      *int            `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
 }
