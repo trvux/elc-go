@@ -70,7 +70,7 @@ func (r *fakeCategoryRepository) Create(ctx context.Context, category *domain.Ca
 			resurrected := domain.RehydrateCategory(
 				id, category.Name(), category.Slug(), category.GroupID(), category.ImageURL(),
 				category.MetaTitle(), category.MetaDescription(),
-				category.IsFeatured(), category.OrderIndex(), category.Content(), category.FAQ(),
+				category.IsFeatured(), category.OrderIndex(), category.Content(),
 				c.CreatedAt(), time.Now(), nil,
 			)
 			r.items[id] = resurrected
@@ -83,7 +83,7 @@ func (r *fakeCategoryRepository) Create(ctx context.Context, category *domain.Ca
 	created := domain.RehydrateCategory(
 		id, category.Name(), category.Slug(), category.GroupID(), category.ImageURL(),
 		category.MetaTitle(), category.MetaDescription(),
-		category.IsFeatured(), category.OrderIndex(), category.Content(), category.FAQ(),
+		category.IsFeatured(), category.OrderIndex(), category.Content(),
 		now, now, nil,
 	)
 	r.items[id] = created

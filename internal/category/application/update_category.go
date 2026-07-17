@@ -48,9 +48,6 @@ func UpdateCategory(ctx context.Context, repo domain.CategoryRepository, input d
 	if input.Content != nil {
 		c.UpdateContent(input.Content)
 	}
-	if input.FAQ != nil {
-		c.SetFAQ(input.FAQ)
-	}
 
 	return repo.Update(ctx, c)
 }

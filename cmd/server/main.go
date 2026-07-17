@@ -47,8 +47,6 @@ import (
 	projecttypepresentation "github.com/trvux/elc-go/internal/project-type/presentation"
 	projectinfra "github.com/trvux/elc-go/internal/project/infrastructure"
 	projectpresentation "github.com/trvux/elc-go/internal/project/presentation"
-	reviewinfra "github.com/trvux/elc-go/internal/review/infrastructure"
-	reviewpresentation "github.com/trvux/elc-go/internal/review/presentation"
 	servicegroupinfra "github.com/trvux/elc-go/internal/service-group/infrastructure"
 	servicegrouppresentation "github.com/trvux/elc-go/internal/service-group/presentation"
 	serviceinfra "github.com/trvux/elc-go/internal/service/infrastructure"
@@ -189,10 +187,6 @@ func main() {
 	productLineRepo := productInfra.NewPostgresProductLineRepository(pool)
 	productLineHandler := productPresentation.NewProductLineHandler(productLineRepo)
 	productPresentation.RegisterProductLineRoutes(router, productLineHandler, tokenIssuer)
-
-	reviewRepo := reviewinfra.NewPostgresReviewRepository(pool)
-	reviewHandler := reviewpresentation.NewReviewHandler(reviewRepo)
-	reviewpresentation.RegisterRoutes(router, reviewHandler, tokenIssuer)
 
 	branchRepo := branchinfra.NewPostgresBranchRepository(pool)
 	branchHandler := branchpresentation.NewBranchHandler(branchRepo)

@@ -44,9 +44,6 @@ func UpdateBrand(ctx context.Context, repo domain.BrandRepository, input domain.
 	if input.Content != nil {
 		brand.UpdateContent(input.Content)
 	}
-	if input.FAQ != nil {
-		brand.SetFAQ(input.FAQ)
-	}
 
 	return repo.Update(ctx, brand)
 }

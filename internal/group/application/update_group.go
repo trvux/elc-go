@@ -44,9 +44,6 @@ func UpdateGroup(ctx context.Context, repo domain.GroupRepository, input domain.
 	if input.Content != nil {
 		g.UpdateContent(input.Content)
 	}
-	if input.FAQ != nil {
-		g.SetFAQ(input.FAQ)
-	}
 
 	return repo.Update(ctx, g)
 }

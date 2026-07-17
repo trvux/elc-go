@@ -8,11 +8,6 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
 
-type FAQItem struct {
-	Question string `json:"question"`
-	Answer   string `json:"answer"`
-}
-
 type Group struct {
 	id              string
 	name            string
@@ -23,7 +18,6 @@ type Group struct {
 	isFeatured      bool
 	orderIndex      int
 	content         json.RawMessage
-	faq             []FAQItem
 	createdAt       time.Time
 	updatedAt       time.Time
 	deletedAt       *time.Time
@@ -37,7 +31,6 @@ func NewGroup(
 	isFeatured bool,
 	orderIndex int,
 	content json.RawMessage,
-	faq []FAQItem,
 ) (*Group, error) {
 	fields := map[string][]string{}
 
@@ -62,7 +55,6 @@ func NewGroup(
 		isFeatured:      isFeatured,
 		orderIndex:      orderIndex,
 		content:         content,
-		faq:             faq,
 		createdAt:       now,
 		updatedAt:       now,
 	}, nil
@@ -77,7 +69,6 @@ func RehydrateGroup(
 	isFeatured bool,
 	orderIndex int,
 	content json.RawMessage,
-	faq []FAQItem,
 	createdAt, updatedAt time.Time,
 	deletedAt *time.Time,
 ) *Group {
@@ -91,7 +82,6 @@ func RehydrateGroup(
 		isFeatured:      isFeatured,
 		orderIndex:      orderIndex,
 		content:         content,
-		faq:             faq,
 		createdAt:       createdAt,
 		updatedAt:       updatedAt,
 		deletedAt:       deletedAt,
@@ -107,7 +97,6 @@ func (g *Group) MetaDescription() *string { return g.metaDescription }
 func (g *Group) IsFeatured() bool         { return g.isFeatured }
 func (g *Group) OrderIndex() int          { return g.orderIndex }
 func (g *Group) Content() json.RawMessage { return g.content }
-func (g *Group) FAQ() []FAQItem           { return g.faq }
 func (g *Group) CreatedAt() time.Time     { return g.createdAt }
 func (g *Group) UpdatedAt() time.Time     { return g.updatedAt }
 func (g *Group) DeletedAt() *time.Time    { return g.deletedAt }
@@ -164,11 +153,6 @@ func (g *Group) UpdateContent(content json.RawMessage) {
 	g.updatedAt = time.Now()
 }
 
-func (g *Group) SetFAQ(faq []FAQItem) {
-	g.faq = faq
-	g.updatedAt = time.Now()
-}
-
 func (g *Group) MarkDeleted(deletedAt time.Time) {
 	g.deletedAt = &deletedAt
 }
@@ -207,7 +191,6 @@ type CreateGroupInput struct {
 	IsFeatured      bool
 	OrderIndex      int
 	Content         json.RawMessage
-	FAQ             []FAQItem
 }
 
 type UpdateGroupInput struct {
@@ -220,7 +203,6 @@ type UpdateGroupInput struct {
 	IsFeatured      *bool
 	OrderIndex      *int
 	Content         json.RawMessage
-	FAQ             []FAQItem
 }
 
 type GroupFilter struct {

@@ -125,7 +125,6 @@ func (h *CategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		IsFeatured:      req.IsFeatured,
 		OrderIndex:      req.OrderIndex,
 		Content:         req.Content,
-		FAQ:             toFAQDomainList(req.FAQ),
 	}
 
 	c, err := application.CreateCategory(r.Context(), h.repo, input)
@@ -157,7 +156,6 @@ func (h *CategoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		IsFeatured:      req.IsFeatured,
 		OrderIndex:      req.OrderIndex,
 		Content:         req.Content,
-		FAQ:             toFAQDomainList(req.FAQ),
 	}
 
 	c, err := application.UpdateCategory(r.Context(), h.repo, input)

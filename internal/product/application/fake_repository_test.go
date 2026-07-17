@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/trvux/elc-go/internal/product/domain"
@@ -37,9 +36,6 @@ func (r *fakeProductRepository) GetAll(ctx context.Context, filter domain.Produc
 			continue
 		}
 		if filter.IsPublished != nil && p.IsPublished() != *filter.IsPublished {
-			continue
-		}
-		if filter.Search != "" && !strings.Contains(strings.ToLower(p.Name()), strings.ToLower(filter.Search)) {
 			continue
 		}
 		result = append(result, toWithRelations(p))
@@ -87,7 +83,7 @@ func (r *fakeProductRepository) Create(ctx context.Context, product *domain.Prod
 	now := time.Now()
 	created := domain.RehydrateProduct(
 		id, product.CategoryID(), product.BrandID(), product.Name(), product.Slug(),
-		product.Description(), product.Specs(), product.NormalizedSpecs(),
+		product.Description(), product.Specs(),
 		product.Images(), product.Labels(),
 		product.IsFeatured(), product.IsPublished(), product.OrderIndex(),
 		product.Condition(),
@@ -122,8 +118,4 @@ func (r *fakeProductRepository) Restore(ctx context.Context, id string) error {
 	}
 	p.Restore()
 	return nil
-}
-
-func (r *fakeProductRepository) GetAdjacent(ctx context.Context, categoryID, currentID string) (*domain.AdjacentProduct, *domain.AdjacentProduct, error) {
-	return nil, nil, nil
 }

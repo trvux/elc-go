@@ -26,9 +26,6 @@ func parseProductFilter(r *http.Request) (domain.ProductFilter, error) {
 	q := r.URL.Query()
 
 	filter := domain.ProductFilter{
-		Search:         q.Get("search"),
-		SortBy:         q.Get("sort_by"),
-		Condition:      q.Get("condition"),
 		IncludeDeleted: q.Get("include_deleted") == "true",
 	}
 
@@ -43,9 +40,6 @@ func parseProductFilter(r *http.Request) (domain.ProductFilter, error) {
 	}
 	if v := q.Get("brand_ids"); v != "" {
 		filter.BrandIDs = splitNonEmpty(v)
-	}
-	if v := q.Get("brand_slugs"); v != "" {
-		filter.BrandSlugs = splitNonEmpty(v)
 	}
 	if v := q.Get("product_line_id"); v != "" {
 		filter.ProductLineID = &v
@@ -64,36 +58,6 @@ func parseProductFilter(r *http.Request) (domain.ProductFilter, error) {
 			return filter, err
 		}
 		filter.IsPublished = &b
-	}
-
-	if v := q.Get("min_price"); v != "" {
-		n, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return filter, err
-		}
-		filter.MinPrice = &n
-	}
-	if v := q.Get("max_price"); v != "" {
-		n, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return filter, err
-		}
-		filter.MaxPrice = &n
-	}
-
-	// spec_<label>=<value> query params, repeatable per label — mirrors the
-	// existing elc-tem UI convention. Go's net/url already percent-decodes
-	// both keys and values while parsing the query string, so the Vietnamese
-	// UI labels in the key (e.g. "spec_C%C3%B4ng%20su%E1%BA%A5t") come out
-	// correctly decoded with no extra handling needed here.
-	specs := map[string][]string{}
-	for key, values := range q {
-		if label, ok := strings.CutPrefix(key, "spec_"); ok && label != "" {
-			specs[label] = append(specs[label], values...)
-		}
-	}
-	if len(specs) > 0 {
-		filter.Specs = specs
 	}
 
 	if v := q.Get("limit"); v != "" {
@@ -187,31 +151,6 @@ func (h *ProductHandler) GetBySlug(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpserver.WriteJSON(w, http.StatusOK, toProductResponse(p))
-}
-
-func (h *ProductHandler) GetAdjacent(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	current, err := application.GetProductByID(r.Context(), h.repo, id)
-	if err != nil {
-		httpserver.WriteError(w, err)
-		return
-	}
-	if current == nil {
-		httpserver.WriteError(w, apperr.NewNotFoundError("product"))
-		return
-	}
-
-	prev, next, err := application.GetAdjacentProducts(r.Context(), h.repo, current.CategoryID(), current.ID())
-	if err != nil {
-		httpserver.WriteError(w, err)
-		return
-	}
-
-	httpserver.WriteJSON(w, http.StatusOK, adjacentProductsResponse{
-		Prev: toAdjacentProductResponse(prev),
-		Next: toAdjacentProductResponse(next),
-	})
 }
 
 func (h *ProductHandler) GetByIDsBatch(w http.ResponseWriter, r *http.Request) {

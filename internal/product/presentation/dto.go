@@ -22,6 +22,9 @@ func toImageAssetDTOList(images []domain.ImageAsset) []imageAssetDTO {
 }
 
 func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
+	if dtos == nil {
+		return nil
+	}
 	result := make([]domain.ImageAsset, len(dtos))
 	for i, d := range dtos {
 		result[i] = domain.ImageAsset{URL: d.URL, Alt: d.Alt, Caption: d.Caption}
@@ -233,47 +236,15 @@ func toProductResponseList(products []*domain.ProductWithRelations) []productRes
 	return result
 }
 
-type brandFacetResponse struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-}
-
-type specFacetResponse struct {
-	Label  string   `json:"label"`
-	Values []string `json:"values"`
-}
-
-type facetsResponse struct {
-	Brands   []brandFacetResponse `json:"brands"`
-	Specs    []specFacetResponse  `json:"specs"`
-	MinPrice int64                `json:"min_price"`
-	MaxPrice int64                `json:"max_price"`
-}
-
-func toFacetsResponse(f domain.ProductFacets) facetsResponse {
-	brands := make([]brandFacetResponse, len(f.Brands))
-	for i, b := range f.Brands {
-		brands[i] = brandFacetResponse{ID: b.ID, Name: b.Name, Slug: b.Slug}
-	}
-	specs := make([]specFacetResponse, len(f.Specs))
-	for i, s := range f.Specs {
-		specs[i] = specFacetResponse{Label: s.Label, Values: s.Values}
-	}
-	return facetsResponse{Brands: brands, Specs: specs, MinPrice: f.MinPrice, MaxPrice: f.MaxPrice}
-}
-
 type productListResponse struct {
 	Data       []productResponse `json:"data"`
 	TotalCount int               `json:"total_count"`
-	Facets     facetsResponse    `json:"facets"`
 }
 
 func toProductListResponse(result *domain.ProductListResult) productListResponse {
 	return productListResponse{
 		Data:       toProductResponseList(result.Products),
 		TotalCount: result.TotalCount,
-		Facets:     toFacetsResponse(result.Facets),
 	}
 }
 
@@ -499,23 +470,6 @@ func toAttributeValueResponseList(refs []domain.AttributeValueRef) []attributeVa
 		}
 	}
 	return result
-}
-
-type adjacentProductResponse struct {
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-}
-
-type adjacentProductsResponse struct {
-	Prev *adjacentProductResponse `json:"prev"`
-	Next *adjacentProductResponse `json:"next"`
-}
-
-func toAdjacentProductResponse(p *domain.AdjacentProduct) *adjacentProductResponse {
-	if p == nil {
-		return nil
-	}
-	return &adjacentProductResponse{Name: p.Name, Slug: p.Slug}
 }
 
 type createProductRequest struct {

@@ -115,7 +115,6 @@ type Product struct {
 	slug             string
 	description      json.RawMessage
 	specs            []SpecItem
-	normalizedSpecs  []string
 	images           []ImageAsset
 	labels           []string
 	isFeatured       bool
@@ -149,15 +148,10 @@ type Product struct {
 }
 
 // NewProduct validates and creates a new entity from user input.
-// normalizedSpecs is a derived value — the application layer must compute it
-// via NormalizeProductSpecs(name, specs) before calling this (or before
-// calling UpdateSpecs), never inside the domain constructor itself; see
-// spec_normalizer.go and application/create_product.go.
 func NewProduct(
 	categoryID, brandID, name, slug string,
 	description json.RawMessage,
 	specs []SpecItem,
-	normalizedSpecs []string,
 	images []ImageAsset,
 	labels []string,
 	isFeatured, isPublished bool,
@@ -203,7 +197,6 @@ func NewProduct(
 		slug:             slug,
 		description:      description,
 		specs:            specs,
-		normalizedSpecs:  normalizedSpecs,
 		images:           images,
 		labels:           labels,
 		isFeatured:       isFeatured,
@@ -228,7 +221,6 @@ func RehydrateProduct(
 	id, categoryID, brandID, name, slug string,
 	description json.RawMessage,
 	specs []SpecItem,
-	normalizedSpecs []string,
 	images []ImageAsset,
 	labels []string,
 	isFeatured, isPublished bool,
@@ -250,7 +242,7 @@ func RehydrateProduct(
 	return &Product{
 		id: id, categoryID: categoryID, brandID: brandID,
 		name: name, slug: slug,
-		description: description, specs: specs, normalizedSpecs: normalizedSpecs,
+		description: description, specs: specs,
 		images: images, labels: labels,
 		isFeatured: isFeatured, isPublished: isPublished, orderIndex: orderIndex,
 		condition: condition,
@@ -271,7 +263,6 @@ func (p *Product) Name() string                 { return p.name }
 func (p *Product) Slug() string                 { return p.slug }
 func (p *Product) Description() json.RawMessage { return p.description }
 func (p *Product) Specs() []SpecItem            { return p.specs }
-func (p *Product) NormalizedSpecs() []string    { return p.normalizedSpecs }
 func (p *Product) Images() []ImageAsset         { return p.images }
 func (p *Product) Labels() []string             { return p.labels }
 func (p *Product) IsFeatured() bool             { return p.isFeatured }
@@ -340,14 +331,8 @@ func (p *Product) UpdateDescription(description json.RawMessage) {
 	p.updatedAt = time.Now()
 }
 
-// UpdateSpecs takes specs and normalizedSpecs together on purpose — the two
-// must never drift out of sync (normalizedSpecs is entirely derived from
-// specs plus the product name, see NormalizeProductSpecs). The application
-// layer is responsible for recomputing normalizedSpecs from the *new* specs
-// (and current/new name) before calling this — see application/update_product.go.
-func (p *Product) UpdateSpecs(specs []SpecItem, normalizedSpecs []string) {
+func (p *Product) UpdateSpecs(specs []SpecItem) {
 	p.specs = specs
-	p.normalizedSpecs = normalizedSpecs
 	p.updatedAt = time.Now()
 }
 
@@ -538,30 +523,18 @@ type UpdateProductInput struct {
 	AttributeValues *[]ProductAttributeValueInput
 }
 
-type ProductSortBy string
-
-const (
-	SortByPriceAsc   ProductSortBy = "price_asc"
-	SortByPriceDesc  ProductSortBy = "price_desc"
-	SortByNewest     ProductSortBy = "newest"
-	SortByPopularity ProductSortBy = "popularity"
-)
-
+// ProductFilter is bare list scoping (pagination + basic ID/flag matching) —
+// deliberately no search/price-range/spec-facet/sort fields; those belonged
+// to the removed facet/search system (see docs/catalog.md history) and will
+// return, if at all, as part of the upcoming attribute-set redesign.
 type ProductFilter struct {
 	CategoryID     *string
 	CategoryIDs    []string
 	BrandID        *string
 	BrandIDs       []string
-	BrandSlugs     []string
 	ProductLineID  *string
 	IsFeatured     *bool
 	IsPublished    *bool
-	Search         string
-	MinPrice       *int64
-	MaxPrice       *int64
-	SortBy         string
-	Condition      string
-	Specs          map[string][]string
 	Limit          int
 	Offset         int
 	IncludeDeleted bool

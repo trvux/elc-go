@@ -24,7 +24,7 @@ func NewPostgresGroupRepository(pool *pgxpool.Pool) *PostgresGroupRepository {
 }
 
 const groupColumns = `id, name, slug, image_url, meta_title, meta_description,
-	is_featured, order_index, content, faq, created_at, updated_at, deleted_at`
+	is_featured, order_index, content, created_at, updated_at, deleted_at`
 
 func (r *PostgresGroupRepository) GetAll(ctx context.Context, filter domain.GroupFilter) ([]*domain.Group, error) {
 	query := "SELECT " + groupColumns + " FROM group_categories"
@@ -116,24 +116,19 @@ func (r *PostgresGroupRepository) Create(ctx context.Context, group *domain.Grou
 	}
 	isResurrect := (err == nil)
 
-	faqJSON, err := marshalFAQ(group.FAQ())
-	if err != nil {
-		return nil, fmt.Errorf("group repository create (marshal faq): %w", err)
-	}
-
 	if isResurrect {
 		// Existing soft-deleted row found, resurrect it by updating it and setting deleted_at = NULL
 		query := `
 			UPDATE group_categories
 			SET name = $1, image_url = $2, meta_title = $3, meta_description = $4,
-				is_featured = $5, order_index = $6, content = $7, faq = $8,
-				deleted_at = NULL, updated_at = $9
-			WHERE id = $10
+				is_featured = $5, order_index = $6, content = $7,
+				deleted_at = NULL, updated_at = $8
+			WHERE id = $9
 			RETURNING ` + groupColumns
 
 		row := r.pool.QueryRow(ctx, query,
 			group.Name(), group.ImageURL(), group.MetaTitle(), group.MetaDescription(),
-			group.IsFeatured(), group.OrderIndex(), group.Content(), faqJSON,
+			group.IsFeatured(), group.OrderIndex(), group.Content(),
 			time.Now(), existingID,
 		)
 		resurrected, err := scanGroup(row)
@@ -145,13 +140,13 @@ func (r *PostgresGroupRepository) Create(ctx context.Context, group *domain.Grou
 
 	// No soft-deleted row, insert as new
 	query := `
-		INSERT INTO group_categories (name, slug, image_url, meta_title, meta_description, is_featured, order_index, content, faq)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO group_categories (name, slug, image_url, meta_title, meta_description, is_featured, order_index, content)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING ` + groupColumns
 
 	row := r.pool.QueryRow(ctx, query,
 		group.Name(), group.Slug(), group.ImageURL(), group.MetaTitle(), group.MetaDescription(),
-		group.IsFeatured(), group.OrderIndex(), group.Content(), faqJSON,
+		group.IsFeatured(), group.OrderIndex(), group.Content(),
 	)
 	created, err := scanGroup(row)
 	if err != nil {
@@ -164,18 +159,13 @@ func (r *PostgresGroupRepository) Update(ctx context.Context, group *domain.Grou
 	query := `
 		UPDATE group_categories
 		SET name = $1, slug = $2, image_url = $3, meta_title = $4, meta_description = $5,
-			is_featured = $6, order_index = $7, content = $8, faq = $9, updated_at = $10
-		WHERE id = $11
+			is_featured = $6, order_index = $7, content = $8, updated_at = $9
+		WHERE id = $10
 		RETURNING ` + groupColumns
-
-	faqJSON, err := marshalFAQ(group.FAQ())
-	if err != nil {
-		return nil, fmt.Errorf("group repository update (marshal faq): %w", err)
-	}
 
 	row := r.pool.QueryRow(ctx, query,
 		group.Name(), group.Slug(), group.ImageURL(), group.MetaTitle(), group.MetaDescription(),
-		group.IsFeatured(), group.OrderIndex(), group.Content(), faqJSON,
+		group.IsFeatured(), group.OrderIndex(), group.Content(),
 		group.UpdatedAt(), group.ID(),
 	)
 	updated, err := scanGroup(row)
@@ -264,24 +254,6 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-func marshalFAQ(faq []domain.FAQItem) (json.RawMessage, error) {
-	if faq == nil {
-		return nil, nil
-	}
-	return json.Marshal(faq)
-}
-
-func unmarshalFAQ(raw []byte) ([]domain.FAQItem, error) {
-	if len(raw) == 0 {
-		return nil, nil
-	}
-	var faq []domain.FAQItem
-	if err := json.Unmarshal(raw, &faq); err != nil {
-		return nil, err
-	}
-	return faq, nil
-}
-
 func scanGroup(row rowScanner) (*domain.Group, error) {
 	var (
 		id, name, slug                       string
@@ -289,25 +261,19 @@ func scanGroup(row rowScanner) (*domain.Group, error) {
 		isFeatured                           bool
 		orderIndex                           int
 		content                              json.RawMessage
-		faqRaw                               []byte
 		createdAt, updatedAt                 time.Time
 		deletedAt                            *time.Time
 	)
 
 	if err := row.Scan(
 		&id, &name, &slug, &imageUrl, &metaTitle, &metaDescription,
-		&isFeatured, &orderIndex, &content, &faqRaw, &createdAt, &updatedAt, &deletedAt,
+		&isFeatured, &orderIndex, &content, &createdAt, &updatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
 	}
 
-	faq, err := unmarshalFAQ(faqRaw)
-	if err != nil {
-		return nil, fmt.Errorf("scan group (unmarshal faq): %w", err)
-	}
-
 	return domain.RehydrateGroup(
 		id, name, slug, imageUrl, metaTitle, metaDescription,
-		isFeatured, orderIndex, content, faq, createdAt, updatedAt, deletedAt,
+		isFeatured, orderIndex, content, createdAt, updatedAt, deletedAt,
 	), nil
 }

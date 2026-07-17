@@ -41,19 +41,8 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, input dom
 		product.UpdateDescription(input.Description)
 	}
 
-	// Specs and normalizedSpecs are resolved together, whenever EITHER the
-	// specs themselves or the (possibly just-updated) name changes —
-	// normalizedSpecs is entirely derived from both, so any name-only change
-	// still needs a recompute (e.g. renaming to include "2HP" should add a
-	// capacity facet even if specs didn't change). Same "resolve unchanged
-	// half to its current value" pattern as service's UpdatePricing.
-	if input.Specs != nil || input.Name != nil {
-		specs := product.Specs()
-		if input.Specs != nil {
-			specs = input.Specs
-		}
-		normalizedSpecs := domain.NormalizeProductSpecs(product.Name(), specs)
-		product.UpdateSpecs(specs, normalizedSpecs)
+	if input.Specs != nil {
+		product.UpdateSpecs(input.Specs)
 	}
 
 	if input.Images != nil {

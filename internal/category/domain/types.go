@@ -8,11 +8,6 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
 
-type FAQItem struct {
-	Question string `json:"question"`
-	Answer   string `json:"answer"`
-}
-
 type Category struct {
 	id              string
 	name            string
@@ -24,7 +19,6 @@ type Category struct {
 	isFeatured      bool
 	orderIndex      int
 	content         json.RawMessage
-	faq             []FAQItem
 	createdAt       time.Time
 	updatedAt       time.Time
 	deletedAt       *time.Time
@@ -61,7 +55,6 @@ func NewCategory(
 	isFeatured bool,
 	orderIndex int,
 	content json.RawMessage,
-	faq []FAQItem,
 ) (*Category, error) {
 	fields := map[string][]string{}
 
@@ -87,7 +80,6 @@ func NewCategory(
 		isFeatured:      isFeatured,
 		orderIndex:      orderIndex,
 		content:         content,
-		faq:             faq,
 		createdAt:       now,
 		updatedAt:       now,
 	}, nil
@@ -103,7 +95,6 @@ func RehydrateCategory(
 	isFeatured bool,
 	orderIndex int,
 	content json.RawMessage,
-	faq []FAQItem,
 	createdAt, updatedAt time.Time,
 	deletedAt *time.Time,
 ) *Category {
@@ -118,7 +109,6 @@ func RehydrateCategory(
 		isFeatured:      isFeatured,
 		orderIndex:      orderIndex,
 		content:         content,
-		faq:             faq,
 		createdAt:       createdAt,
 		updatedAt:       updatedAt,
 		deletedAt:       deletedAt,
@@ -135,7 +125,6 @@ func (c *Category) MetaDescription() *string { return c.metaDescription }
 func (c *Category) IsFeatured() bool         { return c.isFeatured }
 func (c *Category) OrderIndex() int          { return c.orderIndex }
 func (c *Category) Content() json.RawMessage { return c.content }
-func (c *Category) FAQ() []FAQItem           { return c.faq }
 func (c *Category) CreatedAt() time.Time     { return c.createdAt }
 func (c *Category) UpdatedAt() time.Time     { return c.updatedAt }
 func (c *Category) DeletedAt() *time.Time    { return c.deletedAt }
@@ -197,11 +186,6 @@ func (c *Category) UpdateContent(content json.RawMessage) {
 	c.updatedAt = time.Now()
 }
 
-func (c *Category) SetFAQ(faq []FAQItem) {
-	c.faq = faq
-	c.updatedAt = time.Now()
-}
-
 func (c *Category) MarkDeleted(deletedAt time.Time) {
 	c.deletedAt = &deletedAt
 }
@@ -241,7 +225,6 @@ type CreateCategoryInput struct {
 	IsFeatured      bool
 	OrderIndex      int
 	Content         json.RawMessage
-	FAQ             []FAQItem
 }
 
 type UpdateCategoryInput struct {
@@ -255,7 +238,6 @@ type UpdateCategoryInput struct {
 	IsFeatured      *bool
 	OrderIndex      *int
 	Content         json.RawMessage
-	FAQ             []FAQItem
 }
 
 type CategoryFilter struct {

@@ -9,7 +9,7 @@ import (
 
 func TestNewBrand(t *testing.T) {
 	t.Run("valid input creates a brand", func(t *testing.T) {
-		b, err := NewBrand("Apple", "apple", "https://example.com/logo.png", nil, nil, false, 0, nil, nil)
+		b, err := NewBrand("Apple", "apple", "https://example.com/logo.png", nil, nil, false, 0, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -22,7 +22,7 @@ func TestNewBrand(t *testing.T) {
 	})
 
 	t.Run("empty name fails validation", func(t *testing.T) {
-		_, err := NewBrand("", "apple", "", nil, nil, false, 0, nil, nil)
+		_, err := NewBrand("", "apple", "", nil, nil, false, 0, nil)
 		if err == nil {
 			t.Fatal("expected validation error")
 		}
@@ -33,7 +33,7 @@ func TestNewBrand(t *testing.T) {
 	})
 
 	t.Run("empty slug fails validation", func(t *testing.T) {
-		_, err := NewBrand("Apple", "", "", nil, nil, false, 0, nil, nil)
+		_, err := NewBrand("Apple", "", "", nil, nil, false, 0, nil)
 		if err == nil {
 			t.Fatal("expected validation error")
 		}
@@ -41,7 +41,7 @@ func TestNewBrand(t *testing.T) {
 }
 
 func TestBrand_UpdateName(t *testing.T) {
-	b, _ := NewBrand("Apple", "apple", "", nil, nil, false, 0, nil, nil)
+	b, _ := NewBrand("Apple", "apple", "", nil, nil, false, 0, nil)
 
 	if err := b.UpdateName("Apple Updated"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -56,7 +56,7 @@ func TestBrand_UpdateName(t *testing.T) {
 }
 
 func TestBrand_UpdateSlug(t *testing.T) {
-	b, _ := NewBrand("Apple", "apple", "", nil, nil, false, 0, nil, nil)
+	b, _ := NewBrand("Apple", "apple", "", nil, nil, false, 0, nil)
 
 	if err := b.UpdateSlug("apple-inc"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -71,7 +71,7 @@ func TestBrand_UpdateSlug(t *testing.T) {
 }
 
 func TestBrand_MarkDeletedAndRestore(t *testing.T) {
-	b, _ := NewBrand("Apple", "apple", "", nil, nil, false, 0, nil, nil)
+	b, _ := NewBrand("Apple", "apple", "", nil, nil, false, 0, nil)
 
 	b.MarkDeleted(b.CreatedAt())
 	if !b.IsDeleted() {
@@ -84,16 +84,5 @@ func TestBrand_MarkDeletedAndRestore(t *testing.T) {
 	}
 	if b.DeletedAt() != nil {
 		t.Error("expected deletedAt to be cleared after restore")
-	}
-}
-
-func TestBrand_SetFAQ(t *testing.T) {
-	b, _ := NewBrand("Apple", "apple", "", nil, nil, false, 0, nil, nil)
-
-	faq := []FAQItem{{Question: "Q1", Answer: "A1"}}
-	b.SetFAQ(faq)
-
-	if len(b.FAQ()) != 1 || b.FAQ()[0].Question != "Q1" {
-		t.Errorf("expected faq to be set, got %+v", b.FAQ())
 	}
 }

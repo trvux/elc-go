@@ -54,7 +54,7 @@ func (r *fakeBrandRepository) Create(ctx context.Context, brand *domain.Brand) (
 	created := domain.RehydrateBrand(
 		id, brand.Name(), brand.Slug(), brand.LogoURL(),
 		brand.MetaTitle(), brand.MetaDescription(),
-		brand.IsFeatured(), brand.OrderIndex(), brand.Content(), brand.FAQ(),
+		brand.IsFeatured(), brand.OrderIndex(), brand.Content(),
 		now, now, nil,
 	)
 	r.items[id] = created

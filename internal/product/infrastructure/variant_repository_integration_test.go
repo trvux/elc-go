@@ -33,7 +33,7 @@ func TestPostgresProductRepository_VariantTree(t *testing.T) {
 
 	p, err := domain.NewProduct(
 		categoryID, brandID, "Integration Test Split AC", "integration-test-split-ac",
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil,
 		false, true, 0,
 		"",
 		nil, nil,

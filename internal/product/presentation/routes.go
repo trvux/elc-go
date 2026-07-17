@@ -16,7 +16,6 @@ func RegisterRoutes(r chi.Router, h *ProductHandler, verifier httpserver.TokenVe
 		r.Post("/by-ids", h.GetByIDsBatch)
 		r.Get("/slug/{slug}", h.GetBySlug)
 		r.Get("/{id}", h.GetByID)
-		r.Get("/{id}/adjacent", h.GetAdjacent)
 
 		r.Group(func(r chi.Router) {
 			r.Use(httpserver.RequireAuth(verifier))

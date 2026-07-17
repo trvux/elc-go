@@ -7,11 +7,6 @@ import (
 	"github.com/trvux/elc-go/internal/category/domain"
 )
 
-type faqItemDTO struct {
-	Question string `json:"question"`
-	Answer   string `json:"answer"`
-}
-
 type groupRefResponse struct {
 	ID              string  `json:"id"`
 	Name            string  `json:"name"`
@@ -35,7 +30,6 @@ type categoryResponse struct {
 	IsFeatured      bool              `json:"is_featured"`
 	OrderIndex      int               `json:"order_index"`
 	Content         json.RawMessage   `json:"content"`
-	FAQ             []faqItemDTO      `json:"faq"`
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`
 	DeletedAt       *time.Time        `json:"deleted_at"`
@@ -68,7 +62,6 @@ func toCategoryResponse(c *domain.CategoryWithRelations) categoryResponse {
 		IsFeatured:      c.IsFeatured(),
 		OrderIndex:      c.OrderIndex(),
 		Content:         c.Content(),
-		FAQ:             toFAQDTOList(c.FAQ()),
 		CreatedAt:       c.CreatedAt(),
 		UpdatedAt:       c.UpdatedAt(),
 		DeletedAt:       c.DeletedAt(),
@@ -89,28 +82,6 @@ func toBareCategoryResponse(c *domain.Category) categoryResponse {
 	return toCategoryResponse(&domain.CategoryWithRelations{Category: c})
 }
 
-func toFAQDTOList(faq []domain.FAQItem) []faqItemDTO {
-	if faq == nil {
-		return nil
-	}
-	result := make([]faqItemDTO, len(faq))
-	for i, item := range faq {
-		result[i] = faqItemDTO{Question: item.Question, Answer: item.Answer}
-	}
-	return result
-}
-
-func toFAQDomainList(faq []faqItemDTO) []domain.FAQItem {
-	if faq == nil {
-		return nil
-	}
-	result := make([]domain.FAQItem, len(faq))
-	for i, item := range faq {
-		result[i] = domain.FAQItem{Question: item.Question, Answer: item.Answer}
-	}
-	return result
-}
-
 type createCategoryRequest struct {
 	Name            string          `json:"name"`
 	Slug            string          `json:"slug"`
@@ -121,7 +92,6 @@ type createCategoryRequest struct {
 	IsFeatured      bool            `json:"is_featured"`
 	OrderIndex      int             `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
-	FAQ             []faqItemDTO    `json:"faq"`
 }
 
 type updateCategoryRequest struct {
@@ -134,5 +104,4 @@ type updateCategoryRequest struct {
 	IsFeatured      *bool           `json:"is_featured"`
 	OrderIndex      *int            `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
-	FAQ             []faqItemDTO    `json:"faq"`
 }

@@ -16,7 +16,6 @@ func CreateGroup(ctx context.Context, repo domain.GroupRepository, input domain.
 		input.IsFeatured,
 		input.OrderIndex,
 		input.Content,
-		input.FAQ,
 	)
 	if err != nil {
 		return nil, err

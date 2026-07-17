@@ -100,7 +100,6 @@ func (h *GroupHandler) Create(w http.ResponseWriter, r *http.Request) {
 		IsFeatured:      req.IsFeatured,
 		OrderIndex:      req.OrderIndex,
 		Content:         req.Content,
-		FAQ:             toFAQDomainList(req.FAQ),
 	}
 
 	g, err := application.CreateGroup(r.Context(), h.repo, input)
@@ -131,7 +130,6 @@ func (h *GroupHandler) Update(w http.ResponseWriter, r *http.Request) {
 		IsFeatured:      req.IsFeatured,
 		OrderIndex:      req.OrderIndex,
 		Content:         req.Content,
-		FAQ:             toFAQDomainList(req.FAQ),
 	}
 
 	g, err := application.UpdateGroup(r.Context(), h.repo, input)

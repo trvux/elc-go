@@ -50,6 +50,9 @@ func toImageAssetDTOList(images []domain.ImageAsset) []imageAssetDTO {
 }
 
 func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
+	if dtos == nil {
+		return nil
+	}
 	result := make([]domain.ImageAsset, len(dtos))
 	for i, d := range dtos {
 		result[i] = domain.ImageAsset{URL: d.URL, Alt: d.Alt, Caption: d.Caption}

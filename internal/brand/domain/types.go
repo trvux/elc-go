@@ -7,11 +7,6 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
 
-type FAQItem struct {
-	Question string `json:"question"`
-	Answer   string `json:"answer"`
-}
-
 type Brand struct {
 	id              string
 	name            string
@@ -22,7 +17,6 @@ type Brand struct {
 	isFeatured      bool
 	orderIndex      int
 	content         json.RawMessage
-	faq             []FAQItem
 	createdAt       time.Time
 	updatedAt       time.Time
 	deletedAt       *time.Time
@@ -35,7 +29,6 @@ func NewBrand(
 	isFeatured bool,
 	orderIndex int,
 	content json.RawMessage,
-	faq []FAQItem,
 ) (*Brand, error) {
 	fields := map[string][]string{}
 
@@ -60,7 +53,6 @@ func NewBrand(
 		isFeatured:      isFeatured,
 		orderIndex:      orderIndex,
 		content:         content,
-		faq:             faq,
 		createdAt:       now,
 		updatedAt:       now,
 	}, nil
@@ -74,7 +66,6 @@ func RehydrateBrand(
 	isFeatured bool,
 	orderIndex int,
 	content json.RawMessage,
-	faq []FAQItem,
 	createdAt, updatedAt time.Time,
 	deletedAt *time.Time,
 ) *Brand {
@@ -88,7 +79,6 @@ func RehydrateBrand(
 		isFeatured:      isFeatured,
 		orderIndex:      orderIndex,
 		content:         content,
-		faq:             faq,
 		createdAt:       createdAt,
 		updatedAt:       updatedAt,
 		deletedAt:       deletedAt,
@@ -104,7 +94,6 @@ func (b *Brand) MetaDescription() *string { return b.metaDescription }
 func (b *Brand) IsFeatured() bool         { return b.isFeatured }
 func (b *Brand) OrderIndex() int          { return b.orderIndex }
 func (b *Brand) Content() json.RawMessage { return b.content }
-func (b *Brand) FAQ() []FAQItem           { return b.faq }
 func (b *Brand) CreatedAt() time.Time     { return b.createdAt }
 func (b *Brand) UpdatedAt() time.Time     { return b.updatedAt }
 func (b *Brand) DeletedAt() *time.Time    { return b.deletedAt }
@@ -161,11 +150,6 @@ func (b *Brand) UpdateContent(content json.RawMessage) {
 	b.updatedAt = time.Now()
 }
 
-func (b *Brand) SetFAQ(faq []FAQItem) {
-	b.faq = faq
-	b.updatedAt = time.Now()
-}
-
 func (b *Brand) MarkDeleted(deletedAt time.Time) {
 	b.deletedAt = &deletedAt
 }
@@ -198,7 +182,6 @@ type CreateBrandInput struct {
 	IsFeatured      bool
 	OrderIndex      int
 	Content         json.RawMessage
-	FAQ             []FAQItem
 }
 
 type UpdateBrandInput struct {
@@ -211,7 +194,6 @@ type UpdateBrandInput struct {
 	IsFeatured      *bool
 	OrderIndex      *int
 	Content         json.RawMessage
-	FAQ             []FAQItem
 }
 
 type BrandFilter struct {

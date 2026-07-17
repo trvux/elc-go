@@ -59,30 +59,6 @@ func TestCreateProduct_NoVariants(t *testing.T) {
 	}
 }
 
-// TestCreateProduct_NormalizesSpecsAtWriteTime is the key behavioral test for
-// the write-time spec normalization design: normalized_specs must be
-// populated from the name (capacity facet) even though no explicit specs
-// were provided.
-func TestCreateProduct_NormalizesSpecsAtWriteTime(t *testing.T) {
-	repo := newFakeProductRepository()
-	ctx := context.Background()
-
-	p, err := CreateProduct(ctx, repo, baseCreateInput())
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	found := false
-	for _, f := range p.NormalizedSpecs() {
-		if f == "Công suất::1.5 HP" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("expected normalized_specs to contain 'Công suất::1.5 HP', got %+v", p.NormalizedSpecs())
-	}
-}
-
 func TestUpdateProduct_NotFound(t *testing.T) {
 	repo := newFakeProductRepository()
 	ctx := context.Background()
@@ -124,33 +100,6 @@ func TestUpdateProduct_EmptyVariantsRejected(t *testing.T) {
 	_, err := UpdateProduct(ctx, repo, domain.UpdateProductInput{ID: created.ID(), Variants: &empty})
 	if err == nil {
 		t.Fatal("expected validation error for empty variants, got nil")
-	}
-}
-
-// TestUpdateProduct_RenamingRecomputesNormalizedSpecs proves the "recompute
-// on name-only change" rule in update_product.go — normalized_specs must
-// pick up a capacity facet from a new name even when Specs isn't part of the
-// same request.
-func TestUpdateProduct_RenamingRecomputesNormalizedSpecs(t *testing.T) {
-	repo := newFakeProductRepository()
-	ctx := context.Background()
-
-	created, _ := CreateProduct(ctx, repo, baseCreateInput())
-
-	newName := "Máy lạnh Daikin 2HP Inverter"
-	updated, err := UpdateProduct(ctx, repo, domain.UpdateProductInput{ID: created.ID(), Name: &newName})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	found := false
-	for _, f := range updated.NormalizedSpecs() {
-		if f == "Công suất::2 HP" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("expected normalized_specs to reflect the new name's capacity, got %+v", updated.NormalizedSpecs())
 	}
 }
 
