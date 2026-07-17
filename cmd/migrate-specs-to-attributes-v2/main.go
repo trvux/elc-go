@@ -224,6 +224,17 @@ func punctFold(s string) string {
 	return b.String()
 }
 
+// normalizeUnit folds Unicode superscript digits to plain ASCII ("m²" ->
+// "m2", "m³" -> "m3") — found 2026-07-18: attribute_definitions.unit uses
+// the proper superscript character, but the source specs jsonb's sub-item
+// `unit` field uses plain "m2"/"m3", so a case-insensitive compare alone
+// still missed the match.
+func normalizeUnit(u string) string {
+	u = strings.ReplaceAll(u, "²", "2")
+	u = strings.ReplaceAll(u, "³", "3")
+	return strings.ToLower(strings.TrimSpace(u))
+}
+
 func stripOwnUnit(value, unit string) string {
 	if unit == "" {
 		return value
@@ -326,8 +337,21 @@ func leadingNumber(raw string) (float64, bool) {
 	if i := strings.IndexByte(s, '('); i >= 0 {
 		s = strings.TrimSpace(s[:i])
 	}
-	s = strings.ReplaceAll(s, ",", "")
 	s = strings.TrimSpace(s)
+	// Found 2026-07-18 (comparing a product against its own Supabase
+	// source): a lone comma in these fields (weight/length/power/area/
+	// ratios — never BTU, which has its own capacityNumberFromMultiUnit
+	// for genuinely large thousands-grouped values) is the Vietnamese
+	// decimal separator, e.g. "5,5" kg means 5.5kg, not 55kg after naively
+	// stripping the comma. Every real value in this field family is well
+	// under 1000, so there is no thousands-grouping case to protect
+	// against — a lone comma always means decimal here. Only convert when
+	// exactly one comma and no dot are present, so an ambiguous compound
+	// like a BTU-style range (which doesn't reach this function anyway)
+	// would never be mishandled.
+	if strings.Count(s, ",") == 1 && !strings.Contains(s, ".") {
+		s = strings.Replace(s, ",", ".", 1)
+	}
 	if s == "" {
 		return 0, false
 	}
@@ -374,6 +398,17 @@ func setValueForDataTypeWithUnit(target attributeDef, rawValue, subUnit string) 
 		n, ok := leadingNumber(v)
 		if !ok {
 			return pendingValue{}, false
+		}
+		// Real data mixes W and kW for the same conceptual field across
+		// different products (found 2026-07-18) — a well-defined SI
+		// conversion, not a guess, so it's safe to normalize onto
+		// whichever unit the definition declares.
+		su := strings.ToLower(strings.TrimSpace(subUnit))
+		tu := strings.ToLower(strings.TrimSpace(target.unit))
+		if su == "kw" && tu == "w" {
+			n *= 1000
+		} else if su == "w" && tu == "kw" {
+			n /= 1000
 		}
 		return pendingValue{defID: target.id, num: &n}, true
 	case "boolean":
@@ -667,10 +702,30 @@ func main() {
 				}
 				if allBlank && target != nil && target.dataType == "number" && target.unit != "" {
 					isBTUField := target.code == "cong_suat_lam_lanh_btu" || target.code == "cong_suat_suoi_btu"
-					unitLower := strings.ToLower(target.unit)
+					unitLower := normalizeUnit(target.unit)
 					found := false
 					for _, sub := range item.Items {
-						if strings.Contains(strings.ToLower(sub.Value), unitLower) {
+						// Prefer the sub-item's own `unit` JSON field when
+						// present (some products separate it from the
+						// value text entirely, e.g. "Sử dụng cho phòng" ->
+						// [{unit:"m2",value:"36-40"}, {unit:"m3",...}]) —
+						// falling back to a text search only when there's
+						// no separate unit field to check.
+						var subUnit string
+						matches := false
+						if sub.Unit != nil && strings.TrimSpace(*sub.Unit) != "" {
+							subUnit = strings.TrimSpace(*sub.Unit)
+							subUnitLower := normalizeUnit(subUnit)
+							// Either direction: target.unit is "BTU/h" and
+							// subUnit is bare "BTU" in some products, or
+							// vice versa in others.
+							matches = subUnitLower == unitLower ||
+								strings.Contains(unitLower, subUnitLower) ||
+								strings.Contains(subUnitLower, unitLower)
+						} else {
+							matches = strings.Contains(strings.ToLower(sub.Value), unitLower)
+						}
+						if matches {
 							// BTU fields always use the thousands-separator-
 							// aware parser (see capacityNumberFromMultiUnit
 							// doc comment) — a plain strconv.ParseFloat on
@@ -682,7 +737,7 @@ func main() {
 									matched++
 									found = true
 								}
-							} else if pv, ok := setValueForDataType(*target, sub.Value); ok {
+							} else if pv, ok := setValueForDataTypeWithUnit(*target, sub.Value, subUnit); ok {
 								pending[target.id] = pv
 								matched++
 								found = true
@@ -691,21 +746,26 @@ func main() {
 						}
 					}
 					// Positional fallback, BTU fields only: real data
-					// consistently orders this group [HP, kW, BTU/h] even
-					// when the BTU sub-item carries no unit text at all.
-					if !found && len(item.Items) == 3 && isBTUField {
-						if n, ok := capacityNumberFromMultiUnit(item.Items[2].Value); ok {
+					// consistently puts BTU/h last in this group, whether
+					// it's the 3-item [HP,kW,BTU] or 2-item [HP,BTU]
+					// layout — used only when the above unit-based search
+					// (checked first) found nothing at all.
+					if !found && len(item.Items) >= 2 && isBTUField {
+						if n, ok := capacityNumberFromMultiUnit(item.Items[len(item.Items)-1].Value); ok {
 							pending[target.id] = pendingValue{defID: target.id, num: &n}
 							matched++
 							found = true
 						}
 					}
 					// Positional fallback for the matching select-type HP field
-					// (phan_khuc_hp) — same [HP, kW, BTU/h] group, index 0.
-					// Gated on isBTUField + exactly 3 items so this never
-					// misfires against an unrelated 2-item number group
-					// (e.g. "Sử dụng cho phòng" -> [m², m³]).
-					if isBTUField && len(item.Items) == 3 {
+					// (phan_khuc_hp) — HP is always index 0 in this group,
+					// whether it's the 3-item [HP,kW,BTU] or 2-item
+					// [HP,BTU] layout (some products omit kW). Gated on
+					// isBTUField (i.e. target already resolved to this
+					// exact capacity group by name/synonym) so this can't
+					// misfire against an unrelated group like "Sử dụng cho
+					// phòng" -> [m²,m³].
+					if isBTUField && len(item.Items) >= 2 {
 						if hpDef, ok := byCodeCandidate("phan_khuc_hp"); ok {
 							if opt, ok := hpOptionFromMultiUnit(item.Items[0].Value); ok {
 								if pv, ok := setValueForDataType(hpDef, opt); ok {
