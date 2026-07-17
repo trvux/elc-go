@@ -3,11 +3,12 @@ package application
 import (
 	"context"
 
+	attributedomain "github.com/trvux/elc-go/internal/attribute/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/product/domain"
 )
 
-func CreateProduct(ctx context.Context, repo domain.ProductRepository, input domain.CreateProductInput) (*domain.Product, error) {
+func CreateProduct(ctx context.Context, repo domain.ProductRepository, attributeRepo attributedomain.AttributeDefinitionRepository, input domain.CreateProductInput) (*domain.Product, error) {
 	product, err := domain.NewProduct(
 		input.CategoryID, input.BrandID, input.Name, input.Slug,
 		input.Description,
@@ -23,6 +24,10 @@ func CreateProduct(ctx context.Context, repo domain.ProductRepository, input dom
 
 	variants, err := resolveDefaultVariant(input.Variants)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := validateAttributeValues(ctx, attributeRepo, input.CategoryID, input.AttributeValues); err != nil {
 		return nil, err
 	}
 

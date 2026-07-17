@@ -149,7 +149,7 @@ func main() {
 	attributepresentation.RegisterRoutes(router, attributeDefinitionHandler, tokenIssuer)
 
 	productRepo := productInfra.NewPostgresProductRepository(pool)
-	productHandler := productPresentation.NewProductHandler(productRepo)
+	productHandler := productPresentation.NewProductHandler(productRepo, attributeDefinitionRepo)
 	productPresentation.RegisterRoutes(router, productHandler, tokenIssuer)
 
 	productLineRepo := productInfra.NewPostgresProductLineRepository(pool)

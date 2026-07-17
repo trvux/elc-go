@@ -3,11 +3,12 @@ package application
 import (
 	"context"
 
+	attributedomain "github.com/trvux/elc-go/internal/attribute/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/product/domain"
 )
 
-func UpdateProduct(ctx context.Context, repo domain.ProductRepository, input domain.UpdateProductInput) (*domain.Product, error) {
+func UpdateProduct(ctx context.Context, repo domain.ProductRepository, attributeRepo attributedomain.AttributeDefinitionRepository, input domain.UpdateProductInput) (*domain.Product, error) {
 	existing, err := repo.GetByID(ctx, input.ID)
 	if err != nil {
 		return nil, err
@@ -93,6 +94,19 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, input dom
 			return nil, err
 		}
 		variants = &resolved
+	}
+
+	// Re-validate against the effective attribute set even when this
+	// request doesn't resend AttributeValues (nil = "leave untouched") —
+	// the category may have changed, or its required-attribute rules may
+	// have changed since this product was last saved.
+	effectiveAttributeValues := input.AttributeValues
+	if effectiveAttributeValues == nil {
+		converted := attributeValueRefsToInputs(existing.AttributeValues)
+		effectiveAttributeValues = &converted
+	}
+	if err := validateAttributeValues(ctx, attributeRepo, product.CategoryID(), *effectiveAttributeValues); err != nil {
+		return nil, err
 	}
 
 	return repo.Update(ctx, product, input.TagIDs, input.Options, variants, input.AttributeValues)

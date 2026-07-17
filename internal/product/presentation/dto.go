@@ -359,6 +359,7 @@ type attributeValueRequestDTO struct {
 	ValueText             *string  `json:"value_text,omitempty"`
 	ValueNumber           *float64 `json:"value_number,omitempty"`
 	ValueBoolean          *bool    `json:"value_boolean,omitempty"`
+	ValueOptions          []string `json:"value_options,omitempty"`
 }
 
 func toAttributeValueInputList(dtos []attributeValueRequestDTO) []domain.ProductAttributeValueInput {
@@ -367,6 +368,7 @@ func toAttributeValueInputList(dtos []attributeValueRequestDTO) []domain.Product
 		result[i] = domain.ProductAttributeValueInput{
 			AttributeDefinitionID: d.AttributeDefinitionID,
 			ValueText:             d.ValueText, ValueNumber: d.ValueNumber, ValueBoolean: d.ValueBoolean,
+			ValueOptions: d.ValueOptions,
 		}
 	}
 	return result
@@ -392,6 +394,7 @@ type attributeValueResponse struct {
 	ValueText             *string  `json:"value_text"`
 	ValueNumber           *float64 `json:"value_number"`
 	ValueBoolean          *bool    `json:"value_boolean"`
+	ValueOptions          []string `json:"value_options"`
 }
 
 func toAttributeValueResponseList(refs []domain.AttributeValueRef) []attributeValueResponse {
@@ -401,6 +404,7 @@ func toAttributeValueResponseList(refs []domain.AttributeValueRef) []attributeVa
 			ID: ref.ID, AttributeDefinitionID: ref.AttributeDefinitionID, Code: ref.Code, Name: ref.Name,
 			GroupLabel: ref.GroupLabel, DataType: ref.DataType, Unit: ref.Unit, Options: ref.Options,
 			ValueText: ref.ValueText, ValueNumber: ref.ValueNumber, ValueBoolean: ref.ValueBoolean,
+			ValueOptions: ref.ValueOptions,
 		}
 	}
 	return result

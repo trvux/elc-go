@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	attributedomain "github.com/trvux/elc-go/internal/attribute/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
 	"github.com/trvux/elc-go/internal/product/application"
@@ -15,11 +16,12 @@ import (
 )
 
 type ProductHandler struct {
-	repo domain.ProductRepository
+	repo          domain.ProductRepository
+	attributeRepo attributedomain.AttributeDefinitionRepository
 }
 
-func NewProductHandler(repo domain.ProductRepository) *ProductHandler {
-	return &ProductHandler{repo: repo}
+func NewProductHandler(repo domain.ProductRepository, attributeRepo attributedomain.AttributeDefinitionRepository) *ProductHandler {
+	return &ProductHandler{repo: repo, attributeRepo: attributeRepo}
 }
 
 func parseProductFilter(r *http.Request) (domain.ProductFilter, error) {
@@ -192,7 +194,7 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 		AttributeValues: toAttributeValueInputList(req.AttributeValues),
 	}
 
-	p, err := application.CreateProduct(r.Context(), h.repo, input)
+	p, err := application.CreateProduct(r.Context(), h.repo, h.attributeRepo, input)
 	if err != nil {
 		httpserver.WriteError(w, err)
 		return
@@ -227,7 +229,7 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		AttributeValues: toAttributeValueInputListPtr(req.AttributeValues),
 	}
 
-	p, err := application.UpdateProduct(r.Context(), h.repo, input)
+	p, err := application.UpdateProduct(r.Context(), h.repo, h.attributeRepo, input)
 	if err != nil {
 		httpserver.WriteError(w, err)
 		return

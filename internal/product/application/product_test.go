@@ -23,7 +23,7 @@ func TestCreateProduct(t *testing.T) {
 	repo := newFakeProductRepository()
 	ctx := context.Background()
 
-	p, err := CreateProduct(ctx, repo, baseCreateInput())
+	p, err := CreateProduct(ctx, repo, newFakeAttributeDefinitionRepository(), baseCreateInput())
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -38,7 +38,7 @@ func TestCreateProduct_ValidationError(t *testing.T) {
 
 	input := baseCreateInput()
 	input.Name = ""
-	_, err := CreateProduct(ctx, repo, input)
+	_, err := CreateProduct(ctx, repo, newFakeAttributeDefinitionRepository(), input)
 	if err == nil {
 		t.Fatal("expected validation error, got nil")
 	}
@@ -53,7 +53,7 @@ func TestCreateProduct_NoVariants(t *testing.T) {
 
 	input := baseCreateInput()
 	input.Variants = nil
-	_, err := CreateProduct(ctx, repo, input)
+	_, err := CreateProduct(ctx, repo, newFakeAttributeDefinitionRepository(), input)
 	if err == nil {
 		t.Fatal("expected validation error for zero variants, got nil")
 	}
@@ -63,7 +63,7 @@ func TestUpdateProduct_NotFound(t *testing.T) {
 	repo := newFakeProductRepository()
 	ctx := context.Background()
 
-	_, err := UpdateProduct(ctx, repo, domain.UpdateProductInput{ID: "missing"})
+	_, err := UpdateProduct(ctx, repo, newFakeAttributeDefinitionRepository(), domain.UpdateProductInput{ID: "missing"})
 
 	var appErr *apperr.AppError
 	if !errors.As(err, &appErr) || appErr.Code != "NOT_FOUND" {
@@ -75,10 +75,10 @@ func TestUpdateProduct_PartialUpdate(t *testing.T) {
 	repo := newFakeProductRepository()
 	ctx := context.Background()
 
-	created, _ := CreateProduct(ctx, repo, baseCreateInput())
+	created, _ := CreateProduct(ctx, repo, newFakeAttributeDefinitionRepository(), baseCreateInput())
 
 	newName := "Máy lạnh Daikin Updated"
-	updated, err := UpdateProduct(ctx, repo, domain.UpdateProductInput{ID: created.ID(), Name: &newName})
+	updated, err := UpdateProduct(ctx, repo, newFakeAttributeDefinitionRepository(), domain.UpdateProductInput{ID: created.ID(), Name: &newName})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -94,10 +94,10 @@ func TestUpdateProduct_EmptyVariantsRejected(t *testing.T) {
 	repo := newFakeProductRepository()
 	ctx := context.Background()
 
-	created, _ := CreateProduct(ctx, repo, baseCreateInput())
+	created, _ := CreateProduct(ctx, repo, newFakeAttributeDefinitionRepository(), baseCreateInput())
 
 	empty := []domain.ProductVariantInput{}
-	_, err := UpdateProduct(ctx, repo, domain.UpdateProductInput{ID: created.ID(), Variants: &empty})
+	_, err := UpdateProduct(ctx, repo, newFakeAttributeDefinitionRepository(), domain.UpdateProductInput{ID: created.ID(), Variants: &empty})
 	if err == nil {
 		t.Fatal("expected validation error for empty variants, got nil")
 	}
@@ -107,7 +107,7 @@ func TestDeleteAndRestoreProduct(t *testing.T) {
 	repo := newFakeProductRepository()
 	ctx := context.Background()
 
-	created, _ := CreateProduct(ctx, repo, baseCreateInput())
+	created, _ := CreateProduct(ctx, repo, newFakeAttributeDefinitionRepository(), baseCreateInput())
 
 	if err := DeleteProduct(ctx, repo, created.ID()); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -128,7 +128,7 @@ func TestListProducts(t *testing.T) {
 	repo := newFakeProductRepository()
 	ctx := context.Background()
 
-	_, _ = CreateProduct(ctx, repo, baseCreateInput())
+	_, _ = CreateProduct(ctx, repo, newFakeAttributeDefinitionRepository(), baseCreateInput())
 
 	result, err := ListProducts(ctx, repo, domain.ProductFilter{})
 	if err != nil {
@@ -143,7 +143,7 @@ func TestGetProductsByIDs(t *testing.T) {
 	repo := newFakeProductRepository()
 	ctx := context.Background()
 
-	created, _ := CreateProduct(ctx, repo, baseCreateInput())
+	created, _ := CreateProduct(ctx, repo, newFakeAttributeDefinitionRepository(), baseCreateInput())
 
 	found, err := GetProductsByIDs(ctx, repo, []string{created.ID(), "missing"})
 	if err != nil {
