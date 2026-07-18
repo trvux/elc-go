@@ -40,12 +40,16 @@ import (
 	"github.com/trvux/elc-go/internal/platform/db"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
 	"github.com/trvux/elc-go/internal/platform/logger"
+	productqainfra "github.com/trvux/elc-go/internal/product-qa/infrastructure"
+	productqapresentation "github.com/trvux/elc-go/internal/product-qa/presentation"
 	productInfra "github.com/trvux/elc-go/internal/product/infrastructure"
 	productPresentation "github.com/trvux/elc-go/internal/product/presentation"
 	projecttypeinfra "github.com/trvux/elc-go/internal/project-type/infrastructure"
 	projecttypepresentation "github.com/trvux/elc-go/internal/project-type/presentation"
 	projectinfra "github.com/trvux/elc-go/internal/project/infrastructure"
 	projectpresentation "github.com/trvux/elc-go/internal/project/presentation"
+	recentlyviewedinfra "github.com/trvux/elc-go/internal/recently-viewed/infrastructure"
+	recentlyviewedpresentation "github.com/trvux/elc-go/internal/recently-viewed/presentation"
 	servicegroupinfra "github.com/trvux/elc-go/internal/service-group/infrastructure"
 	servicegrouppresentation "github.com/trvux/elc-go/internal/service-group/presentation"
 	serviceinfra "github.com/trvux/elc-go/internal/service/infrastructure"
@@ -61,6 +65,8 @@ import (
 	uploaddomain "github.com/trvux/elc-go/internal/upload/domain"
 	uploadinfra "github.com/trvux/elc-go/internal/upload/infrastructure"
 	uploadpresentation "github.com/trvux/elc-go/internal/upload/presentation"
+	wishlistinfra "github.com/trvux/elc-go/internal/wishlist/infrastructure"
+	wishlistpresentation "github.com/trvux/elc-go/internal/wishlist/presentation"
 )
 
 func main() {
@@ -159,6 +165,23 @@ func main() {
 	catalogPageRepo := productInfra.NewPostgresCatalogPageRepository(pool)
 	catalogPageHandler := productPresentation.NewCatalogPageHandler(catalogPageRepo)
 	productPresentation.RegisterCatalogPageRoutes(router, catalogPageHandler, tokenIssuer)
+
+	questionRepo := productqainfra.NewPostgresQuestionRepository(pool)
+	questionHandler := productqapresentation.NewQuestionHandler(questionRepo)
+	productqapresentation.RegisterRoutes(router, questionHandler, tokenIssuer)
+
+	// secureCookies also gates the wishlist/recently-viewed visitor_id
+	// cookie's Secure flag — same production-only rule as auth's
+	// refresh_token cookie above.
+	secureCookies := env == "production"
+
+	wishlistRepo := wishlistinfra.NewPostgresWishlistRepository(pool)
+	wishlistHandler := wishlistpresentation.NewWishlistHandler(wishlistRepo)
+	wishlistpresentation.RegisterRoutes(router, wishlistHandler, secureCookies)
+
+	recentlyViewedRepo := recentlyviewedinfra.NewPostgresRecentlyViewedRepository(pool)
+	recentlyViewedHandler := recentlyviewedpresentation.NewRecentlyViewedHandler(recentlyViewedRepo)
+	recentlyviewedpresentation.RegisterRoutes(router, recentlyViewedHandler, secureCookies)
 
 	branchRepo := branchinfra.NewPostgresBranchRepository(pool)
 	branchHandler := branchpresentation.NewBranchHandler(branchRepo)
