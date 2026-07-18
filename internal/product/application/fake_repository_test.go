@@ -121,6 +121,10 @@ func (r *fakeProductRepository) GetByIDs(ctx context.Context, ids []string) ([]*
 	return result, nil
 }
 
+func (r *fakeProductRepository) GetByIDsWithAttributeValues(ctx context.Context, ids []string) ([]*domain.ProductWithRelations, error) {
+	return r.GetByIDs(ctx, ids)
+}
+
 func (r *fakeProductRepository) Create(ctx context.Context, product *domain.Product, tagIDs []string, options []domain.ProductOptionInput, variants []domain.ProductVariantInput, attributeValues []domain.ProductAttributeValueInput) (*domain.Product, error) {
 	id := fmt.Sprintf("id-%d", len(r.items)+1)
 	now := time.Now()
