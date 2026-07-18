@@ -502,10 +502,19 @@ type UpdateProductInput struct {
 	AttributeValues *[]ProductAttributeValueInput
 }
 
-// ProductFilter is bare list scoping (pagination + basic ID/flag matching) —
-// deliberately no search/price-range/spec-facet/sort fields; those belonged
-// to the removed facet/search system (see docs/catalog.md history) and will
-// return, if at all, as part of the upcoming attribute-set redesign.
+// Sort values accepted by ProductFilter.SortBy — empty means the default
+// (is_featured DESC, order_index ASC, unchanged from before this filter set
+// existed).
+const (
+	SortByPriceAsc  = "price_asc"
+	SortByPriceDesc = "price_desc"
+	SortByNewest    = "newest"
+)
+
+// ProductFilter is list scoping (pagination + basic ID/flag matching) plus
+// search/price-range/attribute-facet dimensions, rebuilt on top of the
+// structured attribute system (attribute_definitions/product_attribute_values)
+// after the original free-text-spec-based facet/search system was removed.
 type ProductFilter struct {
 	CategoryID     *string
 	CategoryIDs    []string
@@ -517,4 +526,80 @@ type ProductFilter struct {
 	Limit          int
 	Offset         int
 	IncludeDeleted bool
+
+	// Search matches against product name + variant MPNs (search_vector),
+	// with a trigram similarity fallback for typos/partial matches.
+	Search string
+	// MinPrice/MaxPrice filter on the denormalized display_price column.
+	MinPrice *int64
+	MaxPrice *int64
+	// SortBy is one of the SortBy* constants above, or "" for the default.
+	SortBy string
+	// AttributeTokens is a flat list of "code:value" tokens (e.g.
+	// "cong_suat_hp:1.5") — grouped by code at query time: OR within the
+	// same code, AND across different codes. Matches facet_tokens.
+	AttributeTokens []string
+	// AttributeRanges filters number-type attributes by [min, max] (either
+	// bound may be nil), keyed by attribute code. Queried directly against
+	// product_attribute_values.value_number — number attributes aren't
+	// discrete/token-facetable.
+	AttributeRanges map[string][2]*float64
+}
+
+// ProductFacets accompanies a ProductListResult — aggregate counts/ranges
+// computed over the filtered set, each dimension excluding its own filter
+// (so e.g. switching brand stays visible as an option while one brand is
+// currently selected — standard faceted-search "exclude own dimension"
+// technique).
+type ProductFacets struct {
+	Brands     []BrandFacet
+	Categories []CategoryFacet // only populated when the page scope spans >1 category (brand/group pages)
+	Price      PriceFacet
+	Attributes []AttributeFacet
+}
+
+type BrandFacet struct {
+	ID, Name, Slug, LogoURL string
+	Count                   int
+}
+
+type CategoryFacet struct {
+	ID, Name, Slug string
+	Count          int
+}
+
+type PriceFacet struct {
+	Min, Max int64
+	// Buckets are ready-to-click suggested ranges (exact distinct prices if
+	// few enough, otherwise round-number ranges) — so the FE can offer
+	// preset buttons instead of asking the shopper to type a number they
+	// have no reference point for. See BuildNumberBuckets.
+	Buckets []NumberBucket
+}
+
+// AttributeFacet is a filter control for one AttributeDefinition, scoped to
+// whichever categories are actually present in the current page — Options
+// is populated for select/multiselect/boolean (discrete, token-facetable);
+// Min/Max/Buckets is populated for number (range-facetable) instead.
+type AttributeFacet struct {
+	Code, Name, DataType string
+	GroupLabel           *string
+	Unit                 *string
+	Options              []AttributeFacetOption
+	Min, Max             *float64
+	Buckets              []NumberBucket
+}
+
+type AttributeFacetOption struct {
+	Value string
+	Count int
+}
+
+// NumberBucket is one suggested range for a number-type facet (price or a
+// number attribute). Min == Max means an exact value (used when the
+// underlying data only has a handful of distinct values, e.g. a fixed set
+// of gas-pipe lengths) rather than a genuine range.
+type NumberBucket struct {
+	Min, Max float64
+	Count    int
 }

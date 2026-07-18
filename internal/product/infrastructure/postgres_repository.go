@@ -147,12 +147,23 @@ const plainProductColumns = `id, category_id, brand_id, name, slug, description,
 	default_variant_id, display_price, display_stock_status, price_min, price_max, variant_mpns,
 	created_at, updated_at, deleted_at`
 
+// facetExclude tells buildFilterConditions to skip one filter dimension —
+// used when computing that exact dimension's own facet counts, so e.g.
+// switching brand stays visible as an option while one brand is currently
+// selected (standard faceted-search "exclude own dimension" technique).
+type facetExclude struct {
+	Brand     bool
+	Price     bool
+	Attribute string // attribute code to exclude, "" = exclude none
+}
+
 // buildFilterConditions builds the dynamic WHERE clause the same way
 // brand/service do (conditions []string + args []any + $N counter, never
-// string-concatenating a value into the query). Bare scoping only — no
-// search/price-range/spec-facet dimensions (removed; see docs/catalog.md
-// history).
-func buildFilterConditions(filter domain.ProductFilter) ([]string, []any) {
+// string-concatenating a value into the query). Covers scoping
+// (category/brand/product-line/featured/status) plus search/price-range/
+// attribute-facet dimensions, rebuilt on the structured attribute system —
+// see domain.ProductFilter's doc comment.
+func buildFilterConditions(filter domain.ProductFilter, exclude facetExclude) ([]string, []any) {
 	conditions := []string{}
 	args := []any{}
 	argN := 1
@@ -174,13 +185,15 @@ func buildFilterConditions(filter domain.ProductFilter) ([]string, []any) {
 		args = append(args, filter.CategoryIDs)
 	}
 
-	switch {
-	case filter.BrandID != nil:
-		conditions = append(conditions, fmt.Sprintf("p.brand_id = $%d", next()))
-		args = append(args, *filter.BrandID)
-	case len(filter.BrandIDs) > 0:
-		conditions = append(conditions, fmt.Sprintf("p.brand_id = ANY($%d::uuid[])", next()))
-		args = append(args, filter.BrandIDs)
+	if !exclude.Brand {
+		switch {
+		case filter.BrandID != nil:
+			conditions = append(conditions, fmt.Sprintf("p.brand_id = $%d", next()))
+			args = append(args, *filter.BrandID)
+		case len(filter.BrandIDs) > 0:
+			conditions = append(conditions, fmt.Sprintf("p.brand_id = ANY($%d::uuid[])", next()))
+			args = append(args, filter.BrandIDs)
+		}
 	}
 
 	if filter.ProductLineID != nil {
@@ -196,11 +209,84 @@ func buildFilterConditions(filter domain.ProductFilter) ([]string, []any) {
 		args = append(args, *filter.Status)
 	}
 
+	if filter.Search != "" {
+		// Combines full-text (accent/case-insensitive, name + variant MPNs)
+		// with a trigram similarity fallback in one OR'd condition — catches
+		// typos/partial matches without a separate zero-results probe query.
+		n := next()
+		conditions = append(conditions,
+			fmt.Sprintf("(p.search_vector @@ websearch_to_tsquery('simple', immutable_unaccent($%d)) OR similarity(p.name, $%d) > 0.2)", n, n))
+		args = append(args, filter.Search)
+	}
+
+	if !exclude.Price {
+		if filter.MinPrice != nil {
+			conditions = append(conditions, fmt.Sprintf("p.display_price >= $%d", next()))
+			args = append(args, *filter.MinPrice)
+		}
+		if filter.MaxPrice != nil {
+			conditions = append(conditions, fmt.Sprintf("p.display_price <= $%d", next()))
+			args = append(args, *filter.MaxPrice)
+		}
+	}
+
+	if len(filter.AttributeTokens) > 0 {
+		byCode := map[string][]string{}
+		for _, token := range filter.AttributeTokens {
+			code, _, ok := strings.Cut(token, ":")
+			if !ok || code == exclude.Attribute {
+				continue
+			}
+			byCode[code] = append(byCode[code], token)
+		}
+		for _, tokens := range byCode {
+			conditions = append(conditions, fmt.Sprintf("p.facet_tokens && $%d::text[]", next()))
+			args = append(args, tokens)
+		}
+	}
+
+	if len(filter.AttributeRanges) > 0 {
+		for code, bounds := range filter.AttributeRanges {
+			if code == exclude.Attribute {
+				continue
+			}
+			rangeConds := []string{"ad2.code = $" + fmt.Sprint(next())}
+			args = append(args, code)
+			if bounds[0] != nil {
+				rangeConds = append(rangeConds, fmt.Sprintf("pav.value_number >= $%d", next()))
+				args = append(args, *bounds[0])
+			}
+			if bounds[1] != nil {
+				rangeConds = append(rangeConds, fmt.Sprintf("pav.value_number <= $%d", next()))
+				args = append(args, *bounds[1])
+			}
+			conditions = append(conditions, fmt.Sprintf(
+				"EXISTS (SELECT 1 FROM product_attribute_values pav JOIN attribute_definitions ad2 ON ad2.id = pav.attribute_definition_id WHERE pav.product_id = p.id AND pav.deleted_at IS NULL AND %s)",
+				strings.Join(rangeConds, " AND "),
+			))
+		}
+	}
+
 	return conditions, args
 }
 
+// sortClause maps ProductFilter.SortBy to an ORDER BY clause — "" keeps the
+// pre-existing default (is_featured DESC, order_index ASC).
+func sortClause(sortBy string) string {
+	switch sortBy {
+	case domain.SortByPriceAsc:
+		return "ORDER BY p.display_price ASC NULLS LAST"
+	case domain.SortByPriceDesc:
+		return "ORDER BY p.display_price DESC NULLS LAST"
+	case domain.SortByNewest:
+		return "ORDER BY p.created_at DESC"
+	default:
+		return "ORDER BY p.is_featured DESC, p.order_index ASC"
+	}
+}
+
 func (r *PostgresProductRepository) Count(ctx context.Context, filter domain.ProductFilter) (int, error) {
-	conditions, args := buildFilterConditions(filter)
+	conditions, args := buildFilterConditions(filter, facetExclude{})
 	query := "SELECT COUNT(*) " + productJoin
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
@@ -213,12 +299,15 @@ func (r *PostgresProductRepository) Count(ctx context.Context, filter domain.Pro
 	return count, nil
 }
 
-// GetAll runs the main list query and the total count concurrently via
-// errgroup — two independent queries against the same pgxpool.
+// GetAll runs the main list query, total count, and every facet dimension
+// (brand/price/attribute) concurrently via errgroup — independent queries
+// against the same pgxpool, each facet excluding its own filter dimension
+// (see facetExclude).
 func (r *PostgresProductRepository) GetAll(ctx context.Context, filter domain.ProductFilter) (*domain.ProductListResult, error) {
 	var (
 		products   []*domain.ProductWithRelations
 		totalCount int
+		facets     domain.ProductFacets
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -229,12 +318,27 @@ func (r *PostgresProductRepository) GetAll(ctx context.Context, filter domain.Pr
 		return err
 	})
 	g.Go(func() error {
-		conditions, args := buildFilterConditions(filter)
+		conditions, args := buildFilterConditions(filter, facetExclude{})
 		query := "SELECT COUNT(*) " + productJoin
 		if len(conditions) > 0 {
 			query += " WHERE " + strings.Join(conditions, " AND ")
 		}
 		return r.pool.QueryRow(gctx, query, args...).Scan(&totalCount)
+	})
+	g.Go(func() error {
+		var err error
+		facets.Brands, err = r.computeBrandFacets(gctx, filter)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		facets.Price, err = r.computePriceFacets(gctx, filter)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		facets.Attributes, err = r.computeAttributeFacets(gctx, filter)
+		return err
 	})
 
 	if err := g.Wait(); err != nil {
@@ -248,18 +352,18 @@ func (r *PostgresProductRepository) GetAll(ctx context.Context, filter domain.Pr
 		return nil, err
 	}
 
-	return &domain.ProductListResult{Products: products, TotalCount: totalCount}, nil
+	return &domain.ProductListResult{Products: products, TotalCount: totalCount, Facets: facets}, nil
 }
 
 func (r *PostgresProductRepository) queryProducts(ctx context.Context, filter domain.ProductFilter) ([]*domain.ProductWithRelations, error) {
-	conditions, args := buildFilterConditions(filter)
+	conditions, args := buildFilterConditions(filter, facetExclude{})
 	argN := len(args) + 1
 
 	query := "SELECT " + productColumns + " " + productJoin
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
-	query += " ORDER BY p.is_featured DESC, p.order_index ASC"
+	query += " " + sortClause(filter.SortBy)
 
 	if filter.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT $%d", argN)
@@ -442,6 +546,9 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 	if err := insertProductAttributeValues(ctx, tx, created.ID(), attributeValues); err != nil {
 		return nil, err
 	}
+	if err := RecomputeFacetTokens(ctx, tx, created.ID()); err != nil {
+		return nil, err
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("product repository create (commit tx): %w", err)
@@ -534,6 +641,9 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 			return nil, fmt.Errorf("product repository update (clear attribute values): %w", err)
 		}
 		if err := insertProductAttributeValues(ctx, tx, updated.ID(), *attributeValues); err != nil {
+			return nil, err
+		}
+		if err := RecomputeFacetTokens(ctx, tx, updated.ID()); err != nil {
 			return nil, err
 		}
 	}

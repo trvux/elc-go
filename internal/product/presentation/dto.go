@@ -165,14 +165,95 @@ func toProductResponseList(products []*domain.ProductWithRelations) []productRes
 }
 
 type productListResponse struct {
-	Data       []productResponse `json:"data"`
-	TotalCount int               `json:"total_count"`
+	Data       []productResponse     `json:"data"`
+	TotalCount int                   `json:"total_count"`
+	Facets     productFacetsResponse `json:"facets"`
 }
 
 func toProductListResponse(result *domain.ProductListResult) productListResponse {
 	return productListResponse{
 		Data:       toProductResponseList(result.Products),
 		TotalCount: result.TotalCount,
+		Facets:     toProductFacetsResponse(result.Facets),
+	}
+}
+
+type brandFacetResponse struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Slug    string `json:"slug"`
+	LogoURL string `json:"logo_url"`
+	Count   int    `json:"count"`
+}
+
+type numberBucketResponse struct {
+	Min   float64 `json:"min"`
+	Max   float64 `json:"max"`
+	Count int     `json:"count"`
+}
+
+func toNumberBucketResponseList(buckets []domain.NumberBucket) []numberBucketResponse {
+	result := make([]numberBucketResponse, len(buckets))
+	for i, b := range buckets {
+		result[i] = numberBucketResponse{Min: b.Min, Max: b.Max, Count: b.Count}
+	}
+	return result
+}
+
+type priceFacetResponse struct {
+	Min     int64                  `json:"min"`
+	Max     int64                  `json:"max"`
+	Buckets []numberBucketResponse `json:"buckets"`
+}
+
+type attributeFacetOptionResponse struct {
+	Value string `json:"value"`
+	Count int    `json:"count"`
+}
+
+type attributeFacetResponse struct {
+	Code       string                         `json:"code"`
+	Name       string                         `json:"name"`
+	GroupLabel *string                        `json:"group_label"`
+	DataType   string                         `json:"data_type"`
+	Unit       *string                        `json:"unit"`
+	Options    []attributeFacetOptionResponse `json:"options,omitempty"`
+	Min        *float64                       `json:"min,omitempty"`
+	Max        *float64                       `json:"max,omitempty"`
+	Buckets    []numberBucketResponse         `json:"buckets,omitempty"`
+}
+
+type productFacetsResponse struct {
+	Brands     []brandFacetResponse     `json:"brands"`
+	Price      priceFacetResponse       `json:"price"`
+	Attributes []attributeFacetResponse `json:"attributes"`
+}
+
+func toProductFacetsResponse(facets domain.ProductFacets) productFacetsResponse {
+	brands := make([]brandFacetResponse, len(facets.Brands))
+	for i, b := range facets.Brands {
+		brands[i] = brandFacetResponse{ID: b.ID, Name: b.Name, Slug: b.Slug, LogoURL: b.LogoURL, Count: b.Count}
+	}
+
+	attributes := make([]attributeFacetResponse, len(facets.Attributes))
+	for i, a := range facets.Attributes {
+		options := make([]attributeFacetOptionResponse, len(a.Options))
+		for j, o := range a.Options {
+			options[j] = attributeFacetOptionResponse{Value: o.Value, Count: o.Count}
+		}
+		attributes[i] = attributeFacetResponse{
+			Code: a.Code, Name: a.Name, GroupLabel: a.GroupLabel, DataType: a.DataType, Unit: a.Unit,
+			Options: options, Min: a.Min, Max: a.Max, Buckets: toNumberBucketResponseList(a.Buckets),
+		}
+	}
+
+	return productFacetsResponse{
+		Brands: brands,
+		Price: priceFacetResponse{
+			Min: facets.Price.Min, Max: facets.Price.Max,
+			Buckets: toNumberBucketResponseList(facets.Price.Buckets),
+		},
+		Attributes: attributes,
 	}
 }
 

@@ -331,25 +331,31 @@ type pendingValue struct {
 // min-max range, never the primary reading. Taking the leading/rated figure
 // before it is the same judgment call already validated for BTU, applied
 // consistently rather than case-by-case.
-func leadingNumber(raw string) (float64, bool) {
+func leadingNumber(raw string, unit string) (float64, bool) {
 	s := strings.TrimSpace(raw)
 	s = strings.TrimLeft(s, "<>=~≈ \t")
 	if i := strings.IndexByte(s, '('); i >= 0 {
 		s = strings.TrimSpace(s[:i])
 	}
 	s = strings.TrimSpace(s)
-	// Found 2026-07-18 (comparing a product against its own Supabase
-	// source): a lone comma in these fields (weight/length/power/area/
-	// ratios — never BTU, which has its own capacityNumberFromMultiUnit
-	// for genuinely large thousands-grouped values) is the Vietnamese
-	// decimal separator, e.g. "5,5" kg means 5.5kg, not 55kg after naively
-	// stripping the comma. Every real value in this field family is well
-	// under 1000, so there is no thousands-grouping case to protect
-	// against — a lone comma always means decimal here. Only convert when
-	// exactly one comma and no dot are present, so an ambiguous compound
-	// like a BTU-style range (which doesn't reach this function anyway)
-	// would never be mishandled.
-	if strings.Count(s, ",") == 1 && !strings.Contains(s, ".") {
+	// Found 2026-07-18 (comparing FTKY35ZVMV against its own Supabase
+	// source): "Điện năng tiêu thụ" ("1,000 (160-1,440)" meaning 1000W)
+	// uses comma as THOUSANDS grouping, not decimal, because real wattage
+	// for these units is always in the hundreds-to-thousands range — the
+	// opposite convention from weight/dimension fields below. Detect this
+	// by unit rather than by field code, since it's the magnitude
+	// convention (W is never a fractional-below-10 quantity here) that
+	// determines which way the comma goes, not the specific attribute.
+	if strings.EqualFold(strings.TrimSpace(unit), "w") {
+		s = strings.ReplaceAll(s, ",", "")
+	} else if strings.Count(s, ",") == 1 && !strings.Contains(s, ".") {
+		// A lone comma in fields (weight/length/area/ratios — never BTU,
+		// which has its own capacityNumberFromMultiUnit for genuinely
+		// large thousands-grouped values) is the Vietnamese decimal
+		// separator, e.g. "5,5" kg means 5.5kg, not 55kg after naively
+		// stripping the comma. Every real value in this field family is
+		// well under 1000, so there is no thousands-grouping case to
+		// protect against — a lone comma always means decimal here.
 		s = strings.Replace(s, ",", ".", 1)
 	}
 	if s == "" {
@@ -395,7 +401,7 @@ func setValueForDataTypeWithUnit(target attributeDef, rawValue, subUnit string) 
 		if subUnit == "" {
 			v = stripOwnUnit(value, target.unit)
 		}
-		n, ok := leadingNumber(v)
+		n, ok := leadingNumber(v, target.unit)
 		if !ok {
 			return pendingValue{}, false
 		}
@@ -786,9 +792,19 @@ func main() {
 					var parts []string
 					for _, sub := range item.Items {
 						v := strings.TrimSpace(sub.Value)
-						if v != "" {
-							parts = append(parts, v)
+						if v == "" {
+							continue
 						}
+						// Preserve each sub-item's own unit (e.g. "36-40 m2",
+						// "108-120 m3") instead of losing it in a bare join --
+						// the group's own unit only fits one sub-item, and the
+						// rest would otherwise render unitless.
+						if sub.Unit != nil {
+							if u := strings.TrimSpace(*sub.Unit); u != "" {
+								v = v + " " + u
+							}
+						}
+						parts = append(parts, v)
 					}
 					if len(parts) > 0 {
 						joined := strings.Join(parts, ", ")

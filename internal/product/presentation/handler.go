@@ -79,6 +79,77 @@ func parseProductFilter(r *http.Request) (domain.ProductFilter, error) {
 		filter.Offset = n
 	}
 
+	filter.Search = strings.TrimSpace(q.Get("search"))
+
+	if v := q.Get("min_price"); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return filter, err
+		}
+		filter.MinPrice = &n
+	}
+	if v := q.Get("max_price"); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return filter, err
+		}
+		filter.MaxPrice = &n
+	}
+
+	if v := q.Get("sort_by"); v != "" {
+		switch v {
+		case domain.SortByPriceAsc, domain.SortByPriceDesc, domain.SortByNewest:
+			filter.SortBy = v
+		default:
+			return filter, apperr.NewValidationError("validation failed", map[string][]string{
+				"sort_by": {"invalid sort_by value"},
+			})
+		}
+	}
+
+	// attr_<code>=val1,val2 (discrete facets) / attr_<code>_min /
+	// attr_<code>_max (number-range facets) — same comma-joined convention
+	// as brand_ids/category_ids above.
+	for key, values := range q {
+		if len(values) == 0 {
+			continue
+		}
+		code, hasPrefix := strings.CutPrefix(key, "attr_")
+		if !hasPrefix || code == "" {
+			continue
+		}
+		switch {
+		case strings.HasSuffix(code, "_min"):
+			n, err := strconv.ParseFloat(values[0], 64)
+			if err != nil {
+				return filter, err
+			}
+			c := strings.TrimSuffix(code, "_min")
+			if filter.AttributeRanges == nil {
+				filter.AttributeRanges = map[string][2]*float64{}
+			}
+			bounds := filter.AttributeRanges[c]
+			bounds[0] = &n
+			filter.AttributeRanges[c] = bounds
+		case strings.HasSuffix(code, "_max"):
+			n, err := strconv.ParseFloat(values[0], 64)
+			if err != nil {
+				return filter, err
+			}
+			c := strings.TrimSuffix(code, "_max")
+			if filter.AttributeRanges == nil {
+				filter.AttributeRanges = map[string][2]*float64{}
+			}
+			bounds := filter.AttributeRanges[c]
+			bounds[1] = &n
+			filter.AttributeRanges[c] = bounds
+		default:
+			for _, v := range splitNonEmpty(values[0]) {
+				filter.AttributeTokens = append(filter.AttributeTokens, code+":"+v)
+			}
+		}
+	}
+
 	return filter, nil
 }
 

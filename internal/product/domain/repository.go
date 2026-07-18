@@ -7,6 +7,7 @@ import "context"
 type ProductListResult struct {
 	Products   []*ProductWithRelations
 	TotalCount int
+	Facets     ProductFacets
 }
 
 // ProductRepository — GetByID/GetBySlug/GetByIDs return *ProductWithRelations
