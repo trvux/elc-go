@@ -370,6 +370,22 @@ func (r *PostgresProductRepository) GetByIDs(ctx context.Context, ids []string) 
 	return products, nil
 }
 
+// GetByIDsWithAttributeValues is GetByIDs plus attachAttributeValuesToProducts
+// run across the whole batch — the first caller (Comparison) to pass more
+// than one product through that function, which already batches via
+// ANY($1) but was previously only ever invoked with single-element slices
+// from GetByID/GetBySlug.
+func (r *PostgresProductRepository) GetByIDsWithAttributeValues(ctx context.Context, ids []string) ([]*domain.ProductWithRelations, error) {
+	products, err := r.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	if err := attachAttributeValuesToProducts(ctx, r.pool, products); err != nil {
+		return nil, err
+	}
+	return products, nil
+}
+
 // Create/Update marshal images by hand for the same reason brand's
 // marshalFAQ/unmarshalFAQ do (see docs/brand.md and docs/catalog.md): the
 // shared pool runs pgx.QueryExecModeSimpleProtocol (PgBouncer transaction

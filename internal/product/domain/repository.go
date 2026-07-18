@@ -22,6 +22,10 @@ type ProductRepository interface {
 	GetByID(ctx context.Context, id string) (*ProductWithRelations, error)
 	GetBySlug(ctx context.Context, slug string) (*ProductWithRelations, error)
 	GetByIDs(ctx context.Context, ids []string) ([]*ProductWithRelations, error)
+	// GetByIDsWithAttributeValues is GetByIDs plus each product's
+	// AttributeValues — used by the Comparison feature, which is the first
+	// caller that needs specs across more than one product at a time.
+	GetByIDsWithAttributeValues(ctx context.Context, ids []string) ([]*ProductWithRelations, error)
 	// tagIDs on Create is the initial tag set; on Update, nil means "leave
 	// tags untouched", a non-nil pointer means "replace all tags with this
 	// set" — same convention as project's Categories/ServiceIDs. options/

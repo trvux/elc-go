@@ -173,6 +173,21 @@ func (h *ProductHandler) GetByIDsBatch(w http.ResponseWriter, r *http.Request) {
 	httpserver.WriteJSON(w, http.StatusOK, toProductResponseList(products))
 }
 
+// Compare parses a comma-separated `ids` query param (same splitNonEmpty
+// helper as category_ids/brand_ids above) and returns each product with its
+// attribute values attached, for a frontend comparison table.
+func (h *ProductHandler) Compare(w http.ResponseWriter, r *http.Request) {
+	ids := splitNonEmpty(r.URL.Query().Get("ids"))
+
+	products, err := application.CompareProducts(r.Context(), h.repo, ids)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toProductResponseList(products))
+}
+
 func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createProductRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
