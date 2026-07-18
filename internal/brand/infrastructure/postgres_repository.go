@@ -24,7 +24,7 @@ func NewPostgresBrandRepository(pool *pgxpool.Pool) *PostgresBrandRepository {
 }
 
 const brandColumns = `id, name, slug, logo_url, meta_title, meta_description,
-	is_featured, order_index, content, created_at, updated_at, deleted_at`
+	is_featured, order_index, content, warranty_policy, created_at, updated_at, deleted_at`
 
 func (r *PostgresBrandRepository) GetAll(ctx context.Context, filter domain.BrandFilter) ([]*domain.Brand, error) {
 	query := "SELECT " + brandColumns + " FROM brands"
@@ -111,13 +111,13 @@ func (r *PostgresBrandRepository) GetBySlug(ctx context.Context, slug string) (*
 // over unchanged from the old TS behavior.
 func (r *PostgresBrandRepository) Create(ctx context.Context, brand *domain.Brand) (*domain.Brand, error) {
 	query := `
-		INSERT INTO brands (name, slug, logo_url, meta_title, meta_description, is_featured, order_index, content)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO brands (name, slug, logo_url, meta_title, meta_description, is_featured, order_index, content, warranty_policy)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING ` + brandColumns
 
 	row := r.pool.QueryRow(ctx, query,
 		brand.Name(), brand.Slug(), brand.LogoURL(), brand.MetaTitle(), brand.MetaDescription(),
-		brand.IsFeatured(), brand.OrderIndex(), brand.Content(),
+		brand.IsFeatured(), brand.OrderIndex(), brand.Content(), brand.WarrantyPolicy(),
 	)
 	created, err := scanBrand(row)
 	if err != nil {
@@ -130,13 +130,13 @@ func (r *PostgresBrandRepository) Update(ctx context.Context, brand *domain.Bran
 	query := `
 		UPDATE brands
 		SET name = $1, slug = $2, logo_url = $3, meta_title = $4, meta_description = $5,
-			is_featured = $6, order_index = $7, content = $8, updated_at = $9
-		WHERE id = $10
+			is_featured = $6, order_index = $7, content = $8, warranty_policy = $9, updated_at = $10
+		WHERE id = $11
 		RETURNING ` + brandColumns
 
 	row := r.pool.QueryRow(ctx, query,
 		brand.Name(), brand.Slug(), brand.LogoURL(), brand.MetaTitle(), brand.MetaDescription(),
-		brand.IsFeatured(), brand.OrderIndex(), brand.Content(),
+		brand.IsFeatured(), brand.OrderIndex(), brand.Content(), brand.WarrantyPolicy(),
 		brand.UpdatedAt(), brand.ID(),
 	)
 	updated, err := scanBrand(row)
@@ -186,19 +186,20 @@ func scanBrand(row rowScanner) (*domain.Brand, error) {
 		isFeatured                 bool
 		orderIndex                 int
 		content                    json.RawMessage
+		warrantyPolicy             *string
 		createdAt, updatedAt       time.Time
 		deletedAt                  *time.Time
 	)
 
 	if err := row.Scan(
 		&id, &name, &slug, &logoURL, &metaTitle, &metaDescription,
-		&isFeatured, &orderIndex, &content, &createdAt, &updatedAt, &deletedAt,
+		&isFeatured, &orderIndex, &content, &warrantyPolicy, &createdAt, &updatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
 	}
 
 	return domain.RehydrateBrand(
 		id, name, slug, logoURL, metaTitle, metaDescription,
-		isFeatured, orderIndex, content, createdAt, updatedAt, deletedAt,
+		isFeatured, orderIndex, content, warrantyPolicy, createdAt, updatedAt, deletedAt,
 	), nil
 }

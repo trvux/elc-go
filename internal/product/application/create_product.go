@@ -12,11 +12,10 @@ func CreateProduct(ctx context.Context, repo domain.ProductRepository, attribute
 	product, err := domain.NewProduct(
 		input.CategoryID, input.BrandID, input.Name, input.Slug,
 		input.Description,
-		input.Images, input.Labels,
-		input.IsFeatured, input.IsPublished, input.OrderIndex,
-		input.Condition,
+		input.Images,
+		input.IsFeatured, input.OrderIndex,
 		input.MetaTitle, input.MetaDescription,
-		input.ProductLineID, input.ShortDescription, input.WarrantyMonths, input.WarrantyTerms,
+		input.ProductLineID, input.ShortDescription,
 	)
 	if err != nil {
 		return nil, err

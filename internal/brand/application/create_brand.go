@@ -16,6 +16,7 @@ func CreateBrand(ctx context.Context, repo domain.BrandRepository, input domain.
 		input.IsFeatured,
 		input.OrderIndex,
 		input.Content,
+		input.WarrantyPolicy,
 	)
 	if err != nil {
 		return nil, err

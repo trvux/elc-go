@@ -73,17 +73,14 @@ type productResponse struct {
 	Slug               string                   `json:"slug"`
 	Description        json.RawMessage          `json:"description"`
 	Images             []imageAssetDTO          `json:"images"`
-	Labels             []string                 `json:"labels"`
 	IsFeatured         bool                     `json:"is_featured"`
-	IsPublished        bool                     `json:"is_published"`
+	Status             string                   `json:"status"`
+	RejectionReason    *string                  `json:"rejection_reason"`
 	OrderIndex         int                      `json:"order_index"`
-	Condition          string                   `json:"condition"`
 	MetaTitle          *string                  `json:"meta_title"`
 	MetaDescription    *string                  `json:"meta_description"`
 	ProductLineID      *string                  `json:"product_line_id"`
 	ShortDescription   *string                  `json:"short_description"`
-	WarrantyMonths     *int                     `json:"warranty_months"`
-	WarrantyTerms      *string                  `json:"warranty_terms"`
 	DefaultVariantID   *string                  `json:"default_variant_id"`
 	DisplayPrice       *int64                   `json:"display_price"`
 	DisplayStockStatus *string                  `json:"display_stock_status"`
@@ -140,17 +137,14 @@ func toPlainProductResponse(p *domain.Product) productResponse {
 		Slug:               p.Slug(),
 		Description:        p.Description(),
 		Images:             toImageAssetDTOList(p.Images()),
-		Labels:             p.Labels(),
 		IsFeatured:         p.IsFeatured(),
-		IsPublished:        p.IsPublished(),
+		Status:             string(p.Status()),
+		RejectionReason:    p.RejectionReason(),
 		OrderIndex:         p.OrderIndex(),
-		Condition:          p.Condition(),
 		MetaTitle:          p.MetaTitle(),
 		MetaDescription:    p.MetaDescription(),
 		ProductLineID:      p.ProductLineID(),
 		ShortDescription:   p.ShortDescription(),
-		WarrantyMonths:     p.WarrantyMonths(),
-		WarrantyTerms:      p.WarrantyTerms(),
 		DefaultVariantID:   p.DefaultVariantID(),
 		DisplayPrice:       p.DisplayPrice(),
 		DisplayStockStatus: p.DisplayStockStatus(),
@@ -410,6 +404,9 @@ func toAttributeValueResponseList(refs []domain.AttributeValueRef) []attributeVa
 	return result
 }
 
+// createProductRequest deliberately carries no status field — a created
+// product always starts as draft, see domain.CreateProductInput's doc
+// comment.
 type createProductRequest struct {
 	CategoryID       string                    `json:"category_id"`
 	BrandID          string                    `json:"brand_id"`
@@ -417,24 +414,22 @@ type createProductRequest struct {
 	Slug             string                    `json:"slug"`
 	Description      json.RawMessage           `json:"description"`
 	Images           []imageAssetDTO           `json:"images"`
-	Labels           []string                  `json:"labels"`
 	IsFeatured       bool                      `json:"is_featured"`
-	IsPublished      bool                      `json:"is_published"`
 	OrderIndex       int                       `json:"order_index"`
-	Condition        string                    `json:"condition"`
 	MetaTitle        *string                   `json:"meta_title"`
 	MetaDescription  *string                   `json:"meta_description"`
 	TagIDs           []string                  `json:"tag_ids"`
 	ProductLineID    *string                   `json:"product_line_id,omitempty"`
 	ShortDescription *string                   `json:"short_description,omitempty"`
-	WarrantyMonths   *int                      `json:"warranty_months,omitempty"`
-	WarrantyTerms    *string                   `json:"warranty_terms,omitempty"`
 	Options          []productOptionRequestDTO `json:"options,omitempty"`
 	// Variants must contain at least one entry — see domain.CreateProductInput.
 	Variants        []productVariantRequestDTO `json:"variants,omitempty"`
 	AttributeValues []attributeValueRequestDTO `json:"attribute_values,omitempty"`
 }
 
+// updateProductRequest deliberately carries no status field — status only
+// moves through the dedicated submit/approve/reject/archive endpoints, see
+// domain.UpdateProductInput's doc comment.
 type updateProductRequest struct {
 	CategoryID       *string         `json:"category_id"`
 	BrandID          *string         `json:"brand_id"`
@@ -442,18 +437,13 @@ type updateProductRequest struct {
 	Slug             *string         `json:"slug"`
 	Description      json.RawMessage `json:"description"`
 	Images           []imageAssetDTO `json:"images"`
-	Labels           []string        `json:"labels"`
 	IsFeatured       *bool           `json:"is_featured"`
-	IsPublished      *bool           `json:"is_published"`
 	OrderIndex       *int            `json:"order_index"`
-	Condition        *string         `json:"condition"`
 	MetaTitle        *string         `json:"meta_title"`
 	MetaDescription  *string         `json:"meta_description"`
 	TagIDs           *[]string       `json:"tag_ids"`
 	ProductLineID    *string         `json:"product_line_id"`
 	ShortDescription *string         `json:"short_description"`
-	WarrantyMonths   *int            `json:"warranty_months"`
-	WarrantyTerms    *string         `json:"warranty_terms"`
 	// Options/Variants: absent from the JSON body (nil) leaves the variant
 	// tree untouched; present (even as []) replaces it wholesale — same
 	// convention as domain.UpdateProductInput. A present Variants must

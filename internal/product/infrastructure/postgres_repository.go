@@ -114,11 +114,10 @@ func insertProductTags(ctx context.Context, tx pgx.Tx, productID string, tagIDs 
 // it ever does).
 const productColumns = `p.id, p.category_id, p.brand_id, p.name, p.slug,
 	p.description,
-	p.images, p.labels,
-	p.is_featured, p.is_published, p.order_index,
-	p.condition,
+	p.images,
+	p.is_featured, p.status, p.rejection_reason, p.order_index,
 	p.meta_title, p.meta_description,
-	p.product_line_id, p.short_description, p.warranty_months, p.warranty_terms,
+	p.product_line_id, p.short_description,
 	p.default_variant_id, p.display_price, p.display_stock_status, p.price_min, p.price_max, p.variant_mpns,
 	p.created_at, p.updated_at, p.deleted_at,
 	c.id, c.name, c.slug, c.meta_title, c.meta_description,
@@ -141,10 +140,10 @@ const productJoin = `FROM products p
 // plainProductColumns is used for Create/Update's RETURNING clause — no
 // joins, matches how brand/service's writes return a plain entity.
 const plainProductColumns = `id, category_id, brand_id, name, slug, description,
-	images, labels,
-	is_featured, is_published, order_index, condition,
+	images,
+	is_featured, status, rejection_reason, order_index,
 	meta_title, meta_description,
-	product_line_id, short_description, warranty_months, warranty_terms,
+	product_line_id, short_description,
 	default_variant_id, display_price, display_stock_status, price_min, price_max, variant_mpns,
 	created_at, updated_at, deleted_at`
 
@@ -192,9 +191,9 @@ func buildFilterConditions(filter domain.ProductFilter) ([]string, []any) {
 		conditions = append(conditions, fmt.Sprintf("p.is_featured = $%d", next()))
 		args = append(args, *filter.IsFeatured)
 	}
-	if filter.IsPublished != nil {
-		conditions = append(conditions, fmt.Sprintf("p.is_published = $%d", next()))
-		args = append(args, *filter.IsPublished)
+	if filter.Status != nil {
+		conditions = append(conditions, fmt.Sprintf("p.status = $%d", next()))
+		args = append(args, *filter.Status)
 	}
 
 	return conditions, args
@@ -375,10 +374,9 @@ func (r *PostgresProductRepository) GetByIDs(ctx context.Context, ids []string) 
 // marshalFAQ/unmarshalFAQ do (see docs/brand.md and docs/catalog.md): the
 // shared pool runs pgx.QueryExecModeSimpleProtocol (PgBouncer transaction
 // pooler fix), which can't infer an OID for an arbitrary struct/slice —
-// it must be marshaled to json.RawMessage by hand first. images/labels/
-// normalized_specs are plain text[] columns, which pgx encodes/decodes
-// natively from/to []string with no special handling (same as
-// service.labels).
+// it must be marshaled to json.RawMessage by hand first. images is a plain
+// text[]-backed column pgx encodes/decodes natively from/to []string with
+// no special handling.
 func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.Product, tagIDs []string, options []domain.ProductOptionInput, variants []domain.ProductVariantInput, attributeValues []domain.ProductAttributeValueInput) (*domain.Product, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -389,12 +387,12 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 	query := `
 		INSERT INTO products (
 			category_id, brand_id, name, slug, description,
-			images, labels,
-			is_featured, is_published, order_index, condition,
+			images,
+			is_featured, status, rejection_reason, order_index,
 			meta_title, meta_description,
-			product_line_id, short_description, warranty_months, warranty_terms
+			product_line_id, short_description
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
 		RETURNING ` + plainProductColumns
 
 	imagesJSON, err := media.MarshalImages(product.Images())
@@ -405,10 +403,10 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 	row := tx.QueryRow(ctx, query,
 		product.CategoryID(), product.BrandID(), product.Name(), product.Slug(),
 		orEmptyJSON(product.Description()),
-		imagesJSON, orEmptyStrings(product.Labels()),
-		product.IsFeatured(), product.IsPublished(), product.OrderIndex(), product.Condition(),
+		imagesJSON,
+		product.IsFeatured(), string(product.Status()), product.RejectionReason(), product.OrderIndex(),
 		product.MetaTitle(), product.MetaDescription(),
-		product.ProductLineID(), product.ShortDescription(), product.WarrantyMonths(), product.WarrantyTerms(),
+		product.ProductLineID(), product.ShortDescription(),
 	)
 	created, err := scanProduct(row)
 	if err != nil {
@@ -454,11 +452,11 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 		UPDATE products
 		SET category_id = $1, brand_id = $2, name = $3, slug = $4,
 			description = $5,
-			images = $6, labels = $7,
-			is_featured = $8, is_published = $9, order_index = $10, condition = $11,
-			meta_title = $12, meta_description = $13,
-			product_line_id = $14, short_description = $15, warranty_months = $16, warranty_terms = $17
-		WHERE id = $18
+			images = $6,
+			is_featured = $7, status = $8, rejection_reason = $9, order_index = $10,
+			meta_title = $11, meta_description = $12,
+			product_line_id = $13, short_description = $14
+		WHERE id = $15
 		RETURNING ` + plainProductColumns
 
 	imagesJSON, err := media.MarshalImages(product.Images())
@@ -469,10 +467,10 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 	row := tx.QueryRow(ctx, query,
 		product.CategoryID(), product.BrandID(), product.Name(), product.Slug(),
 		orEmptyJSON(product.Description()),
-		imagesJSON, orEmptyStrings(product.Labels()),
-		product.IsFeatured(), product.IsPublished(), product.OrderIndex(), product.Condition(),
+		imagesJSON,
+		product.IsFeatured(), string(product.Status()), product.RejectionReason(), product.OrderIndex(),
 		product.MetaTitle(), product.MetaDescription(),
-		product.ProductLineID(), product.ShortDescription(), product.WarrantyMonths(), product.WarrantyTerms(),
+		product.ProductLineID(), product.ShortDescription(),
 		product.ID(),
 	)
 	updated, err := scanProduct(row)
@@ -578,8 +576,7 @@ func orEmptyJSON(raw json.RawMessage) json.RawMessage {
 
 // orEmptyStrings defaults a nil slice to an empty (non-nil) one before
 // binding to a text[] column — matches the column's own DEFAULT '{}' intent
-// for images/labels/normalized_specs rather than writing an explicit SQL
-// NULL for "no items".
+// rather than writing an explicit SQL NULL for "no items".
 func orEmptyStrings(s []string) []string {
 	if s == nil {
 		return []string{}
@@ -592,14 +589,12 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 		id, categoryID, brandID, name, slug  string
 		description                          json.RawMessage
 		imagesRaw                            []byte
-		labels                               []string
-		isFeatured, isPublished              bool
+		isFeatured                           bool
+		status                               string
+		rejectionReason                      *string
 		orderIndex                           int
-		condition                            string
 		metaTitle, metaDescription           *string
 		productLineID, shortDescription      *string
-		warrantyMonths                       *int
-		warrantyTerms                        *string
 		defaultVariantID, displayStockStatus *string
 		displayPrice, priceMin, priceMax     *int64
 		variantMpns                          string
@@ -610,11 +605,10 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 	if err := row.Scan(
 		&id, &categoryID, &brandID, &name, &slug,
 		&description,
-		&imagesRaw, &labels,
-		&isFeatured, &isPublished, &orderIndex,
-		&condition,
+		&imagesRaw,
+		&isFeatured, &status, &rejectionReason, &orderIndex,
 		&metaTitle, &metaDescription,
-		&productLineID, &shortDescription, &warrantyMonths, &warrantyTerms,
+		&productLineID, &shortDescription,
 		&defaultVariantID, &displayPrice, &displayStockStatus, &priceMin, &priceMax, &variantMpns,
 		&createdAt, &updatedAt, &deletedAt,
 	); err != nil {
@@ -629,11 +623,10 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 	return domain.RehydrateProduct(
 		id, categoryID, brandID, name, slug,
 		description,
-		images, labels,
-		isFeatured, isPublished, orderIndex,
-		condition,
+		images,
+		isFeatured, domain.ProductStatus(status), rejectionReason, orderIndex,
 		metaTitle, metaDescription,
-		productLineID, shortDescription, warrantyMonths, warrantyTerms,
+		productLineID, shortDescription,
 		defaultVariantID, displayPrice, displayStockStatus, priceMin, priceMax, variantMpns,
 		createdAt, updatedAt, deletedAt,
 	), nil
@@ -645,14 +638,12 @@ func scanProductWithRelationsRow(row rowScanner) (*domain.ProductWithRelations, 
 		id, categoryID, brandID, name, slug  string
 		description                          json.RawMessage
 		imagesRaw                            []byte
-		labels                               []string
-		isFeatured, isPublished              bool
+		isFeatured                           bool
+		status                               string
+		rejectionReason                      *string
 		orderIndex                           int
-		condition                            string
 		metaTitle, metaDescription           *string
 		productLineID, shortDescription      *string
-		warrantyMonths                       *int
-		warrantyTerms                        *string
 		defaultVariantID, displayStockStatus *string
 		displayPrice, priceMin, priceMax     *int64
 		variantMpns                          string
@@ -669,11 +660,10 @@ func scanProductWithRelationsRow(row rowScanner) (*domain.ProductWithRelations, 
 	dest := []any{
 		&id, &categoryID, &brandID, &name, &slug,
 		&description,
-		&imagesRaw, &labels,
-		&isFeatured, &isPublished, &orderIndex,
-		&condition,
+		&imagesRaw,
+		&isFeatured, &status, &rejectionReason, &orderIndex,
 		&metaTitle, &metaDescription,
-		&productLineID, &shortDescription, &warrantyMonths, &warrantyTerms,
+		&productLineID, &shortDescription,
 		&defaultVariantID, &displayPrice, &displayStockStatus, &priceMin, &priceMax, &variantMpns,
 		&createdAt, &updatedAt, &deletedAt,
 		&catID, &catName, &catSlug, &catMetaTitle, &catMetaDescription,
@@ -692,11 +682,10 @@ func scanProductWithRelationsRow(row rowScanner) (*domain.ProductWithRelations, 
 	product := domain.RehydrateProduct(
 		id, categoryID, brandID, name, slug,
 		description,
-		images, labels,
-		isFeatured, isPublished, orderIndex,
-		condition,
+		images,
+		isFeatured, domain.ProductStatus(status), rejectionReason, orderIndex,
 		metaTitle, metaDescription,
-		productLineID, shortDescription, warrantyMonths, warrantyTerms,
+		productLineID, shortDescription,
 		defaultVariantID, displayPrice, displayStockStatus, priceMin, priceMax, variantMpns,
 		createdAt, updatedAt, deletedAt,
 	)

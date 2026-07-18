@@ -17,6 +17,7 @@ type brandResponse struct {
 	IsFeatured      bool            `json:"is_featured"`
 	OrderIndex      int             `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
+	WarrantyPolicy  *string         `json:"warranty_policy"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 	DeletedAt       *time.Time      `json:"deleted_at"`
@@ -33,6 +34,7 @@ func toBrandResponse(b *domain.Brand) brandResponse {
 		IsFeatured:      b.IsFeatured(),
 		OrderIndex:      b.OrderIndex(),
 		Content:         b.Content(),
+		WarrantyPolicy:  b.WarrantyPolicy(),
 		CreatedAt:       b.CreatedAt(),
 		UpdatedAt:       b.UpdatedAt(),
 		DeletedAt:       b.DeletedAt(),
@@ -56,6 +58,7 @@ type createBrandRequest struct {
 	IsFeatured      bool            `json:"is_featured"`
 	OrderIndex      int             `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
+	WarrantyPolicy  *string         `json:"warranty_policy,omitempty"`
 }
 
 type updateBrandRequest struct {
@@ -67,4 +70,5 @@ type updateBrandRequest struct {
 	IsFeatured      *bool           `json:"is_featured"`
 	OrderIndex      *int            `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
+	WarrantyPolicy  *string         `json:"warranty_policy"`
 }

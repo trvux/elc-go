@@ -66,6 +66,31 @@ type ProductWithRelations struct {
 	AttributeValues []AttributeValueRef
 }
 
+// ProductStatus is the publish lifecycle: employees submit a draft for
+// review, an owner/admin approves it to published or rejects it back to
+// draft (with a reason), and a published product can later be archived
+// (discontinued but its URL kept alive for existing backlinks/SEO rather
+// than 404ing). There is no separate "rejected" terminal state — a
+// rejection's only actionable next step is revise-and-resubmit, so it folds
+// back into draft plus RejectionReason.
+type ProductStatus string
+
+const (
+	ProductStatusDraft     ProductStatus = "draft"
+	ProductStatusProposed  ProductStatus = "proposed"
+	ProductStatusPublished ProductStatus = "published"
+	ProductStatusArchived  ProductStatus = "archived"
+)
+
+func (s ProductStatus) IsValid() bool {
+	switch s {
+	case ProductStatusDraft, ProductStatusProposed, ProductStatusPublished, ProductStatusArchived:
+		return true
+	default:
+		return false
+	}
+}
+
 // Product is a pure container entity — matching Shopify/Medusa's model, it
 // deliberately holds NO sku/mpn/gtin/price/stock of its own. Every sellable
 // identity lives exclusively on ProductVariant; a "simple" product (no real
@@ -84,17 +109,14 @@ type Product struct {
 	slug             string
 	description      json.RawMessage
 	images           []ImageAsset
-	labels           []string
 	isFeatured       bool
-	isPublished      bool
+	status           ProductStatus
+	rejectionReason  *string
 	orderIndex       int
-	condition        string
 	metaTitle        *string
 	metaDescription  *string
 	productLineID    *string
 	shortDescription *string
-	warrantyMonths   *int
-	warrantyTerms    *string
 	// Denormalized read cache of the variant tree — recomputed by the
 	// infrastructure layer whenever a variant changes, never mutated
 	// through this entity's own Update* methods. defaultVariantID/
@@ -115,18 +137,19 @@ type Product struct {
 }
 
 // NewProduct validates and creates a new entity from user input.
+// NewProduct always starts a product as ProductStatusDraft — status only
+// ever advances through the explicit transition methods below
+// (SubmitForReview/Approve/Reject/Archive/Unarchive), never as a
+// caller-supplied value, so the approval workflow can't be bypassed by
+// passing status straight into create/update.
 func NewProduct(
 	categoryID, brandID, name, slug string,
 	description json.RawMessage,
 	images []ImageAsset,
-	labels []string,
-	isFeatured, isPublished bool,
+	isFeatured bool,
 	orderIndex int,
-	condition string,
 	metaTitle, metaDescription *string,
 	productLineID, shortDescription *string,
-	warrantyMonths *int,
-	warrantyTerms *string,
 ) (*Product, error) {
 	fields := map[string][]string{}
 
@@ -142,16 +165,9 @@ func NewProduct(
 	if errs := validateBrandID(brandID); len(errs) > 0 {
 		fields["brand_id"] = errs
 	}
-	if errs := validateCondition(condition); len(errs) > 0 {
-		fields["condition"] = errs
-	}
 
 	if len(fields) > 0 {
 		return nil, apperr.NewValidationError("validation failed", fields)
-	}
-
-	if condition == "" {
-		condition = "new"
 	}
 
 	now := time.Now()
@@ -162,17 +178,13 @@ func NewProduct(
 		slug:             slug,
 		description:      description,
 		images:           images,
-		labels:           labels,
 		isFeatured:       isFeatured,
-		isPublished:      isPublished,
+		status:           ProductStatusDraft,
 		orderIndex:       orderIndex,
-		condition:        condition,
 		metaTitle:        metaTitle,
 		metaDescription:  metaDescription,
 		productLineID:    productLineID,
 		shortDescription: shortDescription,
-		warrantyMonths:   warrantyMonths,
-		warrantyTerms:    warrantyTerms,
 		createdAt:        now,
 		updatedAt:        now,
 	}, nil
@@ -184,14 +196,12 @@ func RehydrateProduct(
 	id, categoryID, brandID, name, slug string,
 	description json.RawMessage,
 	images []ImageAsset,
-	labels []string,
-	isFeatured, isPublished bool,
+	isFeatured bool,
+	status ProductStatus,
+	rejectionReason *string,
 	orderIndex int,
-	condition string,
 	metaTitle, metaDescription *string,
 	productLineID, shortDescription *string,
-	warrantyMonths *int,
-	warrantyTerms *string,
 	defaultVariantID *string,
 	displayPrice *int64,
 	displayStockStatus *string,
@@ -204,12 +214,11 @@ func RehydrateProduct(
 		id: id, categoryID: categoryID, brandID: brandID,
 		name: name, slug: slug,
 		description: description,
-		images:      images, labels: labels,
-		isFeatured: isFeatured, isPublished: isPublished, orderIndex: orderIndex,
-		condition: condition,
-		metaTitle: metaTitle, metaDescription: metaDescription,
+		images:      images,
+		isFeatured:  isFeatured, status: status, rejectionReason: rejectionReason,
+		orderIndex: orderIndex,
+		metaTitle:  metaTitle, metaDescription: metaDescription,
 		productLineID: productLineID, shortDescription: shortDescription,
-		warrantyMonths: warrantyMonths, warrantyTerms: warrantyTerms,
 		defaultVariantID: defaultVariantID, displayPrice: displayPrice,
 		displayStockStatus: displayStockStatus, priceMin: priceMin, priceMax: priceMax,
 		variantMpns: variantMpns,
@@ -224,17 +233,14 @@ func (p *Product) Name() string                 { return p.name }
 func (p *Product) Slug() string                 { return p.slug }
 func (p *Product) Description() json.RawMessage { return p.description }
 func (p *Product) Images() []ImageAsset         { return p.images }
-func (p *Product) Labels() []string             { return p.labels }
 func (p *Product) IsFeatured() bool             { return p.isFeatured }
-func (p *Product) IsPublished() bool            { return p.isPublished }
+func (p *Product) Status() ProductStatus        { return p.status }
+func (p *Product) RejectionReason() *string     { return p.rejectionReason }
 func (p *Product) OrderIndex() int              { return p.orderIndex }
-func (p *Product) Condition() string            { return p.condition }
 func (p *Product) MetaTitle() *string           { return p.metaTitle }
 func (p *Product) MetaDescription() *string     { return p.metaDescription }
 func (p *Product) ProductLineID() *string       { return p.productLineID }
 func (p *Product) ShortDescription() *string    { return p.shortDescription }
-func (p *Product) WarrantyMonths() *int         { return p.warrantyMonths }
-func (p *Product) WarrantyTerms() *string       { return p.warrantyTerms }
 func (p *Product) DefaultVariantID() *string    { return p.defaultVariantID }
 func (p *Product) DisplayPrice() *int64         { return p.displayPrice }
 func (p *Product) DisplayStockStatus() *string  { return p.displayStockStatus }
@@ -295,18 +301,8 @@ func (p *Product) UpdateImages(images []ImageAsset) {
 	p.updatedAt = time.Now()
 }
 
-func (p *Product) SetLabels(labels []string) {
-	p.labels = labels
-	p.updatedAt = time.Now()
-}
-
 func (p *Product) SetFeatured(isFeatured bool) {
 	p.isFeatured = isFeatured
-	p.updatedAt = time.Now()
-}
-
-func (p *Product) SetPublished(isPublished bool) {
-	p.isPublished = isPublished
 	p.updatedAt = time.Now()
 }
 
@@ -315,11 +311,70 @@ func (p *Product) Reorder(orderIndex int) {
 	p.updatedAt = time.Now()
 }
 
-func (p *Product) UpdateCondition(condition string) error {
-	if errs := validateCondition(condition); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"condition": errs})
+// SubmitForReview moves a draft (freshly created, or sent back by a
+// rejection) into proposed, awaiting an owner/admin's Approve or Reject.
+func (p *Product) SubmitForReview() error {
+	if p.status != ProductStatusDraft {
+		return apperr.NewValidationError("validation failed", map[string][]string{
+			"status": {"only a draft product can be submitted for review"},
+		})
 	}
-	p.condition = condition
+	p.status = ProductStatusProposed
+	p.updatedAt = time.Now()
+	return nil
+}
+
+// Approve publishes a proposed product, clearing any earlier rejection note.
+func (p *Product) Approve() error {
+	if p.status != ProductStatusProposed {
+		return apperr.NewValidationError("validation failed", map[string][]string{
+			"status": {"only a proposed product can be approved"},
+		})
+	}
+	p.status = ProductStatusPublished
+	p.rejectionReason = nil
+	p.updatedAt = time.Now()
+	return nil
+}
+
+// Reject sends a proposed product back to draft with a reason so the
+// submitting employee knows what to fix — there is no separate "rejected"
+// state, the only actionable next step is revise-and-resubmit.
+func (p *Product) Reject(reason string) error {
+	if p.status != ProductStatusProposed {
+		return apperr.NewValidationError("validation failed", map[string][]string{
+			"status": {"only a proposed product can be rejected"},
+		})
+	}
+	p.status = ProductStatusDraft
+	p.rejectionReason = &reason
+	p.updatedAt = time.Now()
+	return nil
+}
+
+// Archive discontinues a published product while keeping its URL/row alive
+// (existing backlinks/SEO), rather than deleting it.
+func (p *Product) Archive() error {
+	if p.status != ProductStatusPublished {
+		return apperr.NewValidationError("validation failed", map[string][]string{
+			"status": {"only a published product can be archived"},
+		})
+	}
+	p.status = ProductStatusArchived
+	p.updatedAt = time.Now()
+	return nil
+}
+
+// Unarchive re-lists a discontinued product directly back to published —
+// it was already approved once, so it doesn't need to go through review
+// again.
+func (p *Product) Unarchive() error {
+	if p.status != ProductStatusArchived {
+		return apperr.NewValidationError("validation failed", map[string][]string{
+			"status": {"only an archived product can be unarchived"},
+		})
+	}
+	p.status = ProductStatusPublished
 	p.updatedAt = time.Now()
 	return nil
 }
@@ -341,12 +396,6 @@ func (p *Product) UpdateProductLineID(productLineID *string) {
 
 func (p *Product) UpdateShortDescription(shortDescription *string) {
 	p.shortDescription = shortDescription
-	p.updatedAt = time.Now()
-}
-
-func (p *Product) UpdateWarranty(warrantyMonths *int, warrantyTerms *string) {
-	p.warrantyMonths = warrantyMonths
-	p.warrantyTerms = warrantyTerms
 	p.updatedAt = time.Now()
 }
 
@@ -393,16 +442,10 @@ func validateBrandID(brandID string) []string {
 	return nil
 }
 
-// validateCondition enforces the product_condition Postgres enum's two
-// values so an invalid value fails fast with a 400 instead of a raw
-// "invalid input value for enum" 500 from Postgres.
-func validateCondition(condition string) []string {
-	if condition != "" && condition != "new" && condition != "used" {
-		return []string{"condition must be 'new' or 'used'"}
-	}
-	return nil
-}
-
+// CreateProductInput deliberately carries no status field — NewProduct
+// always starts a product as ProductStatusDraft, and status only ever
+// advances through the dedicated submit/approve/reject/archive endpoints
+// (see ProductStatus doc comment), never through create/update payloads.
 type CreateProductInput struct {
 	CategoryID       string
 	BrandID          string
@@ -410,18 +453,13 @@ type CreateProductInput struct {
 	Slug             string
 	Description      json.RawMessage
 	Images           []ImageAsset
-	Labels           []string
 	IsFeatured       bool
-	IsPublished      bool
 	OrderIndex       int
-	Condition        string
 	MetaTitle        *string
 	MetaDescription  *string
 	TagIDs           []string
 	ProductLineID    *string
 	ShortDescription *string
-	WarrantyMonths   *int
-	WarrantyTerms    *string
 	Options          []ProductOptionInput
 	// Variants must contain at least one entry — a product with zero
 	// variants is rejected by the application layer (resolveDefaultVariant),
@@ -433,7 +471,8 @@ type CreateProductInput struct {
 // UpdateProductInput is a partial update — nil/unset means "not part of this
 // request", same convention as UpdateBrandInput/UpdateServiceInput (a slice
 // field left nil is left untouched; sending an explicit empty slice is what
-// clears it).
+// clears it). Deliberately no status field — see CreateProductInput's doc
+// comment; status only moves through submit/approve/reject/archive.
 type UpdateProductInput struct {
 	ID               string
 	CategoryID       *string
@@ -442,18 +481,13 @@ type UpdateProductInput struct {
 	Slug             *string
 	Description      json.RawMessage
 	Images           []ImageAsset
-	Labels           []string
 	IsFeatured       *bool
-	IsPublished      *bool
 	OrderIndex       *int
-	Condition        *string
 	MetaTitle        *string
 	MetaDescription  *string
 	TagIDs           *[]string
 	ProductLineID    *string
 	ShortDescription *string
-	WarrantyMonths   *int
-	WarrantyTerms    *string
 	// Options/Variants: nil = leave the whole variant tree untouched,
 	// non-nil = replace wholesale — same *[]T "replace if present" convention
 	// as TagIDs. Options and Variants are always sent together (a variant's
@@ -479,7 +513,7 @@ type ProductFilter struct {
 	BrandIDs       []string
 	ProductLineID  *string
 	IsFeatured     *bool
-	IsPublished    *bool
+	Status         *ProductStatus
 	Limit          int
 	Offset         int
 	IncludeDeleted bool

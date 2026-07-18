@@ -54,12 +54,14 @@ func parseProductFilter(r *http.Request) (domain.ProductFilter, error) {
 		}
 		filter.IsFeatured = &b
 	}
-	if v := q.Get("is_published"); v != "" {
-		b, err := strconv.ParseBool(v)
-		if err != nil {
-			return filter, err
+	if v := q.Get("status"); v != "" {
+		status := domain.ProductStatus(v)
+		if !status.IsValid() {
+			return filter, apperr.NewValidationError("validation failed", map[string][]string{
+				"status": {"invalid status value"},
+			})
 		}
-		filter.IsPublished = &b
+		filter.Status = &status
 	}
 
 	if v := q.Get("limit"); v != "" {
@@ -182,13 +184,11 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 		CategoryID: req.CategoryID, BrandID: req.BrandID,
 		Name: req.Name, Slug: req.Slug,
 		Description: req.Description,
-		Images:      toImageAssetDomainList(req.Images), Labels: req.Labels,
-		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
-		Condition: req.Condition,
+		Images:      toImageAssetDomainList(req.Images),
+		IsFeatured:  req.IsFeatured, OrderIndex: req.OrderIndex,
 		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
 		TagIDs:        req.TagIDs,
 		ProductLineID: req.ProductLineID, ShortDescription: req.ShortDescription,
-		WarrantyMonths: req.WarrantyMonths, WarrantyTerms: req.WarrantyTerms,
 		Options:         toProductOptionInputList(req.Options),
 		Variants:        toProductVariantInputList(req.Variants),
 		AttributeValues: toAttributeValueInputList(req.AttributeValues),
@@ -217,19 +217,89 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		CategoryID: req.CategoryID, BrandID: req.BrandID,
 		Name: req.Name, Slug: req.Slug,
 		Description: req.Description,
-		Images:      toImageAssetDomainList(req.Images), Labels: req.Labels,
-		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
-		Condition: req.Condition,
+		Images:      toImageAssetDomainList(req.Images),
+		IsFeatured:  req.IsFeatured, OrderIndex: req.OrderIndex,
 		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
 		TagIDs:        req.TagIDs,
 		ProductLineID: req.ProductLineID, ShortDescription: req.ShortDescription,
-		WarrantyMonths: req.WarrantyMonths, WarrantyTerms: req.WarrantyTerms,
 		Options:         toProductOptionInputListPtr(req.Options),
 		Variants:        toProductVariantInputListPtr(req.Variants),
 		AttributeValues: toAttributeValueInputListPtr(req.AttributeValues),
 	}
 
 	p, err := application.UpdateProduct(r.Context(), h.repo, h.attributeRepo, input)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toPlainProductResponse(p))
+}
+
+// rejectProductRequest carries the owner/admin's feedback when sending a
+// proposed product back to draft — see domain.Product.Reject.
+type rejectProductRequest struct {
+	Reason string `json:"reason"`
+}
+
+func (h *ProductHandler) SubmitForReview(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	p, err := application.SubmitProductForReview(r.Context(), h.repo, id)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toPlainProductResponse(p))
+}
+
+func (h *ProductHandler) Approve(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	p, err := application.ApproveProduct(r.Context(), h.repo, id)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toPlainProductResponse(p))
+}
+
+func (h *ProductHandler) Reject(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var req rejectProductRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
+		return
+	}
+
+	p, err := application.RejectProduct(r.Context(), h.repo, id, req.Reason)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toPlainProductResponse(p))
+}
+
+func (h *ProductHandler) Archive(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	p, err := application.ArchiveProduct(r.Context(), h.repo, id)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toPlainProductResponse(p))
+}
+
+func (h *ProductHandler) Unarchive(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	p, err := application.UnarchiveProduct(r.Context(), h.repo, id)
 	if err != nil {
 		httpserver.WriteError(w, err)
 		return

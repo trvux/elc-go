@@ -100,6 +100,7 @@ func (h *BrandHandler) Create(w http.ResponseWriter, r *http.Request) {
 		IsFeatured:      req.IsFeatured,
 		OrderIndex:      req.OrderIndex,
 		Content:         req.Content,
+		WarrantyPolicy:  req.WarrantyPolicy,
 	}
 
 	b, err := application.CreateBrand(r.Context(), h.repo, input)
@@ -130,6 +131,7 @@ func (h *BrandHandler) Update(w http.ResponseWriter, r *http.Request) {
 		IsFeatured:      req.IsFeatured,
 		OrderIndex:      req.OrderIndex,
 		Content:         req.Content,
+		WarrantyPolicy:  req.WarrantyPolicy,
 	}
 
 	b, err := application.UpdateBrand(r.Context(), h.repo, input)

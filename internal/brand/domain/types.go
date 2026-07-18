@@ -17,9 +17,15 @@ type Brand struct {
 	isFeatured      bool
 	orderIndex      int
 	content         json.RawMessage
-	createdAt       time.Time
-	updatedAt       time.Time
-	deletedAt       *time.Time
+	// warrantyPolicy describes how a warranty claim works for this brand
+	// (elc is a reseller, not the manufacturer — it forwards the unit to
+	// the brand rather than servicing it itself, and each brand's process
+	// differs), shown on every product of this brand rather than repeated
+	// per-product free text.
+	warrantyPolicy *string
+	createdAt      time.Time
+	updatedAt      time.Time
+	deletedAt      *time.Time
 }
 
 // NewBrand validates and creates a new entity from user input.
@@ -29,6 +35,7 @@ func NewBrand(
 	isFeatured bool,
 	orderIndex int,
 	content json.RawMessage,
+	warrantyPolicy *string,
 ) (*Brand, error) {
 	fields := map[string][]string{}
 
@@ -53,6 +60,7 @@ func NewBrand(
 		isFeatured:      isFeatured,
 		orderIndex:      orderIndex,
 		content:         content,
+		warrantyPolicy:  warrantyPolicy,
 		createdAt:       now,
 		updatedAt:       now,
 	}, nil
@@ -66,6 +74,7 @@ func RehydrateBrand(
 	isFeatured bool,
 	orderIndex int,
 	content json.RawMessage,
+	warrantyPolicy *string,
 	createdAt, updatedAt time.Time,
 	deletedAt *time.Time,
 ) *Brand {
@@ -79,6 +88,7 @@ func RehydrateBrand(
 		isFeatured:      isFeatured,
 		orderIndex:      orderIndex,
 		content:         content,
+		warrantyPolicy:  warrantyPolicy,
 		createdAt:       createdAt,
 		updatedAt:       updatedAt,
 		deletedAt:       deletedAt,
@@ -94,6 +104,7 @@ func (b *Brand) MetaDescription() *string { return b.metaDescription }
 func (b *Brand) IsFeatured() bool         { return b.isFeatured }
 func (b *Brand) OrderIndex() int          { return b.orderIndex }
 func (b *Brand) Content() json.RawMessage { return b.content }
+func (b *Brand) WarrantyPolicy() *string  { return b.warrantyPolicy }
 func (b *Brand) CreatedAt() time.Time     { return b.createdAt }
 func (b *Brand) UpdatedAt() time.Time     { return b.updatedAt }
 func (b *Brand) DeletedAt() *time.Time    { return b.deletedAt }
@@ -150,6 +161,11 @@ func (b *Brand) UpdateContent(content json.RawMessage) {
 	b.updatedAt = time.Now()
 }
 
+func (b *Brand) UpdateWarrantyPolicy(warrantyPolicy *string) {
+	b.warrantyPolicy = warrantyPolicy
+	b.updatedAt = time.Now()
+}
+
 func (b *Brand) MarkDeleted(deletedAt time.Time) {
 	b.deletedAt = &deletedAt
 }
@@ -182,6 +198,7 @@ type CreateBrandInput struct {
 	IsFeatured      bool
 	OrderIndex      int
 	Content         json.RawMessage
+	WarrantyPolicy  *string
 }
 
 type UpdateBrandInput struct {
@@ -194,6 +211,7 @@ type UpdateBrandInput struct {
 	IsFeatured      *bool
 	OrderIndex      *int
 	Content         json.RawMessage
+	WarrantyPolicy  *string
 }
 
 type BrandFilter struct {

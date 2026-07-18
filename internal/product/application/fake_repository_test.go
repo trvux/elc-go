@@ -78,7 +78,7 @@ func (r *fakeProductRepository) GetAll(ctx context.Context, filter domain.Produc
 		if filter.IsFeatured != nil && p.IsFeatured() != *filter.IsFeatured {
 			continue
 		}
-		if filter.IsPublished != nil && p.IsPublished() != *filter.IsPublished {
+		if filter.Status != nil && p.Status() != *filter.Status {
 			continue
 		}
 		result = append(result, toWithRelations(p))
@@ -127,11 +127,10 @@ func (r *fakeProductRepository) Create(ctx context.Context, product *domain.Prod
 	created := domain.RehydrateProduct(
 		id, product.CategoryID(), product.BrandID(), product.Name(), product.Slug(),
 		product.Description(),
-		product.Images(), product.Labels(),
-		product.IsFeatured(), product.IsPublished(), product.OrderIndex(),
-		product.Condition(),
+		product.Images(),
+		product.IsFeatured(), product.Status(), product.RejectionReason(), product.OrderIndex(),
 		product.MetaTitle(), product.MetaDescription(),
-		product.ProductLineID(), product.ShortDescription(), product.WarrantyMonths(), product.WarrantyTerms(),
+		product.ProductLineID(), product.ShortDescription(),
 		nil, nil, nil, nil, nil, "",
 		now, now, nil,
 	)

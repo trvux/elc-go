@@ -23,6 +23,16 @@ func RegisterRoutes(r chi.Router, h *ProductHandler, verifier httpserver.TokenVe
 			r.Post("/", h.Create)
 			r.Put("/{id}", h.Update)
 			r.Post("/{id}/restore", h.Restore)
+			r.Post("/{id}/submit", h.SubmitForReview)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(httpserver.RequireAuth(verifier))
+			r.Use(httpserver.RequirePermission(authdomain.CanPublishContent))
+			r.Post("/{id}/approve", h.Approve)
+			r.Post("/{id}/reject", h.Reject)
+			r.Post("/{id}/archive", h.Archive)
+			r.Post("/{id}/unarchive", h.Unarchive)
 		})
 
 		r.Group(func(r chi.Router) {

@@ -45,23 +45,12 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, attribute
 	if input.Images != nil {
 		product.UpdateImages(input.Images)
 	}
-	if input.Labels != nil {
-		product.SetLabels(input.Labels)
-	}
 
 	if input.IsFeatured != nil {
 		product.SetFeatured(*input.IsFeatured)
 	}
-	if input.IsPublished != nil {
-		product.SetPublished(*input.IsPublished)
-	}
 	if input.OrderIndex != nil {
 		product.Reorder(*input.OrderIndex)
-	}
-	if input.Condition != nil {
-		if err := product.UpdateCondition(*input.Condition); err != nil {
-			return nil, err
-		}
 	}
 	if input.MetaTitle != nil {
 		product.UpdateMetaTitle(input.MetaTitle)
@@ -74,17 +63,6 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, attribute
 	}
 	if input.ShortDescription != nil {
 		product.UpdateShortDescription(input.ShortDescription)
-	}
-	if input.WarrantyMonths != nil || input.WarrantyTerms != nil {
-		warrantyMonths := product.WarrantyMonths()
-		if input.WarrantyMonths != nil {
-			warrantyMonths = input.WarrantyMonths
-		}
-		warrantyTerms := product.WarrantyTerms()
-		if input.WarrantyTerms != nil {
-			warrantyTerms = input.WarrantyTerms
-		}
-		product.UpdateWarranty(warrantyMonths, warrantyTerms)
 	}
 
 	var variants *[]domain.ProductVariantInput
