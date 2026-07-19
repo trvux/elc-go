@@ -51,10 +51,34 @@ for seed in "$BASE_DIR"/scripts/seed-attribute-definitions*.sql; do
 done
 
 echo "deploy-attribute-migration: mapping legacy specs -> product_attribute_values"
+# cmd/migrate-specs-to-attributes-v2 is cross-database by design (built for
+# dev's workflow: read the old flat schema from a separate reference DB,
+# write structured data into the redesigned target DB) — it wants
+# SOURCE_DATABASE_URL/TARGET_DATABASE_URL, not v1's single DATABASE_URL, and
+# queries `SELECT id, category_id, specs FROM products WHERE deleted_at IS
+# NULL` against whatever SOURCE_DATABASE_URL points at. On production there
+# is no separate old-schema database — migrate-all.sh already dropped
+# products.specs from this same DB moments earlier — so point SOURCE at a
+# same-database shim schema exposing the pre-migration backup table
+# (products_specs_pre_migration_backup, captured above) under the shape v2
+# expects, via search_path. Found + fixed via a cutover rehearsal against a
+# real production backup (2026-07-19); verified end-to-end there before
+# writing this permanently — v2 doesn't need this shim on dev, only on any
+# environment where products.specs is already gone by the time this runs.
+docker exec -i elc-postgres psql -U elc -d elc -v ON_ERROR_STOP=1 -c "
+CREATE SCHEMA IF NOT EXISTS legacy_specs_shim;
+CREATE OR REPLACE VIEW legacy_specs_shim.products AS
+SELECT product_id AS id, category_id, specs, NULL::timestamptz AS deleted_at
+FROM products_specs_pre_migration_backup;
+"
+
 docker run --rm --network "$NETWORK" \
   -v "$BASE_DIR":/app -w /app \
-  -e DATABASE_URL="${DATABASE_URL}?sslmode=disable" \
+  -e SOURCE_DATABASE_URL="${DATABASE_URL}?sslmode=disable&options=-csearch_path%3Dlegacy_specs_shim" \
+  -e TARGET_DATABASE_URL="${DATABASE_URL}?sslmode=disable" \
   "$GO_IMAGE" go run ./cmd/migrate-specs-to-attributes-v2
+
+docker exec -i elc-postgres psql -U elc -d elc -c "DROP SCHEMA legacy_specs_shim CASCADE;"
 
 mkdir -p "$BASE_DIR/backups"
 touch "$SENTINEL"
