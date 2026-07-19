@@ -25,12 +25,11 @@ func TestPostgresCategoryRepository_CRUD(t *testing.T) {
 	repo := NewPostgresCategoryRepository(pool)
 
 	content := json.RawMessage(`{"type":"doc","content":[]}`)
-	faq := []domain.FAQItem{{Question: "Bao hanh may nam?", Answer: "2 nam"}}
 	imageUrl := "https://example.com/image.png"
 
 	c, err := domain.NewCategory(
 		"Integration Test Category", "integration-test-category-xyz", nil, &imageUrl,
-		nil, nil, false, 999, content, faq,
+		nil, nil, false, false, 999, content,
 	)
 	if err != nil {
 		t.Fatalf("NewCategory failed: %v", err)
@@ -46,9 +45,6 @@ func TestPostgresCategoryRepository_CRUD(t *testing.T) {
 
 	if created.ID() == "" {
 		t.Error("expected created category to have an ID")
-	}
-	if len(created.FAQ()) != 1 || created.FAQ()[0].Answer != "2 nam" {
-		t.Errorf("expected faq to round-trip, got %+v", created.FAQ())
 	}
 	if created.Content() == nil {
 		t.Error("expected content to round-trip")
@@ -109,7 +105,7 @@ func TestPostgresCategoryRepository_CRUD(t *testing.T) {
 	}
 	resurrectInput, err := domain.NewCategory(
 		"Resurrected Category", "integration-test-category-xyz", nil, nil,
-		nil, nil, false, 0, nil, nil,
+		nil, nil, false, false, 0, nil,
 	)
 	if err != nil {
 		t.Fatalf("NewCategory (resurrect) failed: %v", err)

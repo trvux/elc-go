@@ -40,13 +40,14 @@ func UpdateProject(ctx context.Context, repo domain.ProjectRepository, input dom
 		project.SetPublished(*input.IsPublished)
 	}
 	if input.MetaTitle != nil {
-		project.UpdateMetaTitle(input.MetaTitle)
+		if err := project.UpdateMetaTitle(input.MetaTitle); err != nil {
+			return nil, err
+		}
 	}
 	if input.MetaDescription != nil {
-		project.UpdateMetaDescription(input.MetaDescription)
-	}
-	if input.Seo != nil {
-		project.UpdateSeo(*input.Seo)
+		if err := project.UpdateMetaDescription(input.MetaDescription); err != nil {
+			return nil, err
+		}
 	}
 	if input.OrderIndex != nil {
 		project.Reorder(*input.OrderIndex)

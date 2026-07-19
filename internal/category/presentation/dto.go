@@ -7,11 +7,6 @@ import (
 	"github.com/trvux/elc-go/internal/category/domain"
 )
 
-type faqItemDTO struct {
-	Question string `json:"question"`
-	Answer   string `json:"answer"`
-}
-
 type groupRefResponse struct {
 	ID              string  `json:"id"`
 	Name            string  `json:"name"`
@@ -20,6 +15,7 @@ type groupRefResponse struct {
 	MetaTitle       *string `json:"meta_title"`
 	MetaDescription *string `json:"meta_description"`
 	IsFeatured      bool    `json:"is_featured"`
+	IsHidden        bool    `json:"is_hidden"`
 	OrderIndex      int     `json:"order_index"`
 }
 
@@ -33,9 +29,9 @@ type categoryResponse struct {
 	MetaTitle       *string           `json:"meta_title"`
 	MetaDescription *string           `json:"meta_description"`
 	IsFeatured      bool              `json:"is_featured"`
+	IsHidden        bool              `json:"is_hidden"`
 	OrderIndex      int               `json:"order_index"`
 	Content         json.RawMessage   `json:"content"`
-	FAQ             []faqItemDTO      `json:"faq"`
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`
 	DeletedAt       *time.Time        `json:"deleted_at"`
@@ -52,6 +48,7 @@ func toCategoryResponse(c *domain.CategoryWithRelations) categoryResponse {
 			MetaTitle:       c.Group.MetaTitle,
 			MetaDescription: c.Group.MetaDescription,
 			IsFeatured:      c.Group.IsFeatured,
+			IsHidden:        c.Group.IsHidden,
 			OrderIndex:      c.Group.OrderIndex,
 		}
 	}
@@ -66,9 +63,9 @@ func toCategoryResponse(c *domain.CategoryWithRelations) categoryResponse {
 		MetaTitle:       c.MetaTitle(),
 		MetaDescription: c.MetaDescription(),
 		IsFeatured:      c.IsFeatured(),
+		IsHidden:        c.IsHidden(),
 		OrderIndex:      c.OrderIndex(),
 		Content:         c.Content(),
-		FAQ:             toFAQDTOList(c.FAQ()),
 		CreatedAt:       c.CreatedAt(),
 		UpdatedAt:       c.UpdatedAt(),
 		DeletedAt:       c.DeletedAt(),
@@ -89,28 +86,6 @@ func toBareCategoryResponse(c *domain.Category) categoryResponse {
 	return toCategoryResponse(&domain.CategoryWithRelations{Category: c})
 }
 
-func toFAQDTOList(faq []domain.FAQItem) []faqItemDTO {
-	if faq == nil {
-		return nil
-	}
-	result := make([]faqItemDTO, len(faq))
-	for i, item := range faq {
-		result[i] = faqItemDTO{Question: item.Question, Answer: item.Answer}
-	}
-	return result
-}
-
-func toFAQDomainList(faq []faqItemDTO) []domain.FAQItem {
-	if faq == nil {
-		return nil
-	}
-	result := make([]domain.FAQItem, len(faq))
-	for i, item := range faq {
-		result[i] = domain.FAQItem{Question: item.Question, Answer: item.Answer}
-	}
-	return result
-}
-
 type createCategoryRequest struct {
 	Name            string          `json:"name"`
 	Slug            string          `json:"slug"`
@@ -119,9 +94,9 @@ type createCategoryRequest struct {
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
 	IsFeatured      bool            `json:"is_featured"`
+	IsHidden        bool            `json:"is_hidden"`
 	OrderIndex      int             `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
-	FAQ             []faqItemDTO    `json:"faq"`
 }
 
 type updateCategoryRequest struct {
@@ -132,7 +107,7 @@ type updateCategoryRequest struct {
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
 	IsFeatured      *bool           `json:"is_featured"`
+	IsHidden        *bool           `json:"is_hidden"`
 	OrderIndex      *int            `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
-	FAQ             []faqItemDTO    `json:"faq"`
 }

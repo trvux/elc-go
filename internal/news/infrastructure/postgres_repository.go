@@ -25,30 +25,10 @@ func NewPostgresNewsRepository(pool *pgxpool.Pool) *PostgresNewsRepository {
 	return &PostgresNewsRepository{pool: pool}
 }
 
-const newsColumns = "id, title, slug, images, content, excerpt, category_id, author_id, is_published, meta_title, meta_description, seo, order_index, created_at, updated_at, deleted_at"
+const newsColumns = "id, title, slug, images, content, excerpt, category_id, author_id, is_published, meta_title, meta_description, order_index, created_at, updated_at, deleted_at"
 
 type rowScanner interface {
 	Scan(dest ...any) error
-}
-
-// marshalSeo/unmarshalSeo hand-roll the jsonb <-> domain.Seo conversion —
-// the shared pool runs pgx.QueryExecModeSimpleProtocol (PgBouncer fix), which
-// can't infer an OID for an arbitrary struct, same reasoning as catalog's
-// marshalSpecs/unmarshalSpecs. seo is NOT NULL DEFAULT '{}' object-shaped, so
-// an empty/zero Seo marshals to "{}".
-func marshalSeo(seo domain.Seo) (json.RawMessage, error) {
-	return json.Marshal(seo)
-}
-
-func unmarshalSeo(raw []byte) (domain.Seo, error) {
-	var seo domain.Seo
-	if len(raw) == 0 {
-		return seo, nil
-	}
-	if err := json.Unmarshal(raw, &seo); err != nil {
-		return domain.Seo{}, err
-	}
-	return seo, nil
 }
 
 func scanNews(row rowScanner) (*domain.News, error) {
@@ -61,7 +41,6 @@ func scanNews(row rowScanner) (*domain.News, error) {
 		authorID                   *string
 		isPublished                bool
 		metaTitle, metaDescription *string
-		seoRaw                     []byte
 		orderIndex                 int
 		createdAt, updatedAt       time.Time
 		deletedAt                  *time.Time
@@ -69,15 +48,10 @@ func scanNews(row rowScanner) (*domain.News, error) {
 
 	if err := row.Scan(
 		&id, &title, &slug, &imagesRaw, &content, &excerpt, &categoryID, &authorID,
-		&isPublished, &metaTitle, &metaDescription, &seoRaw, &orderIndex,
+		&isPublished, &metaTitle, &metaDescription, &orderIndex,
 		&createdAt, &updatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
-	}
-
-	seo, err := unmarshalSeo(seoRaw)
-	if err != nil {
-		return nil, fmt.Errorf("scan news (unmarshal seo): %w", err)
 	}
 
 	images, err := media.UnmarshalImages(imagesRaw)
@@ -87,7 +61,7 @@ func scanNews(row rowScanner) (*domain.News, error) {
 
 	return domain.RehydrateNews(
 		id, title, slug, images, content, excerpt, categoryID, authorID,
-		isPublished, metaTitle, metaDescription, seo, orderIndex,
+		isPublished, metaTitle, metaDescription, orderIndex,
 		createdAt, updatedAt, deletedAt,
 	), nil
 }
@@ -328,11 +302,6 @@ func (r *PostgresNewsRepository) Create(ctx context.Context, news *domain.News, 
 	}
 	isResurrect := err == nil
 
-	seoJSON, err := marshalSeo(news.Seo())
-	if err != nil {
-		return nil, fmt.Errorf("news repository create (marshal seo): %w", err)
-	}
-
 	imagesJSON, err := media.MarshalImages(news.Images())
 	if err != nil {
 		return nil, fmt.Errorf("news repository create (marshal images): %w", err)
@@ -343,23 +312,23 @@ func (r *PostgresNewsRepository) Create(ctx context.Context, news *domain.News, 
 		query := `
 			UPDATE news
 			SET title = $1, slug = $2, images = $3, content = $4, excerpt = $5, category_id = $6, author_id = $7,
-				is_published = $8, meta_title = $9, meta_description = $10, seo = $11, order_index = $12,
-				deleted_at = NULL, updated_at = $13
-			WHERE id = $14
+				is_published = $8, meta_title = $9, meta_description = $10, order_index = $11,
+				deleted_at = NULL, updated_at = $12
+			WHERE id = $13
 			RETURNING ` + newsColumns
 		row = tx.QueryRow(ctx, query,
 			news.Title(), news.Slug(), imagesJSON, news.Content(), news.Excerpt(), news.CategoryID(), news.AuthorID(),
-			news.IsPublished(), news.MetaTitle(), news.MetaDescription(), seoJSON, news.OrderIndex(),
+			news.IsPublished(), news.MetaTitle(), news.MetaDescription(), news.OrderIndex(),
 			time.Now(), existingID,
 		)
 	} else {
 		query := `
-			INSERT INTO news (title, slug, images, content, excerpt, category_id, author_id, is_published, meta_title, meta_description, seo, order_index)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			INSERT INTO news (title, slug, images, content, excerpt, category_id, author_id, is_published, meta_title, meta_description, order_index)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			RETURNING ` + newsColumns
 		row = tx.QueryRow(ctx, query,
 			news.Title(), news.Slug(), imagesJSON, news.Content(), news.Excerpt(), news.CategoryID(), news.AuthorID(),
-			news.IsPublished(), news.MetaTitle(), news.MetaDescription(), seoJSON, news.OrderIndex(),
+			news.IsPublished(), news.MetaTitle(), news.MetaDescription(), news.OrderIndex(),
 		)
 	}
 
@@ -401,15 +370,10 @@ func (r *PostgresNewsRepository) Update(ctx context.Context, news *domain.News, 
 	query := `
 		UPDATE news
 		SET title = $1, slug = $2, images = $3, content = $4, excerpt = $5, category_id = $6, author_id = $7,
-			is_published = $8, meta_title = $9, meta_description = $10, seo = $11, order_index = $12,
-			updated_at = $13
-		WHERE id = $14
+			is_published = $8, meta_title = $9, meta_description = $10, order_index = $11,
+			updated_at = $12
+		WHERE id = $13
 		RETURNING ` + newsColumns
-
-	seoJSON, err := marshalSeo(news.Seo())
-	if err != nil {
-		return nil, fmt.Errorf("news repository update (marshal seo): %w", err)
-	}
 
 	imagesJSON, err := media.MarshalImages(news.Images())
 	if err != nil {
@@ -418,7 +382,7 @@ func (r *PostgresNewsRepository) Update(ctx context.Context, news *domain.News, 
 
 	row := tx.QueryRow(ctx, query,
 		news.Title(), news.Slug(), imagesJSON, news.Content(), news.Excerpt(), news.CategoryID(), news.AuthorID(),
-		news.IsPublished(), news.MetaTitle(), news.MetaDescription(), seoJSON, news.OrderIndex(),
+		news.IsPublished(), news.MetaTitle(), news.MetaDescription(), news.OrderIndex(),
 		news.UpdatedAt(), news.ID(),
 	)
 	updated, err := scanNews(row)

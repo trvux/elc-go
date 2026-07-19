@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -114,12 +113,11 @@ func insertProductTags(ctx context.Context, tx pgx.Tx, productID string, tagIDs 
 // nothing here and avoids silently dropping a product from list results if
 // it ever does).
 const productColumns = `p.id, p.category_id, p.brand_id, p.name, p.slug,
-	p.description, p.specs, p.normalized_specs,
-	p.images, p.labels,
-	p.is_featured, p.is_published, p.order_index,
-	p.condition,
-	p.meta_title, p.meta_description, p.seo,
-	p.product_line_id, p.short_description, p.warranty_months, p.warranty_terms,
+	p.description,
+	p.images,
+	p.is_featured, p.status, p.rejection_reason, p.order_index,
+	p.meta_title, p.meta_description,
+	p.product_line_id, p.short_description,
 	p.default_variant_id, p.display_price, p.display_stock_status, p.price_min, p.price_max, p.variant_mpns,
 	p.created_at, p.updated_at, p.deleted_at,
 	c.id, c.name, c.slug, c.meta_title, c.meta_description,
@@ -141,106 +139,31 @@ const productJoin = `FROM products p
 
 // plainProductColumns is used for Create/Update's RETURNING clause — no
 // joins, matches how brand/service's writes return a plain entity.
-const plainProductColumns = `id, category_id, brand_id, name, slug, description, specs, normalized_specs,
-	images, labels,
-	is_featured, is_published, order_index, condition,
-	meta_title, meta_description, seo,
-	product_line_id, short_description, warranty_months, warranty_terms,
+const plainProductColumns = `id, category_id, brand_id, name, slug, description,
+	images,
+	is_featured, status, rejection_reason, order_index,
+	meta_title, meta_description,
+	product_line_id, short_description,
 	default_variant_id, display_price, display_stock_status, price_min, price_max, variant_mpns,
 	created_at, updated_at, deleted_at`
 
-// categoryPriorityOrder is the exact "popularity" sort priority list from the
-// old TS CATEGORY_PRIORITY_ORDER in searchProducts.ts — order is
-// load-bearing, do not re-sort or "clean up".
-var categoryPriorityOrder = []string{
-	"may-lanh-treo-tuong",
-	"may-loc-khong-khi-may-loc-nuoc",
-	"may-lanh-dieu-hoa-tu-dung",
-	"may-lanh-am-tran",
-	"may-lanh-giau-tran-noi-ong-gio",
-	"may-lanh-ap-tran",
-	"may-loc-khong-khi-may-cap-khi-tuoi-loc-khong-khi",
-	"may-loc-khong-khi-phu-kien-dong-bo-cua-he-thong-cap-gio-tuoi",
+// facetExclude tells buildFilterConditions to skip one filter dimension —
+// used when computing that exact dimension's own facet counts, so e.g.
+// switching brand stays visible as an option while one brand is currently
+// selected (standard faceted-search "exclude own dimension" technique).
+type facetExclude struct {
+	Brand     bool
+	Price     bool
+	Attribute string // attribute code to exclude, "" = exclude none
 }
-
-// popularityOrderBy is built once from categoryPriorityOrder — the slugs are
-// a fixed compile-time list (never user input), so building this via
-// fmt.Sprintf instead of bind parameters is safe and avoids 8 extra
-// positional args on every single list query.
-var popularityOrderBy = buildPopularityOrderBy()
-
-func buildPopularityOrderBy() string {
-	var b strings.Builder
-	b.WriteString("CASE c.slug ")
-	for i, slug := range categoryPriorityOrder {
-		fmt.Fprintf(&b, "WHEN '%s' THEN %d ", slug, i)
-	}
-	b.WriteString("ELSE 999 END, p.is_featured DESC, p.order_index ASC")
-	return b.String()
-}
-
-func buildOrderBy(filter domain.ProductFilter) string {
-	switch domain.ProductSortBy(filter.SortBy) {
-	case domain.SortByPriceAsc:
-		return "p.display_price ASC"
-	case domain.SortByPriceDesc:
-		return "p.display_price DESC"
-	case domain.SortByNewest:
-		return "p.created_at DESC"
-	default:
-		// "popularity" and anything unrecognized fall back to the same
-		// default the old TS code used.
-		return popularityOrderBy
-	}
-}
-
-// fuzzyWordSimilarityThreshold is the per-token pg_trgm word_similarity cutoff
-// for the typo-tolerance search fallback (see buildFilterConditions' search
-// clause for the empirical reasoning behind per-token AND matching). 0.35
-// comfortably passes a real one-edit typo ("inveter" vs "Inverter" scores
-// 0.545) while still requiring genuine resemblance, not just a shared short
-// substring.
-const fuzzyWordSimilarityThreshold = 0.35
-
-// searchTokens splits a search query into words for the per-token fuzzy
-// match — same tokenization spirit as the old TS getQueryTokens/tokenize
-// (whitespace-separated), simplified since Postgres's word_similarity
-// already handles case/accent normalization once combined with
-// immutable_unaccent at the call site, so no lowercasing is needed here.
-func searchTokens(q string) []string {
-	fields := strings.Fields(q)
-	tokens := make([]string, 0, len(fields))
-	for _, f := range fields {
-		if f != "" {
-			tokens = append(tokens, f)
-		}
-	}
-	return tokens
-}
-
-type filterExclude int
-
-const (
-	excludeNone filterExclude = iota
-	excludeBrand
-	excludeSpecs
-	excludePrice
-)
 
 // buildFilterConditions builds the dynamic WHERE clause the same way
 // brand/service do (conditions []string + args []any + $N counter, never
-// string-concatenating a value into the query). exclude skips one filter
-// dimension — used by GetAll's facet queries, which must ignore the very
-// dimension they're faceting on (standard faceted-search technique: the
-// brand facet counts should reflect every OTHER active filter but not the
-// brand filter itself, so switching brands stays visible as an option).
-//
-// fuzzy selects which of the two mutually-exclusive search strategies to
-// apply when filter.Search != "" — see resolveSearchMode for how this is
-// decided and why full-text and fuzzy are never OR'd together in the same
-// query (empirically, blending them let a fuzzy word-level false positive
-// smuggle in results a plain full-text match would never have returned).
-func buildFilterConditions(filter domain.ProductFilter, exclude filterExclude, fuzzy bool) ([]string, []any) {
+// string-concatenating a value into the query). Covers scoping
+// (category/brand/product-line/featured/status) plus search/price-range/
+// attribute-facet dimensions, rebuilt on the structured attribute system —
+// see domain.ProductFilter's doc comment.
+func buildFilterConditions(filter domain.ProductFilter, exclude facetExclude) ([]string, []any) {
 	conditions := []string{}
 	args := []any{}
 	argN := 1
@@ -262,7 +185,7 @@ func buildFilterConditions(filter domain.ProductFilter, exclude filterExclude, f
 		args = append(args, filter.CategoryIDs)
 	}
 
-	if exclude != excludeBrand {
+	if !exclude.Brand {
 		switch {
 		case filter.BrandID != nil:
 			conditions = append(conditions, fmt.Sprintf("p.brand_id = $%d", next()))
@@ -270,9 +193,6 @@ func buildFilterConditions(filter domain.ProductFilter, exclude filterExclude, f
 		case len(filter.BrandIDs) > 0:
 			conditions = append(conditions, fmt.Sprintf("p.brand_id = ANY($%d::uuid[])", next()))
 			args = append(args, filter.BrandIDs)
-		case len(filter.BrandSlugs) > 0:
-			conditions = append(conditions, fmt.Sprintf("br.slug = ANY($%d::text[])", next()))
-			args = append(args, filter.BrandSlugs)
 		}
 	}
 
@@ -284,16 +204,22 @@ func buildFilterConditions(filter domain.ProductFilter, exclude filterExclude, f
 		conditions = append(conditions, fmt.Sprintf("p.is_featured = $%d", next()))
 		args = append(args, *filter.IsFeatured)
 	}
-	if filter.IsPublished != nil {
-		conditions = append(conditions, fmt.Sprintf("p.is_published = $%d", next()))
-		args = append(args, *filter.IsPublished)
-	}
-	if filter.Condition != "" {
-		conditions = append(conditions, fmt.Sprintf("p.condition = $%d", next()))
-		args = append(args, filter.Condition)
+	if filter.Status != nil {
+		conditions = append(conditions, fmt.Sprintf("p.status = $%d", next()))
+		args = append(args, *filter.Status)
 	}
 
-	if exclude != excludePrice {
+	if filter.Search != "" {
+		// Combines full-text (accent/case-insensitive, name + variant MPNs)
+		// with a trigram similarity fallback in one OR'd condition — catches
+		// typos/partial matches without a separate zero-results probe query.
+		n := next()
+		conditions = append(conditions,
+			fmt.Sprintf("(p.search_vector @@ websearch_to_tsquery('simple', immutable_unaccent($%d)) OR similarity(p.name, $%d) > 0.2)", n, n))
+		args = append(args, filter.Search)
+	}
+
+	if !exclude.Price {
 		if filter.MinPrice != nil {
 			conditions = append(conditions, fmt.Sprintf("p.display_price >= $%d", next()))
 			args = append(args, *filter.MinPrice)
@@ -304,116 +230,63 @@ func buildFilterConditions(filter domain.ProductFilter, exclude filterExclude, f
 		}
 	}
 
-	// Specs filter: AND-across-label-groups, OR-within-a-label-group's
-	// values — a product matches a (label, values) pair if it has ANY of
-	// those normalized_specs entries (array overlap, &&), and it must match
-	// EVERY requested label group (one && condition per label, ANDed
-	// together via `conditions`). Sorted keys purely for deterministic SQL
-	// generation (easier to reason about/log), not a correctness requirement.
-	if exclude != excludeSpecs && len(filter.Specs) > 0 {
-		labels := make([]string, 0, len(filter.Specs))
-		for label := range filter.Specs {
-			labels = append(labels, label)
-		}
-		sort.Strings(labels)
-		for _, label := range labels {
-			values := filter.Specs[label]
-			if len(values) == 0 {
+	if len(filter.AttributeTokens) > 0 {
+		byCode := map[string][]string{}
+		for _, token := range filter.AttributeTokens {
+			code, _, ok := strings.Cut(token, ":")
+			if !ok || code == exclude.Attribute {
 				continue
 			}
-			formatted := make([]string, len(values))
-			for i, v := range values {
-				formatted[i] = label + "::" + v
-			}
-			conditions = append(conditions, fmt.Sprintf("p.normalized_specs && $%d::text[]", next()))
-			args = append(args, formatted)
+			byCode[code] = append(byCode[code], token)
+		}
+		for _, tokens := range byCode {
+			conditions = append(conditions, fmt.Sprintf("p.facet_tokens && $%d::text[]", next()))
+			args = append(args, tokens)
 		}
 	}
 
-	// Search: two mutually exclusive strategies, never blended in the same
-	// query — see resolveSearchMode for why. fuzzy==false: plain full-text
-	// (search_vector, name+variant_mpns via 'simple' config + unaccent) — the
-	// high-precision default, used whenever it finds anything at all.
-	// fuzzy==true: PER-TOKEN pg_trgm word_similarity with AND across tokens
-	// (a typo-tolerance fallback, only reached when full-text found nothing)
-	// — comparing the whole query string against the whole name in one shot
-	// was tried and rejected: the whole-string query "am tran" (unaccented
-	// "âm trần", a ceiling-cassette AC line) scored word_similarity 0.625
-	// against the whole name of a DIFFERENT, unrelated product line, "Máy
-	// lạnh giấu trần..." ("giấu trần" = duct concealed-ceiling) — *higher*
-	// than the legitimate "inveter"→"Inverter" typo match's 0.545 — because
-	// "trần" alone overlaps strongly even though "âm" shares nothing with
-	// "giấu". No single scalar threshold separates those two cases; per-
-	// token AND does: "giấu trần" scores 0 on the "am" token (no word in it
-	// resembles "am") and is excluded, while "âm trần" scores 1.0 on both
-	// tokens and is included. Same per-token AND semantics the old Fuse.js
-	// search used (`queryTokens.every(set => set.has(id))`), pushed into SQL.
-	// See docs/catalog.md.
-	//
-	// immutable_unaccent (defined in the catalog migration) is used here
-	// instead of plain unaccent() purely for consistency with the
-	// search_vector generated column, which had to use the IMMUTABLE wrapper
-	// (see the migration's comment) — both call the same 'unaccent'
-	// dictionary either way. See docs/catalog.md for why this search
-	// combination and not a dedicated search engine.
-	if filter.Search != "" {
-		if !fuzzy {
-			conditions = append(conditions, fmt.Sprintf(
-				"p.search_vector @@ websearch_to_tsquery('simple', immutable_unaccent($%d))", next(),
-			))
-			args = append(args, filter.Search)
-		} else if tokens := searchTokens(filter.Search); len(tokens) > 0 {
-			fuzzyParts := make([]string, len(tokens))
-			for i, tok := range tokens {
-				fuzzyParts[i] = fmt.Sprintf(
-					"word_similarity(immutable_unaccent($%d), immutable_unaccent(p.name)) > %g",
-					next(), fuzzyWordSimilarityThreshold,
-				)
-				args = append(args, tok)
+	if len(filter.AttributeRanges) > 0 {
+		for code, bounds := range filter.AttributeRanges {
+			if code == exclude.Attribute {
+				continue
 			}
-			conditions = append(conditions, "("+strings.Join(fuzzyParts, " AND ")+")")
-		} else {
-			// Search set but tokenizes to nothing (e.g. only punctuation) —
-			// match nothing rather than silently ignoring the filter.
-			conditions = append(conditions, "false")
+			rangeConds := []string{"ad2.code = $" + fmt.Sprint(next())}
+			args = append(args, code)
+			if bounds[0] != nil {
+				rangeConds = append(rangeConds, fmt.Sprintf("pav.value_number >= $%d", next()))
+				args = append(args, *bounds[0])
+			}
+			if bounds[1] != nil {
+				rangeConds = append(rangeConds, fmt.Sprintf("pav.value_number <= $%d", next()))
+				args = append(args, *bounds[1])
+			}
+			conditions = append(conditions, fmt.Sprintf(
+				"EXISTS (SELECT 1 FROM product_attribute_values pav JOIN attribute_definitions ad2 ON ad2.id = pav.attribute_definition_id WHERE pav.product_id = p.id AND pav.deleted_at IS NULL AND %s)",
+				strings.Join(rangeConds, " AND "),
+			))
 		}
 	}
 
 	return conditions, args
 }
 
-// resolveSearchMode decides which of the two search strategies
-// buildFilterConditions should use: plain full-text is tried first (highest
-// precision), and the per-token fuzzy fallback only kicks in when full-text,
-// combined with every OTHER currently-active filter, finds nothing at all —
-// never blended together in one query. See buildFilterConditions' search
-// comment for the false-positive this was designed to avoid.
-func (r *PostgresProductRepository) resolveSearchMode(ctx context.Context, filter domain.ProductFilter) (fuzzy bool, err error) {
-	if filter.Search == "" {
-		return false, nil
+// sortClause maps ProductFilter.SortBy to an ORDER BY clause — "" keeps the
+// pre-existing default (is_featured DESC, order_index ASC).
+func sortClause(sortBy string) string {
+	switch sortBy {
+	case domain.SortByPriceAsc:
+		return "ORDER BY p.display_price ASC NULLS LAST"
+	case domain.SortByPriceDesc:
+		return "ORDER BY p.display_price DESC NULLS LAST"
+	case domain.SortByNewest:
+		return "ORDER BY p.created_at DESC"
+	default:
+		return "ORDER BY p.is_featured DESC, p.order_index ASC"
 	}
-
-	conditions, args := buildFilterConditions(filter, excludeNone, false)
-	query := "SELECT EXISTS(SELECT 1 " + productJoin
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
-	query += ")"
-
-	var exists bool
-	if err := r.pool.QueryRow(ctx, query, args...).Scan(&exists); err != nil {
-		return false, fmt.Errorf("product repository resolveSearchMode: %w", err)
-	}
-	return !exists, nil
 }
 
 func (r *PostgresProductRepository) Count(ctx context.Context, filter domain.ProductFilter) (int, error) {
-	fuzzy, err := r.resolveSearchMode(ctx, filter)
-	if err != nil {
-		return 0, err
-	}
-
-	conditions, args := buildFilterConditions(filter, excludeNone, fuzzy)
+	conditions, args := buildFilterConditions(filter, facetExclude{})
 	query := "SELECT COUNT(*) " + productJoin
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
@@ -426,23 +299,11 @@ func (r *PostgresProductRepository) Count(ctx context.Context, filter domain.Pro
 	return count, nil
 }
 
-// GetAll runs the main list query plus the total count and all three facet
-// aggregates concurrently via errgroup — five independent queries against
-// the same pgxpool, each on its own pooled connection. This is the "efficient
-// single round trip per concern" version of what the old TS searchProducts.ts
-// did sequentially in-process against an already-fully-loaded product list.
-//
-// The search mode (plain full-text vs. fuzzy fallback, see resolveSearchMode)
-// is resolved ONCE up front and shared by every one of the five queries below
-// — they must all agree on the same mode, otherwise e.g. the brand facet
-// could be computed against a different result set than the product list
-// it's supposed to describe.
+// GetAll runs the main list query, total count, and every facet dimension
+// (brand/price/attribute) concurrently via errgroup — independent queries
+// against the same pgxpool, each facet excluding its own filter dimension
+// (see facetExclude).
 func (r *PostgresProductRepository) GetAll(ctx context.Context, filter domain.ProductFilter) (*domain.ProductListResult, error) {
-	fuzzy, err := r.resolveSearchMode(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-
 	var (
 		products   []*domain.ProductWithRelations
 		totalCount int
@@ -453,11 +314,11 @@ func (r *PostgresProductRepository) GetAll(ctx context.Context, filter domain.Pr
 
 	g.Go(func() error {
 		var err error
-		products, err = r.queryProducts(gctx, filter, fuzzy)
+		products, err = r.queryProducts(gctx, filter)
 		return err
 	})
 	g.Go(func() error {
-		conditions, args := buildFilterConditions(filter, excludeNone, fuzzy)
+		conditions, args := buildFilterConditions(filter, facetExclude{})
 		query := "SELECT COUNT(*) " + productJoin
 		if len(conditions) > 0 {
 			query += " WHERE " + strings.Join(conditions, " AND ")
@@ -466,17 +327,17 @@ func (r *PostgresProductRepository) GetAll(ctx context.Context, filter domain.Pr
 	})
 	g.Go(func() error {
 		var err error
-		facets.Brands, err = r.brandFacets(gctx, filter, fuzzy)
+		facets.Brands, err = r.computeBrandFacets(gctx, filter)
 		return err
 	})
 	g.Go(func() error {
 		var err error
-		facets.Specs, err = r.specFacets(gctx, filter, fuzzy)
+		facets.Price, err = r.computePriceFacets(gctx, filter)
 		return err
 	})
 	g.Go(func() error {
 		var err error
-		facets.MinPrice, facets.MaxPrice, err = r.priceFacets(gctx, filter, fuzzy)
+		facets.Attributes, err = r.computeAttributeFacets(gctx, filter)
 		return err
 	})
 
@@ -494,60 +355,15 @@ func (r *PostgresProductRepository) GetAll(ctx context.Context, filter domain.Pr
 	return &domain.ProductListResult{Products: products, TotalCount: totalCount, Facets: facets}, nil
 }
 
-func (r *PostgresProductRepository) queryProducts(ctx context.Context, filter domain.ProductFilter, fuzzy bool) ([]*domain.ProductWithRelations, error) {
-	conditions, args := buildFilterConditions(filter, excludeNone, fuzzy)
+func (r *PostgresProductRepository) queryProducts(ctx context.Context, filter domain.ProductFilter) ([]*domain.ProductWithRelations, error) {
+	conditions, args := buildFilterConditions(filter, facetExclude{})
 	argN := len(args) + 1
 
-	// The search_rank column is always computed (even when not searching, in
-	// which case it's just 0 for every row) so every row of this query has
-	// the same column shape regardless of whether filter.Search is set —
-	// simpler than branching the SELECT list and Scan call. At 196 rows the
-	// wasted computation when not searching is negligible; see docs/catalog.md.
-	//
-	// Rank matches whichever single strategy buildFilterConditions actually
-	// filtered with — never both, same reasoning as the search condition
-	// itself. fuzzy==true rows didn't match full-text at all (that's why
-	// fuzzy mode was reached), so ts_rank would just be 0 noise for all of
-	// them; fuzzy==false rows all matched full-text, so word_similarity
-	// isn't needed to rank them.
-	var rankExpr string
-	if !fuzzy {
-		rankExpr = fmt.Sprintf(
-			"COALESCE(ts_rank(p.search_vector, websearch_to_tsquery('simple', immutable_unaccent($%d))), 0) AS search_rank",
-			argN,
-		)
-		args = append(args, filter.Search)
-		argN++
-	} else if tokens := searchTokens(filter.Search); len(tokens) > 0 {
-		// Average (not min/max) per-token word_similarity — rewards rows
-		// where every token matches well without letting one strong token
-		// alone dominate the score.
-		parts := make([]string, len(tokens))
-		for i, tok := range tokens {
-			parts[i] = fmt.Sprintf(
-				"COALESCE(word_similarity(immutable_unaccent($%d), immutable_unaccent(p.name)), 0)",
-				argN,
-			)
-			args = append(args, tok)
-			argN++
-		}
-		rankExpr = fmt.Sprintf("((%s) / %d) AS search_rank", strings.Join(parts, " + "), len(tokens))
-	} else {
-		rankExpr = "0 AS search_rank"
-	}
-
-	query := "SELECT " + productColumns + ", " + rankExpr + " " + productJoin
+	query := "SELECT " + productColumns + " " + productJoin
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
-
-	orderBy := buildOrderBy(filter)
-	if filter.Search != "" {
-		// When actively searching, rank wins first; the requested/default
-		// sort is only a tiebreaker among equally-ranked results.
-		orderBy = "search_rank DESC, " + orderBy
-	}
-	query += " ORDER BY " + orderBy
+	query += " " + sortClause(filter.SortBy)
 
 	if filter.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT $%d", argN)
@@ -566,8 +382,7 @@ func (r *PostgresProductRepository) queryProducts(ctx context.Context, filter do
 
 	var products []*domain.ProductWithRelations
 	for rows.Next() {
-		var searchRank float64
-		p, err := scanProductWithRelationsRow(rows, &searchRank)
+		p, err := scanProductWithRelationsRow(rows)
 		if err != nil {
 			return nil, fmt.Errorf("product repository getAll scan: %w", err)
 		}
@@ -578,109 +393,6 @@ func (r *PostgresProductRepository) queryProducts(ctx context.Context, filter do
 	}
 
 	return products, nil
-}
-
-// brandFacets ignores the brand dimension of the current filter (exclude ==
-// excludeBrand) so it reports every brand available under the OTHER active
-// filters — the standard faceted-search technique, letting a user see (and
-// switch to) sibling brands while one is already selected.
-func (r *PostgresProductRepository) brandFacets(ctx context.Context, filter domain.ProductFilter, fuzzy bool) ([]domain.BrandFacet, error) {
-	conditions, args := buildFilterConditions(filter, excludeBrand, fuzzy)
-	conditions = append(conditions, "br.id IS NOT NULL")
-
-	query := "SELECT DISTINCT br.id, br.name, br.slug " + productJoin +
-		" WHERE " + strings.Join(conditions, " AND ") +
-		" ORDER BY br.name ASC"
-
-	rows, err := r.pool.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("product repository brandFacets: %w", err)
-	}
-	defer rows.Close()
-
-	var facets []domain.BrandFacet
-	for rows.Next() {
-		var f domain.BrandFacet
-		if err := rows.Scan(&f.ID, &f.Name, &f.Slug); err != nil {
-			return nil, fmt.Errorf("product repository brandFacets scan: %w", err)
-		}
-		facets = append(facets, f)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("product repository brandFacets rows: %w", err)
-	}
-	return facets, nil
-}
-
-// specFacets ignores the specs dimension for the same reason brandFacets
-// ignores brand. unnest() flattens each matching row's normalized_specs
-// array into one row per "Label::Value" entry; GROUP BY collapses duplicates
-// (a facet value only needs to be listed once, regardless of how many
-// products have it) — the grouping itself IS the "count > 0" filter, there's
-// no separate HAVING needed.
-func (r *PostgresProductRepository) specFacets(ctx context.Context, filter domain.ProductFilter, fuzzy bool) ([]domain.SpecFacet, error) {
-	conditions, args := buildFilterConditions(filter, excludeSpecs, fuzzy)
-	query := "SELECT unnest(p.normalized_specs) AS facet " + productJoin
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
-	query += " GROUP BY facet"
-
-	rows, err := r.pool.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("product repository specFacets: %w", err)
-	}
-	defer rows.Close()
-
-	labelOrder := []string{}
-	grouped := map[string][]string{}
-	for rows.Next() {
-		var facet string
-		if err := rows.Scan(&facet); err != nil {
-			return nil, fmt.Errorf("product repository specFacets scan: %w", err)
-		}
-		label, value, ok := strings.Cut(facet, "::")
-		if !ok {
-			continue
-		}
-		if _, exists := grouped[label]; !exists {
-			labelOrder = append(labelOrder, label)
-		}
-		grouped[label] = append(grouped[label], value)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("product repository specFacets rows: %w", err)
-	}
-
-	result := make([]domain.SpecFacet, 0, len(labelOrder))
-	for _, label := range labelOrder {
-		values := grouped[label]
-		sort.Strings(values)
-		result = append(result, domain.SpecFacet{Label: label, Values: values})
-	}
-	return result, nil
-}
-
-func (r *PostgresProductRepository) priceFacets(ctx context.Context, filter domain.ProductFilter, fuzzy bool) (int64, int64, error) {
-	conditions, args := buildFilterConditions(filter, excludePrice, fuzzy)
-	query := "SELECT MIN(p.display_price), MAX(p.display_price) " + productJoin
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
-
-	var minPrice, maxPrice *int64
-	if err := r.pool.QueryRow(ctx, query, args...).Scan(&minPrice, &maxPrice); err != nil {
-		return 0, 0, fmt.Errorf("product repository priceFacets: %w", err)
-	}
-
-	var minVal, maxVal int64
-	if minPrice != nil {
-		minVal = *minPrice
-	}
-	if maxPrice != nil {
-		maxVal = *maxPrice
-	}
-	return minVal, maxVal, nil
 }
 
 func (r *PostgresProductRepository) GetByID(ctx context.Context, id string) (*domain.ProductWithRelations, error) {
@@ -762,14 +474,29 @@ func (r *PostgresProductRepository) GetByIDs(ctx context.Context, ids []string) 
 	return products, nil
 }
 
-// Create/Update marshal specs by hand for the same reason brand's
+// GetByIDsWithAttributeValues is GetByIDs plus attachAttributeValuesToProducts
+// run across the whole batch — the first caller (Comparison) to pass more
+// than one product through that function, which already batches via
+// ANY($1) but was previously only ever invoked with single-element slices
+// from GetByID/GetBySlug.
+func (r *PostgresProductRepository) GetByIDsWithAttributeValues(ctx context.Context, ids []string) ([]*domain.ProductWithRelations, error) {
+	products, err := r.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	if err := attachAttributeValuesToProducts(ctx, r.pool, products); err != nil {
+		return nil, err
+	}
+	return products, nil
+}
+
+// Create/Update marshal images by hand for the same reason brand's
 // marshalFAQ/unmarshalFAQ do (see docs/brand.md and docs/catalog.md): the
 // shared pool runs pgx.QueryExecModeSimpleProtocol (PgBouncer transaction
-// pooler fix), which can't infer an OID for an arbitrary []domain.SpecItem —
-// it must be marshaled to json.RawMessage by hand first. images/labels/
-// normalized_specs are plain text[] columns, which pgx encodes/decodes
-// natively from/to []string with no special handling (same as
-// service.labels).
+// pooler fix), which can't infer an OID for an arbitrary struct/slice —
+// it must be marshaled to json.RawMessage by hand first. images is a plain
+// text[]-backed column pgx encodes/decodes natively from/to []string with
+// no special handling.
 func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.Product, tagIDs []string, options []domain.ProductOptionInput, variants []domain.ProductVariantInput, attributeValues []domain.ProductAttributeValueInput) (*domain.Product, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -779,23 +506,15 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 
 	query := `
 		INSERT INTO products (
-			category_id, brand_id, name, slug, description, specs, normalized_specs,
-			images, labels,
-			is_featured, is_published, order_index, condition,
-			meta_title, meta_description, seo,
-			product_line_id, short_description, warranty_months, warranty_terms
+			category_id, brand_id, name, slug, description,
+			images,
+			is_featured, status, rejection_reason, order_index,
+			meta_title, meta_description,
+			product_line_id, short_description
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
 		RETURNING ` + plainProductColumns
 
-	specsJSON, err := marshalSpecs(product.Specs())
-	if err != nil {
-		return nil, fmt.Errorf("product repository create (marshal specs): %w", err)
-	}
-	seoJSON, err := marshalSeo(product.Seo())
-	if err != nil {
-		return nil, fmt.Errorf("product repository create (marshal seo): %w", err)
-	}
 	imagesJSON, err := media.MarshalImages(product.Images())
 	if err != nil {
 		return nil, fmt.Errorf("product repository create (marshal images): %w", err)
@@ -803,11 +522,11 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 
 	row := tx.QueryRow(ctx, query,
 		product.CategoryID(), product.BrandID(), product.Name(), product.Slug(),
-		orEmptyJSON(product.Description()), specsJSON, orEmptyStrings(product.NormalizedSpecs()),
-		imagesJSON, orEmptyStrings(product.Labels()),
-		product.IsFeatured(), product.IsPublished(), product.OrderIndex(), product.Condition(),
-		product.MetaTitle(), product.MetaDescription(), seoJSON,
-		product.ProductLineID(), product.ShortDescription(), product.WarrantyMonths(), product.WarrantyTerms(),
+		orEmptyJSON(product.Description()),
+		imagesJSON,
+		product.IsFeatured(), string(product.Status()), product.RejectionReason(), product.OrderIndex(),
+		product.MetaTitle(), product.MetaDescription(),
+		product.ProductLineID(), product.ShortDescription(),
 	)
 	created, err := scanProduct(row)
 	if err != nil {
@@ -825,6 +544,9 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 		return nil, err
 	}
 	if err := insertProductAttributeValues(ctx, tx, created.ID(), attributeValues); err != nil {
+		return nil, err
+	}
+	if err := RecomputeFacetTokens(ctx, tx, created.ID()); err != nil {
 		return nil, err
 	}
 
@@ -852,22 +574,14 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 	query := `
 		UPDATE products
 		SET category_id = $1, brand_id = $2, name = $3, slug = $4,
-			description = $5, specs = $6, normalized_specs = $7,
-			images = $8, labels = $9,
-			is_featured = $10, is_published = $11, order_index = $12, condition = $13,
-			meta_title = $14, meta_description = $15, seo = $16,
-			product_line_id = $17, short_description = $18, warranty_months = $19, warranty_terms = $20
-		WHERE id = $21
+			description = $5,
+			images = $6,
+			is_featured = $7, status = $8, rejection_reason = $9, order_index = $10,
+			meta_title = $11, meta_description = $12,
+			product_line_id = $13, short_description = $14
+		WHERE id = $15
 		RETURNING ` + plainProductColumns
 
-	specsJSON, err := marshalSpecs(product.Specs())
-	if err != nil {
-		return nil, fmt.Errorf("product repository update (marshal specs): %w", err)
-	}
-	seoJSON, err := marshalSeo(product.Seo())
-	if err != nil {
-		return nil, fmt.Errorf("product repository update (marshal seo): %w", err)
-	}
 	imagesJSON, err := media.MarshalImages(product.Images())
 	if err != nil {
 		return nil, fmt.Errorf("product repository update (marshal images): %w", err)
@@ -875,11 +589,11 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 
 	row := tx.QueryRow(ctx, query,
 		product.CategoryID(), product.BrandID(), product.Name(), product.Slug(),
-		orEmptyJSON(product.Description()), specsJSON, orEmptyStrings(product.NormalizedSpecs()),
-		imagesJSON, orEmptyStrings(product.Labels()),
-		product.IsFeatured(), product.IsPublished(), product.OrderIndex(), product.Condition(),
-		product.MetaTitle(), product.MetaDescription(), seoJSON,
-		product.ProductLineID(), product.ShortDescription(), product.WarrantyMonths(), product.WarrantyTerms(),
+		orEmptyJSON(product.Description()),
+		imagesJSON,
+		product.IsFeatured(), string(product.Status()), product.RejectionReason(), product.OrderIndex(),
+		product.MetaTitle(), product.MetaDescription(),
+		product.ProductLineID(), product.ShortDescription(),
 		product.ID(),
 	)
 	updated, err := scanProduct(row)
@@ -929,6 +643,9 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 		if err := insertProductAttributeValues(ctx, tx, updated.ID(), *attributeValues); err != nil {
 			return nil, err
 		}
+		if err := RecomputeFacetTokens(ctx, tx, updated.ID()); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -968,131 +685,8 @@ func (r *PostgresProductRepository) Restore(ctx context.Context, id string) erro
 	return nil
 }
 
-type adjacentRow struct {
-	id, name, slug string
-}
-
-// GetAdjacent implements the "same-category siblings first, fall back to the
-// full published catalog when fewer than 2 published siblings exist" rule
-// from the old getAdjacentProducts.ts, as two indexed queries at most (the
-// fallback only ever runs when the first query came back too small) instead
-// of the two full-repository-round-trip calls the old TS application layer
-// made — see application/get_adjacent_products.go for why this was pushed
-// down here.
-func (r *PostgresProductRepository) GetAdjacent(ctx context.Context, categoryID, currentID string) (*domain.AdjacentProduct, *domain.AdjacentProduct, error) {
-	siblings, err := r.fetchOrderedPublished(ctx, &categoryID)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(siblings) < 2 {
-		siblings, err = r.fetchOrderedPublished(ctx, nil)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	idx := -1
-	for i, s := range siblings {
-		if s.id == currentID {
-			idx = i
-			break
-		}
-	}
-	if idx == -1 || len(siblings) < 2 {
-		return nil, nil, nil
-	}
-
-	var prev, next *domain.AdjacentProduct
-	if idx > 0 {
-		prev = &domain.AdjacentProduct{Name: siblings[idx-1].name, Slug: siblings[idx-1].slug}
-	}
-	if idx < len(siblings)-1 {
-		next = &domain.AdjacentProduct{Name: siblings[idx+1].name, Slug: siblings[idx+1].slug}
-	}
-	return prev, next, nil
-}
-
-// fetchOrderedPublished mirrors the old TS sort exactly: featured first, then
-// orderIndex ascending. categoryID == nil fetches the full published catalog
-// (the fallback scope).
-func (r *PostgresProductRepository) fetchOrderedPublished(ctx context.Context, categoryID *string) ([]adjacentRow, error) {
-	query := "SELECT p.id, p.name, p.slug FROM products p WHERE p.deleted_at IS NULL AND p.is_published = true"
-	args := []any{}
-	if categoryID != nil {
-		query += " AND p.category_id = $1"
-		args = append(args, *categoryID)
-	}
-	query += " ORDER BY p.is_featured DESC, p.order_index ASC"
-
-	rows, err := r.pool.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("product repository fetchOrderedPublished: %w", err)
-	}
-	defer rows.Close()
-
-	var result []adjacentRow
-	for rows.Next() {
-		var row adjacentRow
-		if err := rows.Scan(&row.id, &row.name, &row.slug); err != nil {
-			return nil, fmt.Errorf("product repository fetchOrderedPublished scan: %w", err)
-		}
-		result = append(result, row)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("product repository fetchOrderedPublished rows: %w", err)
-	}
-	return result, nil
-}
-
 type rowScanner interface {
 	Scan(dest ...any) error
-}
-
-// marshalSpecs/unmarshalSpecs hand-roll the jsonb <-> []domain.SpecItem
-// conversion for the same reason marshalFAQ/unmarshalFAQ do in brand's
-// postgres_repository.go (see the comment there, replicated in spirit here):
-// simple protocol mode can't infer an OID for an arbitrary struct slice, and
-// the return type must be the named json.RawMessage type specifically (not a
-// plain []byte) or pgx encodes it as a bytea literal instead of raw JSON
-// text. Unlike brand's faq column, products.specs is NOT NULL DEFAULT '{}'
-// jsonb but semantically holds a JSON ARRAY — so a nil/empty Go slice must
-// marshal to "[]", never to SQL NULL or "{}"; see orEmptyJSON below for the
-// (unrelated) description column, which really is object-shaped.
-func marshalSpecs(specs []domain.SpecItem) (json.RawMessage, error) {
-	if specs == nil {
-		return json.RawMessage("[]"), nil
-	}
-	return json.Marshal(specs)
-}
-
-func unmarshalSpecs(raw []byte) ([]domain.SpecItem, error) {
-	if len(raw) == 0 {
-		return nil, nil
-	}
-	var specs []domain.SpecItem
-	if err := json.Unmarshal(raw, &specs); err != nil {
-		return nil, err
-	}
-	return specs, nil
-}
-
-// marshalSeo/unmarshalSeo hand-roll the jsonb <-> domain.Seo conversion for
-// the same simple-protocol-mode reason as marshalSpecs/unmarshalSpecs above.
-// Unlike specs, seo is object-shaped (not an array) and NOT NULL DEFAULT '{}',
-// same as the description column, so an empty/zero Seo marshals to "{}".
-func marshalSeo(seo domain.Seo) (json.RawMessage, error) {
-	return json.Marshal(seo)
-}
-
-func unmarshalSeo(raw []byte) (domain.Seo, error) {
-	var seo domain.Seo
-	if len(raw) == 0 {
-		return seo, nil
-	}
-	if err := json.Unmarshal(raw, &seo); err != nil {
-		return domain.Seo{}, err
-	}
-	return seo, nil
 }
 
 // orEmptyJSON defaults a nil/empty description to "{}" — products.description
@@ -1108,8 +702,7 @@ func orEmptyJSON(raw json.RawMessage) json.RawMessage {
 
 // orEmptyStrings defaults a nil slice to an empty (non-nil) one before
 // binding to a text[] column — matches the column's own DEFAULT '{}' intent
-// for images/labels/normalized_specs rather than writing an explicit SQL
-// NULL for "no items".
+// rather than writing an explicit SQL NULL for "no items".
 func orEmptyStrings(s []string) []string {
 	if s == nil {
 		return []string{}
@@ -1121,47 +714,33 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 	var (
 		id, categoryID, brandID, name, slug  string
 		description                          json.RawMessage
-		specsRaw                             []byte
-		normalizedSpecs                      []string
 		imagesRaw                            []byte
-		labels                               []string
-		isFeatured, isPublished              bool
+		isFeatured                           bool
+		status                               string
+		rejectionReason                      *string
 		orderIndex                           int
-		condition                            string
 		metaTitle, metaDescription           *string
 		productLineID, shortDescription      *string
-		warrantyMonths                       *int
-		warrantyTerms                        *string
 		defaultVariantID, displayStockStatus *string
 		displayPrice, priceMin, priceMax     *int64
 		variantMpns                          string
-		seoRaw                               []byte
 		createdAt, updatedAt                 time.Time
 		deletedAt                            *time.Time
 	)
 
 	if err := row.Scan(
 		&id, &categoryID, &brandID, &name, &slug,
-		&description, &specsRaw, &normalizedSpecs,
-		&imagesRaw, &labels,
-		&isFeatured, &isPublished, &orderIndex,
-		&condition,
-		&metaTitle, &metaDescription, &seoRaw,
-		&productLineID, &shortDescription, &warrantyMonths, &warrantyTerms,
+		&description,
+		&imagesRaw,
+		&isFeatured, &status, &rejectionReason, &orderIndex,
+		&metaTitle, &metaDescription,
+		&productLineID, &shortDescription,
 		&defaultVariantID, &displayPrice, &displayStockStatus, &priceMin, &priceMax, &variantMpns,
 		&createdAt, &updatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
 	}
 
-	specs, err := unmarshalSpecs(specsRaw)
-	if err != nil {
-		return nil, fmt.Errorf("scan product (unmarshal specs): %w", err)
-	}
-	seo, err := unmarshalSeo(seoRaw)
-	if err != nil {
-		return nil, fmt.Errorf("scan product (unmarshal seo): %w", err)
-	}
 	images, err := media.UnmarshalImages(imagesRaw)
 	if err != nil {
 		return nil, fmt.Errorf("scan product (unmarshal images): %w", err)
@@ -1169,40 +748,31 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 
 	return domain.RehydrateProduct(
 		id, categoryID, brandID, name, slug,
-		description, specs, normalizedSpecs,
-		images, labels,
-		isFeatured, isPublished, orderIndex,
-		condition,
+		description,
+		images,
+		isFeatured, domain.ProductStatus(status), rejectionReason, orderIndex,
 		metaTitle, metaDescription,
-		seo,
-		productLineID, shortDescription, warrantyMonths, warrantyTerms,
+		productLineID, shortDescription,
 		defaultVariantID, displayPrice, displayStockStatus, priceMin, priceMax, variantMpns,
 		createdAt, updatedAt, deletedAt,
 	), nil
 }
 
 // scanProductWithRelationsRow scans the productColumns + productJoin shape.
-// extraDest lets callers append additional trailing SELECT columns (GetAll's
-// search_rank) to the same Scan call without duplicating the whole field list.
-func scanProductWithRelationsRow(row rowScanner, extraDest ...any) (*domain.ProductWithRelations, error) {
+func scanProductWithRelationsRow(row rowScanner) (*domain.ProductWithRelations, error) {
 	var (
 		id, categoryID, brandID, name, slug  string
 		description                          json.RawMessage
-		specsRaw                             []byte
-		normalizedSpecs                      []string
 		imagesRaw                            []byte
-		labels                               []string
-		isFeatured, isPublished              bool
+		isFeatured                           bool
+		status                               string
+		rejectionReason                      *string
 		orderIndex                           int
-		condition                            string
 		metaTitle, metaDescription           *string
 		productLineID, shortDescription      *string
-		warrantyMonths                       *int
-		warrantyTerms                        *string
 		defaultVariantID, displayStockStatus *string
 		displayPrice, priceMin, priceMax     *int64
 		variantMpns                          string
-		seoRaw                               []byte
 		createdAt, updatedAt                 time.Time
 		deletedAt                            *time.Time
 
@@ -1215,31 +785,21 @@ func scanProductWithRelationsRow(row rowScanner, extraDest ...any) (*domain.Prod
 
 	dest := []any{
 		&id, &categoryID, &brandID, &name, &slug,
-		&description, &specsRaw, &normalizedSpecs,
-		&imagesRaw, &labels,
-		&isFeatured, &isPublished, &orderIndex,
-		&condition,
-		&metaTitle, &metaDescription, &seoRaw,
-		&productLineID, &shortDescription, &warrantyMonths, &warrantyTerms,
+		&description,
+		&imagesRaw,
+		&isFeatured, &status, &rejectionReason, &orderIndex,
+		&metaTitle, &metaDescription,
+		&productLineID, &shortDescription,
 		&defaultVariantID, &displayPrice, &displayStockStatus, &priceMin, &priceMax, &variantMpns,
 		&createdAt, &updatedAt, &deletedAt,
 		&catID, &catName, &catSlug, &catMetaTitle, &catMetaDescription,
 		&brID, &brName, &brSlug, &brLogoURL, &brMetaTitle, &brMetaDescription, &brIsFeatured, &brOrderIndex,
 	}
-	dest = append(dest, extraDest...)
 
 	if err := row.Scan(dest...); err != nil {
 		return nil, err
 	}
 
-	specs, err := unmarshalSpecs(specsRaw)
-	if err != nil {
-		return nil, fmt.Errorf("scan product with relations (unmarshal specs): %w", err)
-	}
-	seo, err := unmarshalSeo(seoRaw)
-	if err != nil {
-		return nil, fmt.Errorf("scan product with relations (unmarshal seo): %w", err)
-	}
 	images, err := media.UnmarshalImages(imagesRaw)
 	if err != nil {
 		return nil, fmt.Errorf("scan product with relations (unmarshal images): %w", err)
@@ -1247,13 +807,11 @@ func scanProductWithRelationsRow(row rowScanner, extraDest ...any) (*domain.Prod
 
 	product := domain.RehydrateProduct(
 		id, categoryID, brandID, name, slug,
-		description, specs, normalizedSpecs,
-		images, labels,
-		isFeatured, isPublished, orderIndex,
-		condition,
+		description,
+		images,
+		isFeatured, domain.ProductStatus(status), rejectionReason, orderIndex,
 		metaTitle, metaDescription,
-		seo,
-		productLineID, shortDescription, warrantyMonths, warrantyTerms,
+		productLineID, shortDescription,
 		defaultVariantID, displayPrice, displayStockStatus, priceMin, priceMax, variantMpns,
 		createdAt, updatedAt, deletedAt,
 	)

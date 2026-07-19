@@ -15,9 +15,9 @@ func CreateCategory(ctx context.Context, repo domain.CategoryRepository, input d
 		input.MetaTitle,
 		input.MetaDescription,
 		input.IsFeatured,
+		input.IsHidden,
 		input.OrderIndex,
 		input.Content,
-		input.FAQ,
 	)
 	if err != nil {
 		return nil, err

@@ -8,11 +8,6 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
 
-type FAQItem struct {
-	Question string `json:"question"`
-	Answer   string `json:"answer"`
-}
-
 type Group struct {
 	id              string
 	name            string
@@ -21,9 +16,9 @@ type Group struct {
 	metaTitle       *string
 	metaDescription *string
 	isFeatured      bool
+	isHidden        bool
 	orderIndex      int
 	content         json.RawMessage
-	faq             []FAQItem
 	createdAt       time.Time
 	updatedAt       time.Time
 	deletedAt       *time.Time
@@ -35,9 +30,9 @@ func NewGroup(
 	imageUrl *string,
 	metaTitle, metaDescription *string,
 	isFeatured bool,
+	isHidden bool,
 	orderIndex int,
 	content json.RawMessage,
-	faq []FAQItem,
 ) (*Group, error) {
 	fields := map[string][]string{}
 
@@ -60,9 +55,9 @@ func NewGroup(
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
 		isFeatured:      isFeatured,
+		isHidden:        isHidden,
 		orderIndex:      orderIndex,
 		content:         content,
-		faq:             faq,
 		createdAt:       now,
 		updatedAt:       now,
 	}, nil
@@ -75,9 +70,9 @@ func RehydrateGroup(
 	imageUrl *string,
 	metaTitle, metaDescription *string,
 	isFeatured bool,
+	isHidden bool,
 	orderIndex int,
 	content json.RawMessage,
-	faq []FAQItem,
 	createdAt, updatedAt time.Time,
 	deletedAt *time.Time,
 ) *Group {
@@ -89,9 +84,9 @@ func RehydrateGroup(
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
 		isFeatured:      isFeatured,
+		isHidden:        isHidden,
 		orderIndex:      orderIndex,
 		content:         content,
-		faq:             faq,
 		createdAt:       createdAt,
 		updatedAt:       updatedAt,
 		deletedAt:       deletedAt,
@@ -105,9 +100,9 @@ func (g *Group) ImageURL() *string        { return g.imageUrl }
 func (g *Group) MetaTitle() *string       { return g.metaTitle }
 func (g *Group) MetaDescription() *string { return g.metaDescription }
 func (g *Group) IsFeatured() bool         { return g.isFeatured }
+func (g *Group) IsHidden() bool           { return g.isHidden }
 func (g *Group) OrderIndex() int          { return g.orderIndex }
 func (g *Group) Content() json.RawMessage { return g.content }
-func (g *Group) FAQ() []FAQItem           { return g.faq }
 func (g *Group) CreatedAt() time.Time     { return g.createdAt }
 func (g *Group) UpdatedAt() time.Time     { return g.updatedAt }
 func (g *Group) DeletedAt() *time.Time    { return g.deletedAt }
@@ -154,6 +149,11 @@ func (g *Group) SetFeatured(isFeatured bool) {
 	g.updatedAt = time.Now()
 }
 
+func (g *Group) SetHidden(isHidden bool) {
+	g.isHidden = isHidden
+	g.updatedAt = time.Now()
+}
+
 func (g *Group) Reorder(orderIndex int) {
 	g.orderIndex = orderIndex
 	g.updatedAt = time.Now()
@@ -161,11 +161,6 @@ func (g *Group) Reorder(orderIndex int) {
 
 func (g *Group) UpdateContent(content json.RawMessage) {
 	g.content = content
-	g.updatedAt = time.Now()
-}
-
-func (g *Group) SetFAQ(faq []FAQItem) {
-	g.faq = faq
 	g.updatedAt = time.Now()
 }
 
@@ -205,9 +200,9 @@ type CreateGroupInput struct {
 	MetaTitle       *string
 	MetaDescription *string
 	IsFeatured      bool
+	IsHidden        bool
 	OrderIndex      int
 	Content         json.RawMessage
-	FAQ             []FAQItem
 }
 
 type UpdateGroupInput struct {
@@ -218,9 +213,9 @@ type UpdateGroupInput struct {
 	MetaTitle       *string
 	MetaDescription *string
 	IsFeatured      *bool
+	IsHidden        *bool
 	OrderIndex      *int
 	Content         json.RawMessage
-	FAQ             []FAQItem
 }
 
 type GroupFilter struct {

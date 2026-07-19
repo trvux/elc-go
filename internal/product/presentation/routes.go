@@ -11,12 +11,12 @@ func RegisterRoutes(r chi.Router, h *ProductHandler, verifier httpserver.TokenVe
 	r.Route("/products", func(r chi.Router) {
 		r.Get("/", h.List)
 		r.Get("/count", h.Count)
+		r.Get("/compare", h.Compare)
 		// POST but read-only (batch fetch by a body-carried ID list) — the
 		// public site uses this too (cart/wishlist), so it stays open.
 		r.Post("/by-ids", h.GetByIDsBatch)
 		r.Get("/slug/{slug}", h.GetBySlug)
 		r.Get("/{id}", h.GetByID)
-		r.Get("/{id}/adjacent", h.GetAdjacent)
 
 		r.Group(func(r chi.Router) {
 			r.Use(httpserver.RequireAuth(verifier))
@@ -24,6 +24,16 @@ func RegisterRoutes(r chi.Router, h *ProductHandler, verifier httpserver.TokenVe
 			r.Post("/", h.Create)
 			r.Put("/{id}", h.Update)
 			r.Post("/{id}/restore", h.Restore)
+			r.Post("/{id}/submit", h.SubmitForReview)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(httpserver.RequireAuth(verifier))
+			r.Use(httpserver.RequirePermission(authdomain.CanPublishContent))
+			r.Post("/{id}/approve", h.Approve)
+			r.Post("/{id}/reject", h.Reject)
+			r.Post("/{id}/archive", h.Archive)
+			r.Post("/{id}/unarchive", h.Unarchive)
 		})
 
 		r.Group(func(r chi.Router) {

@@ -62,7 +62,7 @@ func (h *AttributeDefinitionHandler) Create(w http.ResponseWriter, r *http.Reque
 	}
 
 	input := domain.CreateAttributeDefinitionInput{
-		CategoryID: req.CategoryID, Code: req.Code, Name: req.Name, GroupLabel: req.GroupLabel,
+		Code: req.Code, Name: req.Name, GroupLabel: req.GroupLabel,
 		DataType: req.DataType, Unit: req.Unit, Options: req.Options, OrderIndex: req.OrderIndex, IsRequired: req.IsRequired,
 	}
 
@@ -72,7 +72,7 @@ func (h *AttributeDefinitionHandler) Create(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	httpserver.WriteJSON(w, http.StatusCreated, toAttributeDefinitionResponse(d))
+	httpserver.WriteJSON(w, http.StatusCreated, toAttributeDefinitionResponsePlain(d))
 }
 
 func (h *AttributeDefinitionHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +95,7 @@ func (h *AttributeDefinitionHandler) Update(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	httpserver.WriteJSON(w, http.StatusOK, toAttributeDefinitionResponse(d))
+	httpserver.WriteJSON(w, http.StatusOK, toAttributeDefinitionResponsePlain(d))
 }
 
 func (h *AttributeDefinitionHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -113,6 +113,35 @@ func (h *AttributeDefinitionHandler) Restore(w http.ResponseWriter, r *http.Requ
 	id := chi.URLParam(r, "id")
 
 	if err := application.RestoreAttributeDefinition(r.Context(), h.repo, id); err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *AttributeDefinitionHandler) AttachCategories(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var req attachCategoriesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
+		return
+	}
+
+	if err := application.AttachAttributeDefinitionCategories(r.Context(), h.repo, id, req.CategoryIDs); err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *AttributeDefinitionHandler) DetachCategory(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	categoryID := chi.URLParam(r, "categoryId")
+
+	if err := application.DetachAttributeDefinitionCategory(r.Context(), h.repo, id, categoryID); err != nil {
 		httpserver.WriteError(w, err)
 		return
 	}

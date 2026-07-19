@@ -27,6 +27,11 @@ const (
 	// PermissionSettingsManage covers site-wide settings, not per-record
 	// content.
 	PermissionSettingsManage Permission = "settings:manage"
+	// PermissionContentPublish covers moving content through an
+	// approval gate (e.g. product proposed -> published/rejected,
+	// published -> archived) — split from PermissionContentWrite so a
+	// role can create/edit drafts without being able to publish them.
+	PermissionContentPublish Permission = "content:publish"
 )
 
 // rolePermissions lists what each non-super_admin role grants. super_admin
@@ -36,6 +41,7 @@ var rolePermissions = map[Role][]Permission{
 		PermissionUsersManage,
 		PermissionContentWrite,
 		PermissionContentDelete,
+		PermissionContentPublish,
 		PermissionSettingsManage,
 	},
 	RoleUser: {
@@ -70,6 +76,12 @@ func CanWriteContent(role string) bool {
 
 func CanDeleteContent(role string) bool {
 	return Role(role).HasPermission(PermissionContentDelete)
+}
+
+// CanPublishContent gates approval-workflow transitions (approve/reject/
+// archive) that move content out of the draft an ordinary editor can reach.
+func CanPublishContent(role string) bool {
+	return Role(role).HasPermission(PermissionContentPublish)
 }
 
 // CanManageSettings is for the settings module (and any future

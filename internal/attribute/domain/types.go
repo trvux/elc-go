@@ -7,15 +7,16 @@ import (
 )
 
 const (
-	DataTypeNumber  = "number"
-	DataTypeText    = "text"
-	DataTypeBoolean = "boolean"
-	DataTypeSelect  = "select"
+	DataTypeNumber      = "number"
+	DataTypeText        = "text"
+	DataTypeBoolean     = "boolean"
+	DataTypeSelect      = "select"
+	DataTypeMultiselect = "multiselect"
 )
 
 func validDataType(dataType string) bool {
 	switch dataType {
-	case DataTypeNumber, DataTypeText, DataTypeBoolean, DataTypeSelect:
+	case DataTypeNumber, DataTypeText, DataTypeBoolean, DataTypeSelect, DataTypeMultiselect:
 		return true
 	}
 	return false
@@ -24,11 +25,13 @@ func validDataType(dataType string) bool {
 // AttributeDefinition replaces the old free-text spec label a product
 // admin form used to let staff type by hand (see docs/product-v2-design.md
 // for the label-drift problem this fixes) — mirrors Shopify's Metafield
-// Definition: defined once, reusable, typed. category_id nil means the
-// definition applies across every category (e.g. "Xuất xứ").
+// Definition: defined once, reusable, typed. Which category(ies) a
+// definition applies to is relational data owned by
+// category_attribute_definitions (see AttributeDefinitionWithCategories),
+// not a field on this entity — a definition attached to zero categories is
+// "global" (applies everywhere, e.g. "Xuất xứ").
 type AttributeDefinition struct {
 	id         string
-	categoryID *string
 	code       string
 	name       string
 	groupLabel *string
@@ -42,8 +45,16 @@ type AttributeDefinition struct {
 	deletedAt  *time.Time
 }
 
+// AttributeDefinitionWithCategories is what read queries (GetAll/GetByID)
+// return — a definition plus the category ids it's attached to (empty =
+// global). Create/Update only ever deal with a plain *AttributeDefinition —
+// same read/write split as product.ProductWithRelations/*Product.
+type AttributeDefinitionWithCategories struct {
+	*AttributeDefinition
+	CategoryIDs []string
+}
+
 func NewAttributeDefinition(
-	categoryID *string,
 	code, name string,
 	groupLabel *string,
 	dataType string,
@@ -61,7 +72,7 @@ func NewAttributeDefinition(
 		fields["name"] = []string{"name is required"}
 	}
 	if !validDataType(dataType) {
-		fields["data_type"] = []string{"data_type must be one of: number, text, boolean, select"}
+		fields["data_type"] = []string{"data_type must be one of: number, text, boolean, select, multiselect"}
 	}
 
 	if len(fields) > 0 {
@@ -70,7 +81,6 @@ func NewAttributeDefinition(
 
 	now := time.Now()
 	return &AttributeDefinition{
-		categoryID: categoryID,
 		code:       code,
 		name:       name,
 		groupLabel: groupLabel,
@@ -88,7 +98,6 @@ func NewAttributeDefinition(
 // validation. Only the infrastructure layer should call this.
 func RehydrateAttributeDefinition(
 	id string,
-	categoryID *string,
 	code, name string,
 	groupLabel *string,
 	dataType string,
@@ -100,14 +109,13 @@ func RehydrateAttributeDefinition(
 	deletedAt *time.Time,
 ) *AttributeDefinition {
 	return &AttributeDefinition{
-		id: id, categoryID: categoryID, code: code, name: name, groupLabel: groupLabel,
+		id: id, code: code, name: name, groupLabel: groupLabel,
 		dataType: dataType, unit: unit, options: options, orderIndex: orderIndex, isRequired: isRequired,
 		createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt,
 	}
 }
 
 func (a *AttributeDefinition) ID() string            { return a.id }
-func (a *AttributeDefinition) CategoryID() *string   { return a.categoryID }
 func (a *AttributeDefinition) Code() string          { return a.code }
 func (a *AttributeDefinition) Name() string          { return a.name }
 func (a *AttributeDefinition) GroupLabel() *string   { return a.groupLabel }
@@ -154,8 +162,12 @@ func (a *AttributeDefinition) Restore() {
 	a.updatedAt = time.Now()
 }
 
+// CreateAttributeDefinitionInput deliberately carries no category
+// association — attaching to a category is its own use case (see
+// AttachCategories), same "create, then relate" split as
+// product.CreateProductInput.TagIDs vs. product's own separate tag-management
+// use cases.
 type CreateAttributeDefinitionInput struct {
-	CategoryID *string
 	Code       string
 	Name       string
 	GroupLabel *string
@@ -177,10 +189,13 @@ type UpdateAttributeDefinitionInput struct {
 }
 
 type AttributeDefinitionFilter struct {
+	// CategoryID matches definitions attached to this category via
+	// category_attribute_definitions (see AttachCategories/DetachCategory).
 	CategoryID *string
-	// IncludeGlobal also returns category_id IS NULL definitions alongside
-	// the CategoryID filter's matches — used by the product form to fetch
-	// "this category's attributes plus every universal one" in one call.
+	// IncludeGlobal also returns definitions attached to zero categories
+	// (global, applies everywhere) alongside the CategoryID filter's
+	// matches — used by the product form to fetch "this category's
+	// attributes plus every universal one" in one call.
 	IncludeGlobal  bool
 	IncludeDeleted bool
 }

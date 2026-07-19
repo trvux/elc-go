@@ -7,21 +7,12 @@ import (
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/media"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 // ImageAsset re-exports the shared media type — see product/domain/types.go's
 // identical alias for why this is centralized rather than duplicated.
 type ImageAsset = media.ImageAsset
-
-// Seo is the unified SEO metadata shape stored as jsonb, replacing the old
-// flat MetaTitle/MetaDescription pair (kept alongside during the migration).
-// Duplicated per-module rather than shared, same reasoning as
-// CategoryRef/BrandRef in product/domain/types.go.
-type Seo struct {
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Noindex     bool    `json:"noindex,omitempty"`
-}
 
 type Project struct {
 	id                string
@@ -33,7 +24,6 @@ type Project struct {
 	isPublished       bool
 	metaTitle         *string
 	metaDescription   *string
-	seo               Seo
 	orderIndex        int
 	projectTypeID     *string
 	clientName        string
@@ -139,7 +129,6 @@ func NewProject(
 	images []ImageAsset,
 	isFeatured, isPublished bool,
 	metaTitle, metaDescription *string,
-	seo Seo,
 	orderIndex int,
 	projectTypeID *string,
 	clientName, location string,
@@ -153,6 +142,12 @@ func NewProject(
 	}
 	if errs := validateSlug(slug); len(errs) > 0 {
 		fields["slug"] = errs
+	}
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		fields["metaTitle"] = errs
+	}
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		fields["metaDescription"] = errs
 	}
 
 	if len(fields) > 0 {
@@ -176,7 +171,6 @@ func NewProject(
 		isPublished:       isPublished,
 		metaTitle:         metaTitle,
 		metaDescription:   metaDescription,
-		seo:               seo,
 		orderIndex:        orderIndex,
 		projectTypeID:     projectTypeID,
 		clientName:        clientName,
@@ -197,7 +191,6 @@ func RehydrateProject(
 	images []ImageAsset,
 	isFeatured, isPublished bool,
 	metaTitle, metaDescription *string,
-	seo Seo,
 	orderIndex int,
 	projectTypeID *string,
 	clientName, location string,
@@ -216,7 +209,6 @@ func RehydrateProject(
 		isPublished:       isPublished,
 		metaTitle:         metaTitle,
 		metaDescription:   metaDescription,
-		seo:               seo,
 		orderIndex:        orderIndex,
 		projectTypeID:     projectTypeID,
 		clientName:        clientName,
@@ -239,7 +231,6 @@ func (p *Project) IsFeatured() bool             { return p.isFeatured }
 func (p *Project) IsPublished() bool            { return p.isPublished }
 func (p *Project) MetaTitle() *string           { return p.metaTitle }
 func (p *Project) MetaDescription() *string     { return p.metaDescription }
-func (p *Project) Seo() Seo                     { return p.seo }
 func (p *Project) OrderIndex() int              { return p.orderIndex }
 func (p *Project) ProjectTypeID() *string       { return p.projectTypeID }
 func (p *Project) ClientName() string           { return p.clientName }
@@ -299,19 +290,22 @@ func (p *Project) SetPublished(isPublished bool) {
 	p.updatedAt = time.Now()
 }
 
-func (p *Project) UpdateMetaTitle(metaTitle *string) {
+func (p *Project) UpdateMetaTitle(metaTitle *string) error {
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
+	}
 	p.metaTitle = metaTitle
 	p.updatedAt = time.Now()
+	return nil
 }
 
-func (p *Project) UpdateMetaDescription(metaDescription *string) {
+func (p *Project) UpdateMetaDescription(metaDescription *string) error {
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
+	}
 	p.metaDescription = metaDescription
 	p.updatedAt = time.Now()
-}
-
-func (p *Project) UpdateSeo(seo Seo) {
-	p.seo = seo
-	p.updatedAt = time.Now()
+	return nil
 }
 
 func (p *Project) Reorder(orderIndex int) {
@@ -393,7 +387,6 @@ type CreateProjectInput struct {
 	IsPublished       bool
 	MetaTitle         *string
 	MetaDescription   *string
-	Seo               Seo
 	OrderIndex        int
 	ProjectTypeID     *string
 	ServiceIDs        []string
@@ -416,7 +409,6 @@ type UpdateProjectInput struct {
 	IsPublished     *bool
 	MetaTitle       *string
 	MetaDescription *string
-	Seo             *Seo
 	OrderIndex      *int
 	ProjectTypeID   *string
 	// ServiceIDs/Categories: nil means "leave relations untouched", a

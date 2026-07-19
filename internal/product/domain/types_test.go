@@ -11,12 +11,10 @@ func newTestProduct(t *testing.T) *Product {
 	t.Helper()
 	p, err := NewProduct(
 		"cat-1", "brand-1", "Máy lạnh Daikin", "may-lanh-daikin",
-		nil, nil, nil, nil, nil,
-		false, true, 0,
-		"",
 		nil, nil,
-		Seo{},
-		nil, nil, nil, nil,
+		false, 0,
+		nil, nil,
+		nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -25,13 +23,13 @@ func newTestProduct(t *testing.T) *Product {
 }
 
 func TestNewProduct(t *testing.T) {
-	t.Run("valid input creates a product with defaults", func(t *testing.T) {
+	t.Run("valid input creates a draft product", func(t *testing.T) {
 		p := newTestProduct(t)
 		if p.Name() != "Máy lạnh Daikin" || p.Slug() != "may-lanh-daikin" {
 			t.Errorf("unexpected product: %+v", p)
 		}
-		if p.Condition() != "new" {
-			t.Errorf("expected default condition 'new', got %s", p.Condition())
+		if p.Status() != ProductStatusDraft {
+			t.Errorf("expected new product to start as draft, got %s", p.Status())
 		}
 		if p.IsDeleted() {
 			t.Error("expected new product to not be deleted")
@@ -39,27 +37,22 @@ func TestNewProduct(t *testing.T) {
 	})
 
 	t.Run("empty name fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "", "slug", nil, nil, nil, nil, nil, false, true, 0, "", nil, nil, Seo{}, nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "brand-1", "", "slug", nil, nil, false, 0, nil, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty slug fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "name", "", nil, nil, nil, nil, nil, false, true, 0, "", nil, nil, Seo{}, nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "brand-1", "name", "", nil, nil, false, 0, nil, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty category_id fails validation", func(t *testing.T) {
-		_, err := NewProduct("", "brand-1", "name", "slug", nil, nil, nil, nil, nil, false, true, 0, "", nil, nil, Seo{}, nil, nil, nil, nil)
+		_, err := NewProduct("", "brand-1", "name", "slug", nil, nil, false, 0, nil, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty brand_id fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "", "name", "slug", nil, nil, nil, nil, nil, false, true, 0, "", nil, nil, Seo{}, nil, nil, nil, nil)
-		assertValidationError(t, err)
-	})
-
-	t.Run("invalid condition fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "name", "slug", nil, nil, nil, nil, nil, false, true, 0, "refurbished", nil, nil, Seo{}, nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "", "name", "slug", nil, nil, false, 0, nil, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 }
@@ -89,23 +82,6 @@ func TestProduct_UpdateName(t *testing.T) {
 	}
 }
 
-func TestProduct_UpdateSpecsKeepsInSync(t *testing.T) {
-	p := newTestProduct(t)
-
-	value := "1.5 HP"
-	specs := []SpecItem{{Label: "Công suất", Value: &value}}
-	normalized := NormalizeProductSpecs(p.Name(), specs)
-
-	p.UpdateSpecs(specs, normalized)
-
-	if len(p.Specs()) != 1 {
-		t.Fatalf("expected specs to be set, got %+v", p.Specs())
-	}
-	if len(p.NormalizedSpecs()) == 0 {
-		t.Fatalf("expected normalizedSpecs to be populated, got %+v", p.NormalizedSpecs())
-	}
-}
-
 func TestProduct_MarkDeletedAndRestore(t *testing.T) {
 	p := newTestProduct(t)
 
@@ -123,17 +99,12 @@ func TestProduct_MarkDeletedAndRestore(t *testing.T) {
 	}
 }
 
-func TestProduct_SetFeaturedPublishedReorder(t *testing.T) {
+func TestProduct_SetFeaturedReorder(t *testing.T) {
 	p := newTestProduct(t)
 
 	p.SetFeatured(true)
 	if !p.IsFeatured() {
 		t.Error("expected product to be featured")
-	}
-
-	p.SetPublished(false)
-	if p.IsPublished() {
-		t.Error("expected product to be unpublished")
 	}
 
 	p.Reorder(5)
@@ -142,17 +113,81 @@ func TestProduct_SetFeaturedPublishedReorder(t *testing.T) {
 	}
 }
 
-func TestProduct_UpdateCondition(t *testing.T) {
-	p := newTestProduct(t)
+func TestProduct_StatusTransitions(t *testing.T) {
+	t.Run("happy path: draft -> proposed -> published -> archived -> published", func(t *testing.T) {
+		p := newTestProduct(t)
 
-	if err := p.UpdateCondition("used"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if p.Condition() != "used" {
-		t.Errorf("expected condition 'used', got %s", p.Condition())
-	}
+		if err := p.SubmitForReview(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if p.Status() != ProductStatusProposed {
+			t.Errorf("expected proposed, got %s", p.Status())
+		}
 
-	if err := p.UpdateCondition("refurbished"); err == nil {
-		t.Fatal("expected validation error for invalid condition")
-	}
+		if err := p.Approve(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if p.Status() != ProductStatusPublished {
+			t.Errorf("expected published, got %s", p.Status())
+		}
+
+		if err := p.Archive(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if p.Status() != ProductStatusArchived {
+			t.Errorf("expected archived, got %s", p.Status())
+		}
+
+		if err := p.Unarchive(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if p.Status() != ProductStatusPublished {
+			t.Errorf("expected published after unarchive, got %s", p.Status())
+		}
+	})
+
+	t.Run("reject sends a proposed product back to draft with a reason", func(t *testing.T) {
+		p := newTestProduct(t)
+		if err := p.SubmitForReview(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if err := p.Reject("missing warranty info"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if p.Status() != ProductStatusDraft {
+			t.Errorf("expected draft after reject, got %s", p.Status())
+		}
+		if p.RejectionReason() == nil || *p.RejectionReason() != "missing warranty info" {
+			t.Errorf("expected rejection reason to be set, got %v", p.RejectionReason())
+		}
+	})
+
+	t.Run("approve clears an earlier rejection reason", func(t *testing.T) {
+		p := newTestProduct(t)
+		_ = p.SubmitForReview()
+		_ = p.Reject("fix this")
+		_ = p.SubmitForReview()
+
+		if err := p.Approve(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if p.RejectionReason() != nil {
+			t.Errorf("expected rejection reason cleared after approve, got %v", p.RejectionReason())
+		}
+	})
+
+	t.Run("invalid transitions fail", func(t *testing.T) {
+		p := newTestProduct(t)
+
+		if err := p.Approve(); err == nil {
+			t.Error("expected error approving a draft product")
+		}
+		if err := p.Archive(); err == nil {
+			t.Error("expected error archiving a draft product")
+		}
+		if err := p.Unarchive(); err == nil {
+			t.Error("expected error unarchiving a draft product")
+		}
+	})
 }

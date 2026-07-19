@@ -3,11 +3,53 @@ package application
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
+	attributedomain "github.com/trvux/elc-go/internal/attribute/domain"
 	"github.com/trvux/elc-go/internal/product/domain"
 )
+
+// fakeAttributeDefinitionRepository is a minimal stand-in for
+// validateAttributeValues's dependency — these product tests don't exercise
+// any category-scoped attribute rules, so GetApplicableForCategory always
+// returns none (no required attributes, nothing to violate). Every other
+// method is unused by these tests and just satisfies the interface.
+type fakeAttributeDefinitionRepository struct{}
+
+func newFakeAttributeDefinitionRepository() *fakeAttributeDefinitionRepository {
+	return &fakeAttributeDefinitionRepository{}
+}
+
+func (r *fakeAttributeDefinitionRepository) GetAll(ctx context.Context, filter attributedomain.AttributeDefinitionFilter) ([]*attributedomain.AttributeDefinitionWithCategories, error) {
+	return nil, nil
+}
+func (r *fakeAttributeDefinitionRepository) GetByID(ctx context.Context, id string) (*attributedomain.AttributeDefinitionWithCategories, error) {
+	return nil, nil
+}
+func (r *fakeAttributeDefinitionRepository) GetByIDs(ctx context.Context, ids []string) ([]*attributedomain.AttributeDefinition, error) {
+	return nil, nil
+}
+func (r *fakeAttributeDefinitionRepository) Create(ctx context.Context, definition *attributedomain.AttributeDefinition) (*attributedomain.AttributeDefinition, error) {
+	return definition, nil
+}
+func (r *fakeAttributeDefinitionRepository) Update(ctx context.Context, definition *attributedomain.AttributeDefinition) (*attributedomain.AttributeDefinition, error) {
+	return definition, nil
+}
+func (r *fakeAttributeDefinitionRepository) SoftDelete(ctx context.Context, id string) error {
+	return nil
+}
+func (r *fakeAttributeDefinitionRepository) Restore(ctx context.Context, id string) error {
+	return nil
+}
+func (r *fakeAttributeDefinitionRepository) AttachCategories(ctx context.Context, definitionID string, categoryIDs []string) error {
+	return nil
+}
+func (r *fakeAttributeDefinitionRepository) DetachCategory(ctx context.Context, definitionID, categoryID string) error {
+	return nil
+}
+func (r *fakeAttributeDefinitionRepository) GetApplicableForCategory(ctx context.Context, categoryID string) ([]*attributedomain.AttributeDefinition, error) {
+	return nil, nil
+}
 
 type fakeProductRepository struct {
 	items map[string]*domain.Product
@@ -36,10 +78,7 @@ func (r *fakeProductRepository) GetAll(ctx context.Context, filter domain.Produc
 		if filter.IsFeatured != nil && p.IsFeatured() != *filter.IsFeatured {
 			continue
 		}
-		if filter.IsPublished != nil && p.IsPublished() != *filter.IsPublished {
-			continue
-		}
-		if filter.Search != "" && !strings.Contains(strings.ToLower(p.Name()), strings.ToLower(filter.Search)) {
+		if filter.Status != nil && p.Status() != *filter.Status {
 			continue
 		}
 		result = append(result, toWithRelations(p))
@@ -82,18 +121,20 @@ func (r *fakeProductRepository) GetByIDs(ctx context.Context, ids []string) ([]*
 	return result, nil
 }
 
+func (r *fakeProductRepository) GetByIDsWithAttributeValues(ctx context.Context, ids []string) ([]*domain.ProductWithRelations, error) {
+	return r.GetByIDs(ctx, ids)
+}
+
 func (r *fakeProductRepository) Create(ctx context.Context, product *domain.Product, tagIDs []string, options []domain.ProductOptionInput, variants []domain.ProductVariantInput, attributeValues []domain.ProductAttributeValueInput) (*domain.Product, error) {
 	id := fmt.Sprintf("id-%d", len(r.items)+1)
 	now := time.Now()
 	created := domain.RehydrateProduct(
 		id, product.CategoryID(), product.BrandID(), product.Name(), product.Slug(),
-		product.Description(), product.Specs(), product.NormalizedSpecs(),
-		product.Images(), product.Labels(),
-		product.IsFeatured(), product.IsPublished(), product.OrderIndex(),
-		product.Condition(),
+		product.Description(),
+		product.Images(),
+		product.IsFeatured(), product.Status(), product.RejectionReason(), product.OrderIndex(),
 		product.MetaTitle(), product.MetaDescription(),
-		product.Seo(),
-		product.ProductLineID(), product.ShortDescription(), product.WarrantyMonths(), product.WarrantyTerms(),
+		product.ProductLineID(), product.ShortDescription(),
 		nil, nil, nil, nil, nil, "",
 		now, now, nil,
 	)
@@ -122,8 +163,4 @@ func (r *fakeProductRepository) Restore(ctx context.Context, id string) error {
 	}
 	p.Restore()
 	return nil
-}
-
-func (r *fakeProductRepository) GetAdjacent(ctx context.Context, categoryID, currentID string) (*domain.AdjacentProduct, *domain.AdjacentProduct, error) {
-	return nil, nil, nil
 }

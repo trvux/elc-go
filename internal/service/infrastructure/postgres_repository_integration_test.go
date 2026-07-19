@@ -33,7 +33,7 @@ func TestPostgresServiceRepository_CRUD(t *testing.T) {
 		nil, nil,
 		&originalPrice, &discountPercent, nil,
 		[]string{"moi", "hot"}, nil, content,
-		nil, nil, nil, domain.Seo{}, false, true, 0,
+		nil, nil, nil, false, true, 0,
 	)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
@@ -135,7 +135,7 @@ func TestPostgresServiceRepository_JoinsGroupAndCategory(t *testing.T) {
 		"Join Test Service", "integration-test-service-join-xyz",
 		&groupID, &categoryID,
 		nil, nil, nil, nil, nil, nil,
-		nil, nil, nil, domain.Seo{}, false, true, 0,
+		nil, nil, nil, false, true, 0,
 	)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)

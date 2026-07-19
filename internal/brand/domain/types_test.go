@@ -86,14 +86,3 @@ func TestBrand_MarkDeletedAndRestore(t *testing.T) {
 		t.Error("expected deletedAt to be cleared after restore")
 	}
 }
-
-func TestBrand_SetFAQ(t *testing.T) {
-	b, _ := NewBrand("Apple", "apple", "", nil, nil, false, 0, nil, nil)
-
-	faq := []FAQItem{{Question: "Q1", Answer: "A1"}}
-	b.SetFAQ(faq)
-
-	if len(b.FAQ()) != 1 || b.FAQ()[0].Question != "Q1" {
-		t.Errorf("expected faq to be set, got %+v", b.FAQ())
-	}
-}

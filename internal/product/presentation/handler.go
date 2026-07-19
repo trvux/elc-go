@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	attributedomain "github.com/trvux/elc-go/internal/attribute/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
 	"github.com/trvux/elc-go/internal/product/application"
@@ -15,20 +16,18 @@ import (
 )
 
 type ProductHandler struct {
-	repo domain.ProductRepository
+	repo          domain.ProductRepository
+	attributeRepo attributedomain.AttributeDefinitionRepository
 }
 
-func NewProductHandler(repo domain.ProductRepository) *ProductHandler {
-	return &ProductHandler{repo: repo}
+func NewProductHandler(repo domain.ProductRepository, attributeRepo attributedomain.AttributeDefinitionRepository) *ProductHandler {
+	return &ProductHandler{repo: repo, attributeRepo: attributeRepo}
 }
 
 func parseProductFilter(r *http.Request) (domain.ProductFilter, error) {
 	q := r.URL.Query()
 
 	filter := domain.ProductFilter{
-		Search:         q.Get("search"),
-		SortBy:         q.Get("sort_by"),
-		Condition:      q.Get("condition"),
 		IncludeDeleted: q.Get("include_deleted") == "true",
 	}
 
@@ -44,9 +43,6 @@ func parseProductFilter(r *http.Request) (domain.ProductFilter, error) {
 	if v := q.Get("brand_ids"); v != "" {
 		filter.BrandIDs = splitNonEmpty(v)
 	}
-	if v := q.Get("brand_slugs"); v != "" {
-		filter.BrandSlugs = splitNonEmpty(v)
-	}
 	if v := q.Get("product_line_id"); v != "" {
 		filter.ProductLineID = &v
 	}
@@ -58,13 +54,32 @@ func parseProductFilter(r *http.Request) (domain.ProductFilter, error) {
 		}
 		filter.IsFeatured = &b
 	}
-	if v := q.Get("is_published"); v != "" {
-		b, err := strconv.ParseBool(v)
+	if v := q.Get("status"); v != "" {
+		status := domain.ProductStatus(v)
+		if !status.IsValid() {
+			return filter, apperr.NewValidationError("validation failed", map[string][]string{
+				"status": {"invalid status value"},
+			})
+		}
+		filter.Status = &status
+	}
+
+	if v := q.Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
 		if err != nil {
 			return filter, err
 		}
-		filter.IsPublished = &b
+		filter.Limit = n
 	}
+	if v := q.Get("offset"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return filter, err
+		}
+		filter.Offset = n
+	}
+
+	filter.Search = strings.TrimSpace(q.Get("search"))
 
 	if v := q.Get("min_price"); v != "" {
 		n, err := strconv.ParseInt(v, 10, 64)
@@ -81,34 +96,58 @@ func parseProductFilter(r *http.Request) (domain.ProductFilter, error) {
 		filter.MaxPrice = &n
 	}
 
-	// spec_<label>=<value> query params, repeatable per label — mirrors the
-	// existing elc-tem UI convention. Go's net/url already percent-decodes
-	// both keys and values while parsing the query string, so the Vietnamese
-	// UI labels in the key (e.g. "spec_C%C3%B4ng%20su%E1%BA%A5t") come out
-	// correctly decoded with no extra handling needed here.
-	specs := map[string][]string{}
-	for key, values := range q {
-		if label, ok := strings.CutPrefix(key, "spec_"); ok && label != "" {
-			specs[label] = append(specs[label], values...)
+	if v := q.Get("sort_by"); v != "" {
+		switch v {
+		case domain.SortByPriceAsc, domain.SortByPriceDesc, domain.SortByNewest:
+			filter.SortBy = v
+		default:
+			return filter, apperr.NewValidationError("validation failed", map[string][]string{
+				"sort_by": {"invalid sort_by value"},
+			})
 		}
-	}
-	if len(specs) > 0 {
-		filter.Specs = specs
 	}
 
-	if v := q.Get("limit"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil {
-			return filter, err
+	// attr_<code>=val1,val2 (discrete facets) / attr_<code>_min /
+	// attr_<code>_max (number-range facets) — same comma-joined convention
+	// as brand_ids/category_ids above.
+	for key, values := range q {
+		if len(values) == 0 {
+			continue
 		}
-		filter.Limit = n
-	}
-	if v := q.Get("offset"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil {
-			return filter, err
+		code, hasPrefix := strings.CutPrefix(key, "attr_")
+		if !hasPrefix || code == "" {
+			continue
 		}
-		filter.Offset = n
+		switch {
+		case strings.HasSuffix(code, "_min"):
+			n, err := strconv.ParseFloat(values[0], 64)
+			if err != nil {
+				return filter, err
+			}
+			c := strings.TrimSuffix(code, "_min")
+			if filter.AttributeRanges == nil {
+				filter.AttributeRanges = map[string][2]*float64{}
+			}
+			bounds := filter.AttributeRanges[c]
+			bounds[0] = &n
+			filter.AttributeRanges[c] = bounds
+		case strings.HasSuffix(code, "_max"):
+			n, err := strconv.ParseFloat(values[0], 64)
+			if err != nil {
+				return filter, err
+			}
+			c := strings.TrimSuffix(code, "_max")
+			if filter.AttributeRanges == nil {
+				filter.AttributeRanges = map[string][2]*float64{}
+			}
+			bounds := filter.AttributeRanges[c]
+			bounds[1] = &n
+			filter.AttributeRanges[c] = bounds
+		default:
+			for _, v := range splitNonEmpty(values[0]) {
+				filter.AttributeTokens = append(filter.AttributeTokens, code+":"+v)
+			}
+		}
 	}
 
 	return filter, nil
@@ -189,31 +228,6 @@ func (h *ProductHandler) GetBySlug(w http.ResponseWriter, r *http.Request) {
 	httpserver.WriteJSON(w, http.StatusOK, toProductResponse(p))
 }
 
-func (h *ProductHandler) GetAdjacent(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	current, err := application.GetProductByID(r.Context(), h.repo, id)
-	if err != nil {
-		httpserver.WriteError(w, err)
-		return
-	}
-	if current == nil {
-		httpserver.WriteError(w, apperr.NewNotFoundError("product"))
-		return
-	}
-
-	prev, next, err := application.GetAdjacentProducts(r.Context(), h.repo, current.CategoryID(), current.ID())
-	if err != nil {
-		httpserver.WriteError(w, err)
-		return
-	}
-
-	httpserver.WriteJSON(w, http.StatusOK, adjacentProductsResponse{
-		Prev: toAdjacentProductResponse(prev),
-		Next: toAdjacentProductResponse(next),
-	})
-}
-
 func (h *ProductHandler) GetByIDsBatch(w http.ResponseWriter, r *http.Request) {
 	var req byIDsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -222,6 +236,21 @@ func (h *ProductHandler) GetByIDsBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	products, err := application.GetProductsByIDs(r.Context(), h.repo, req.IDs)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toProductResponseList(products))
+}
+
+// Compare parses a comma-separated `ids` query param (same splitNonEmpty
+// helper as category_ids/brand_ids above) and returns each product with its
+// attribute values attached, for a frontend comparison table.
+func (h *ProductHandler) Compare(w http.ResponseWriter, r *http.Request) {
+	ids := splitNonEmpty(r.URL.Query().Get("ids"))
+
+	products, err := application.CompareProducts(r.Context(), h.repo, ids)
 	if err != nil {
 		httpserver.WriteError(w, err)
 		return
@@ -240,20 +269,18 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 	input := domain.CreateProductInput{
 		CategoryID: req.CategoryID, BrandID: req.BrandID,
 		Name: req.Name, Slug: req.Slug,
-		Description: req.Description, Specs: toSpecItemDomainList(req.Specs),
-		Images: toImageAssetDomainList(req.Images), Labels: req.Labels,
-		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
-		Condition: req.Condition,
-		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription, Seo: toSeoDomain(req.Seo),
+		Description: req.Description,
+		Images:      toImageAssetDomainList(req.Images),
+		IsFeatured:  req.IsFeatured, OrderIndex: req.OrderIndex,
+		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
 		TagIDs:        req.TagIDs,
 		ProductLineID: req.ProductLineID, ShortDescription: req.ShortDescription,
-		WarrantyMonths: req.WarrantyMonths, WarrantyTerms: req.WarrantyTerms,
 		Options:         toProductOptionInputList(req.Options),
 		Variants:        toProductVariantInputList(req.Variants),
 		AttributeValues: toAttributeValueInputList(req.AttributeValues),
 	}
 
-	p, err := application.CreateProduct(r.Context(), h.repo, input)
+	p, err := application.CreateProduct(r.Context(), h.repo, h.attributeRepo, input)
 	if err != nil {
 		httpserver.WriteError(w, err)
 		return
@@ -271,30 +298,94 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var seo *domain.Seo
-	if req.Seo != nil {
-		s := toSeoDomain(*req.Seo)
-		seo = &s
-	}
-
 	input := domain.UpdateProductInput{
 		ID:         id,
 		CategoryID: req.CategoryID, BrandID: req.BrandID,
 		Name: req.Name, Slug: req.Slug,
-		Description: req.Description, Specs: toSpecItemDomainList(req.Specs),
-		Images: toImageAssetDomainList(req.Images), Labels: req.Labels,
-		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
-		Condition: req.Condition,
-		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription, Seo: seo,
+		Description: req.Description,
+		Images:      toImageAssetDomainList(req.Images),
+		IsFeatured:  req.IsFeatured, OrderIndex: req.OrderIndex,
+		MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
 		TagIDs:        req.TagIDs,
 		ProductLineID: req.ProductLineID, ShortDescription: req.ShortDescription,
-		WarrantyMonths: req.WarrantyMonths, WarrantyTerms: req.WarrantyTerms,
 		Options:         toProductOptionInputListPtr(req.Options),
 		Variants:        toProductVariantInputListPtr(req.Variants),
 		AttributeValues: toAttributeValueInputListPtr(req.AttributeValues),
 	}
 
-	p, err := application.UpdateProduct(r.Context(), h.repo, input)
+	p, err := application.UpdateProduct(r.Context(), h.repo, h.attributeRepo, input)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toPlainProductResponse(p))
+}
+
+// rejectProductRequest carries the owner/admin's feedback when sending a
+// proposed product back to draft — see domain.Product.Reject.
+type rejectProductRequest struct {
+	Reason string `json:"reason"`
+}
+
+func (h *ProductHandler) SubmitForReview(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	p, err := application.SubmitProductForReview(r.Context(), h.repo, id)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toPlainProductResponse(p))
+}
+
+func (h *ProductHandler) Approve(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	p, err := application.ApproveProduct(r.Context(), h.repo, id)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toPlainProductResponse(p))
+}
+
+func (h *ProductHandler) Reject(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var req rejectProductRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
+		return
+	}
+
+	p, err := application.RejectProduct(r.Context(), h.repo, id, req.Reason)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toPlainProductResponse(p))
+}
+
+func (h *ProductHandler) Archive(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	p, err := application.ArchiveProduct(r.Context(), h.repo, id)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toPlainProductResponse(p))
+}
+
+func (h *ProductHandler) Unarchive(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	p, err := application.UnarchiveProduct(r.Context(), h.repo, id)
 	if err != nil {
 		httpserver.WriteError(w, err)
 		return

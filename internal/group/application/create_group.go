@@ -14,9 +14,9 @@ func CreateGroup(ctx context.Context, repo domain.GroupRepository, input domain.
 		input.MetaTitle,
 		input.MetaDescription,
 		input.IsFeatured,
+		input.IsHidden,
 		input.OrderIndex,
 		input.Content,
-		input.FAQ,
 	)
 	if err != nil {
 		return nil, err

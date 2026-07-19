@@ -38,14 +38,14 @@ func UpdateGroup(ctx context.Context, repo domain.GroupRepository, input domain.
 	if input.IsFeatured != nil {
 		g.SetFeatured(*input.IsFeatured)
 	}
+	if input.IsHidden != nil {
+		g.SetHidden(*input.IsHidden)
+	}
 	if input.OrderIndex != nil {
 		g.Reorder(*input.OrderIndex)
 	}
 	if input.Content != nil {
 		g.UpdateContent(input.Content)
-	}
-	if input.FAQ != nil {
-		g.SetFAQ(input.FAQ)
 	}
 
 	return repo.Update(ctx, g)

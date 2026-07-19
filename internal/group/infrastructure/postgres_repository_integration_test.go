@@ -26,12 +26,11 @@ func TestPostgresGroupRepository_CRUD(t *testing.T) {
 	repo := NewPostgresGroupRepository(pool)
 
 	content := json.RawMessage(`{"type":"doc","content":[]}`)
-	faq := []domain.FAQItem{{Question: "Bao hanh may nam?", Answer: "2 nam"}}
 	imageUrl := "https://example.com/image.png"
 
 	g, err := domain.NewGroup(
 		"Integration Test Group", "integration-test-group-xyz", &imageUrl,
-		nil, nil, false, 999, content, faq,
+		nil, nil, false, false, 999, content,
 	)
 	if err != nil {
 		t.Fatalf("NewGroup failed: %v", err)
@@ -47,9 +46,6 @@ func TestPostgresGroupRepository_CRUD(t *testing.T) {
 
 	if created.ID() == "" {
 		t.Error("expected created group to have an ID")
-	}
-	if len(created.FAQ()) != 1 || created.FAQ()[0].Answer != "2 nam" {
-		t.Errorf("expected faq to round-trip, got %+v", created.FAQ())
 	}
 	if created.Content() == nil {
 		t.Error("expected content to round-trip")
@@ -96,7 +92,7 @@ func TestPostgresGroupRepository_CRUD(t *testing.T) {
 	// Resurrect-on-create logic: creating a new group with the same slug should resurrect the old one.
 	resInput, err := domain.NewGroup(
 		"Resurrected Group", "integration-test-group-xyz", &imageUrl,
-		nil, nil, true, 100, nil, nil,
+		nil, nil, true, false, 100, nil,
 	)
 	if err != nil {
 		t.Fatalf("NewGroup (resurrect) failed: %v", err)
@@ -128,7 +124,7 @@ func TestPostgresGroupRepository_SoftDeleteCascade(t *testing.T) {
 	repo := NewPostgresGroupRepository(pool)
 
 	// 1. Create group category
-	g, _ := domain.NewGroup("Cascade Test Group", "cascade-test-group-xyz", nil, nil, nil, false, 0, nil, nil)
+	g, _ := domain.NewGroup("Cascade Test Group", "cascade-test-group-xyz", nil, nil, nil, false, false, 0, nil)
 	group, err := repo.Create(ctx, g)
 	if err != nil {
 		t.Fatalf("failed to create group: %v", err)

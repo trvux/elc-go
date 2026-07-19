@@ -7,11 +7,6 @@ import (
 	"github.com/trvux/elc-go/internal/brand/domain"
 )
 
-type faqItemDTO struct {
-	Question string `json:"question"`
-	Answer   string `json:"answer"`
-}
-
 type brandResponse struct {
 	ID              string          `json:"id"`
 	Name            string          `json:"name"`
@@ -22,7 +17,7 @@ type brandResponse struct {
 	IsFeatured      bool            `json:"is_featured"`
 	OrderIndex      int             `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
-	FAQ             []faqItemDTO    `json:"faq"`
+	WarrantyPolicy  *string         `json:"warranty_policy"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 	DeletedAt       *time.Time      `json:"deleted_at"`
@@ -39,7 +34,7 @@ func toBrandResponse(b *domain.Brand) brandResponse {
 		IsFeatured:      b.IsFeatured(),
 		OrderIndex:      b.OrderIndex(),
 		Content:         b.Content(),
-		FAQ:             toFAQDTOList(b.FAQ()),
+		WarrantyPolicy:  b.WarrantyPolicy(),
 		CreatedAt:       b.CreatedAt(),
 		UpdatedAt:       b.UpdatedAt(),
 		DeletedAt:       b.DeletedAt(),
@@ -54,28 +49,6 @@ func toBrandResponseList(brands []*domain.Brand) []brandResponse {
 	return result
 }
 
-func toFAQDTOList(faq []domain.FAQItem) []faqItemDTO {
-	if faq == nil {
-		return nil
-	}
-	result := make([]faqItemDTO, len(faq))
-	for i, item := range faq {
-		result[i] = faqItemDTO{Question: item.Question, Answer: item.Answer}
-	}
-	return result
-}
-
-func toFAQDomainList(faq []faqItemDTO) []domain.FAQItem {
-	if faq == nil {
-		return nil
-	}
-	result := make([]domain.FAQItem, len(faq))
-	for i, item := range faq {
-		result[i] = domain.FAQItem{Question: item.Question, Answer: item.Answer}
-	}
-	return result
-}
-
 type createBrandRequest struct {
 	Name            string          `json:"name"`
 	Slug            string          `json:"slug"`
@@ -85,7 +58,7 @@ type createBrandRequest struct {
 	IsFeatured      bool            `json:"is_featured"`
 	OrderIndex      int             `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
-	FAQ             []faqItemDTO    `json:"faq"`
+	WarrantyPolicy  *string         `json:"warranty_policy,omitempty"`
 }
 
 type updateBrandRequest struct {
@@ -97,5 +70,5 @@ type updateBrandRequest struct {
 	IsFeatured      *bool           `json:"is_featured"`
 	OrderIndex      *int            `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
-	FAQ             []faqItemDTO    `json:"faq"`
+	WarrantyPolicy  *string         `json:"warranty_policy"`
 }

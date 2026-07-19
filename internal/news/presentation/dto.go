@@ -7,20 +7,6 @@ import (
 	"github.com/trvux/elc-go/internal/news/domain"
 )
 
-type seoDTO struct {
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Noindex     bool    `json:"noindex,omitempty"`
-}
-
-func toSeoDTO(seo domain.Seo) seoDTO {
-	return seoDTO{Title: seo.Title, Description: seo.Description, Noindex: seo.Noindex}
-}
-
-func toSeoDomain(seo seoDTO) domain.Seo {
-	return domain.Seo{Title: seo.Title, Description: seo.Description, Noindex: seo.Noindex}
-}
-
 type tagRefResponse struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -50,6 +36,9 @@ func toImageAssetDTOList(images []domain.ImageAsset) []imageAssetDTO {
 }
 
 func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
+	if dtos == nil {
+		return nil
+	}
 	result := make([]domain.ImageAsset, len(dtos))
 	for i, d := range dtos {
 		result[i] = domain.ImageAsset{URL: d.URL, Alt: d.Alt, Caption: d.Caption}
@@ -69,7 +58,6 @@ type newsResponse struct {
 	IsPublished     bool             `json:"is_published"`
 	MetaTitle       *string          `json:"meta_title"`
 	MetaDescription *string          `json:"meta_description"`
-	Seo             seoDTO           `json:"seo"`
 	OrderIndex      int              `json:"order_index"`
 	Tags            []tagRefResponse `json:"tags"`
 	CreatedAt       time.Time        `json:"created_at"`
@@ -90,7 +78,6 @@ func toNewsResponse(n *domain.News) newsResponse {
 		IsPublished:     n.IsPublished(),
 		MetaTitle:       n.MetaTitle(),
 		MetaDescription: n.MetaDescription(),
-		Seo:             toSeoDTO(n.Seo()),
 		OrderIndex:      n.OrderIndex(),
 		Tags:            toTagRefResponseList(n.Tags()),
 		CreatedAt:       n.CreatedAt(),
@@ -118,7 +105,6 @@ type createNewsRequest struct {
 	IsPublished     bool            `json:"is_published"`
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
-	Seo             seoDTO          `json:"seo"`
 	OrderIndex      int             `json:"order_index"`
 	TagIDs          []string        `json:"tag_ids"`
 }
@@ -134,7 +120,6 @@ type updateNewsRequest struct {
 	IsPublished     *bool           `json:"is_published"`
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
-	Seo             *seoDTO         `json:"seo"`
 	OrderIndex      *int            `json:"order_index"`
 	TagIDs          *[]string       `json:"tag_ids"`
 }

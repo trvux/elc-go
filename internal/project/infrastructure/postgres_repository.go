@@ -32,28 +32,8 @@ func NewPostgresProjectRepository(pool *pgxpool.Pool) *PostgresProjectRepository
 // modules/project/infrastructure/projectRepo.ts's mapToDomain).
 const projectColumns = `p.id, p.title, p.description, p.images,
 	COALESCE(p.is_published, false), COALESCE(p.order_index, 0), p.created_at, p.slug, p.updated_at,
-	COALESCE(p.is_featured, false), p.deleted_at, p.meta_title, p.meta_description, p.seo, p.project_type_id,
+	COALESCE(p.is_featured, false), p.deleted_at, p.meta_title, p.meta_description, p.project_type_id,
 	p.client_name, p.location, p.completed_at, p.testimonial_quote, p.testimonial_author`
-
-// marshalSeo/unmarshalSeo hand-roll the jsonb <-> domain.Seo conversion —
-// the shared pool runs pgx.QueryExecModeSimpleProtocol (PgBouncer fix), which
-// can't infer an OID for an arbitrary struct, same reasoning as product's
-// marshalSpecs/unmarshalSpecs. seo is NOT NULL DEFAULT '{}' object-shaped, so
-// an empty/zero Seo marshals to "{}".
-func marshalSeo(seo domain.Seo) (json.RawMessage, error) {
-	return json.Marshal(seo)
-}
-
-func unmarshalSeo(raw []byte) (domain.Seo, error) {
-	var seo domain.Seo
-	if len(raw) == 0 {
-		return seo, nil
-	}
-	if err := json.Unmarshal(raw, &seo); err != nil {
-		return domain.Seo{}, err
-	}
-	return seo, nil
-}
 
 type rowScanner interface {
 	Scan(dest ...any) error
@@ -76,7 +56,6 @@ func scanProject(row rowScanner) (*domain.Project, error) {
 		createdAt, updatedAt                time.Time
 		deletedAt                           *time.Time
 		metaTitle, metaDescription          *string
-		seoRaw                              []byte
 		projectTypeID                       *string
 		clientName, location                string
 		completedAt                         *time.Time
@@ -86,16 +65,12 @@ func scanProject(row rowScanner) (*domain.Project, error) {
 	if err := row.Scan(
 		&id, &title, &description, &imagesRaw,
 		&isPublished, &orderIndex, &createdAt, &slug, &updatedAt,
-		&isFeatured, &deletedAt, &metaTitle, &metaDescription, &seoRaw, &projectTypeID,
+		&isFeatured, &deletedAt, &metaTitle, &metaDescription, &projectTypeID,
 		&clientName, &location, &completedAt, &testimonialQuote, &testimonialAuthor,
 	); err != nil {
 		return nil, err
 	}
 
-	seo, err := unmarshalSeo(seoRaw)
-	if err != nil {
-		return nil, fmt.Errorf("scan project (unmarshal seo): %w", err)
-	}
 	images, err := media.UnmarshalImages(imagesRaw)
 	if err != nil {
 		return nil, fmt.Errorf("scan project (unmarshal images): %w", err)
@@ -103,7 +78,7 @@ func scanProject(row rowScanner) (*domain.Project, error) {
 
 	return domain.RehydrateProject(
 		id, title, slug, description, images,
-		isFeatured, isPublished, metaTitle, metaDescription, seo,
+		isFeatured, isPublished, metaTitle, metaDescription,
 		orderIndex, projectTypeID,
 		clientName, location, completedAt, testimonialQuote, testimonialAuthor,
 		createdAt, updatedAt, deletedAt,
@@ -124,7 +99,6 @@ func scanProjectWithType(row rowScanner) (*domain.Project, *domain.ProjectTypeRe
 		createdAt, updatedAt                time.Time
 		deletedAt                           *time.Time
 		metaTitle, metaDescription          *string
-		seoRaw                              []byte
 		projectTypeID                       *string
 		clientName, location                string
 		completedAt                         *time.Time
@@ -135,17 +109,13 @@ func scanProjectWithType(row rowScanner) (*domain.Project, *domain.ProjectTypeRe
 	if err := row.Scan(
 		&id, &title, &description, &imagesRaw,
 		&isPublished, &orderIndex, &createdAt, &slug, &updatedAt,
-		&isFeatured, &deletedAt, &metaTitle, &metaDescription, &seoRaw, &projectTypeID,
+		&isFeatured, &deletedAt, &metaTitle, &metaDescription, &projectTypeID,
 		&clientName, &location, &completedAt, &testimonialQuote, &testimonialAuthor,
 		&ptID, &ptName, &ptSlug,
 	); err != nil {
 		return nil, nil, err
 	}
 
-	seo, err := unmarshalSeo(seoRaw)
-	if err != nil {
-		return nil, nil, fmt.Errorf("scan project with type (unmarshal seo): %w", err)
-	}
 	images, err := media.UnmarshalImages(imagesRaw)
 	if err != nil {
 		return nil, nil, fmt.Errorf("scan project with type (unmarshal images): %w", err)
@@ -153,7 +123,7 @@ func scanProjectWithType(row rowScanner) (*domain.Project, *domain.ProjectTypeRe
 
 	project := domain.RehydrateProject(
 		id, title, slug, description, images,
-		isFeatured, isPublished, metaTitle, metaDescription, seo,
+		isFeatured, isPublished, metaTitle, metaDescription,
 		orderIndex, projectTypeID,
 		clientName, location, completedAt, testimonialQuote, testimonialAuthor,
 		createdAt, updatedAt, deletedAt,
@@ -582,10 +552,6 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 	}
 	isResurrect := err == nil
 
-	seoJSON, err := marshalSeo(project.Seo())
-	if err != nil {
-		return nil, fmt.Errorf("project repository create (marshal seo): %w", err)
-	}
 	imagesJSON, err := media.MarshalImages(project.Images())
 	if err != nil {
 		return nil, fmt.Errorf("project repository create (marshal images): %w", err)
@@ -597,15 +563,15 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 			UPDATE projects
 			SET title = $1, description = $2, images = $3,
 				is_published = $4, order_index = $5, slug = $6,
-				is_featured = $7, meta_title = $8, meta_description = $9, seo = $10,
-				project_type_id = $11, client_name = $12, location = $13, completed_at = $14,
-				testimonial_quote = $15, testimonial_author = $16, deleted_at = NULL, updated_at = $17
-			WHERE id = $18
+				is_featured = $7, meta_title = $8, meta_description = $9,
+				project_type_id = $10, client_name = $11, location = $12, completed_at = $13,
+				testimonial_quote = $14, testimonial_author = $15, deleted_at = NULL, updated_at = $16
+			WHERE id = $17
 			RETURNING id`
 		if err := tx.QueryRow(ctx, query,
 			project.Title(), project.Description(), imagesJSON,
 			project.IsPublished(), project.OrderIndex(), project.Slug(),
-			project.IsFeatured(), project.MetaTitle(), project.MetaDescription(), seoJSON,
+			project.IsFeatured(), project.MetaTitle(), project.MetaDescription(),
 			project.ProjectTypeID(), project.ClientName(), project.Location(), project.CompletedAt(),
 			project.TestimonialQuote(), project.TestimonialAuthor(), time.Now(), existingID,
 		).Scan(&createdID); err != nil {
@@ -626,13 +592,13 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 		}
 	} else {
 		query := `
-			INSERT INTO projects (title, description, images, is_published, order_index, slug, is_featured, meta_title, meta_description, seo, project_type_id, client_name, location, completed_at, testimonial_quote, testimonial_author)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			INSERT INTO projects (title, description, images, is_published, order_index, slug, is_featured, meta_title, meta_description, project_type_id, client_name, location, completed_at, testimonial_quote, testimonial_author)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 			RETURNING id`
 		if err := tx.QueryRow(ctx, query,
 			project.Title(), project.Description(), imagesJSON,
 			project.IsPublished(), project.OrderIndex(), project.Slug(),
-			project.IsFeatured(), project.MetaTitle(), project.MetaDescription(), seoJSON,
+			project.IsFeatured(), project.MetaTitle(), project.MetaDescription(),
 			project.ProjectTypeID(), project.ClientName(), project.Location(), project.CompletedAt(),
 			project.TestimonialQuote(), project.TestimonialAuthor(),
 		).Scan(&createdID); err != nil {
@@ -671,10 +637,6 @@ func (r *PostgresProjectRepository) Update(ctx context.Context, project *domain.
 	}
 	defer tx.Rollback(ctx)
 
-	seoJSON, err := marshalSeo(project.Seo())
-	if err != nil {
-		return nil, fmt.Errorf("project repository update (marshal seo): %w", err)
-	}
 	imagesJSON, err := media.MarshalImages(project.Images())
 	if err != nil {
 		return nil, fmt.Errorf("project repository update (marshal images): %w", err)
@@ -684,16 +646,16 @@ func (r *PostgresProjectRepository) Update(ctx context.Context, project *domain.
 		UPDATE projects p
 		SET title = $1, description = $2, images = $3,
 			is_published = $4, order_index = $5, slug = $6,
-			is_featured = $7, meta_title = $8, meta_description = $9, seo = $10,
-			project_type_id = $11, client_name = $12, location = $13, completed_at = $14,
-			testimonial_quote = $15, testimonial_author = $16, updated_at = $17
-		WHERE p.id = $18
+			is_featured = $7, meta_title = $8, meta_description = $9,
+			project_type_id = $10, client_name = $11, location = $12, completed_at = $13,
+			testimonial_quote = $14, testimonial_author = $15, updated_at = $16
+		WHERE p.id = $17
 		RETURNING ` + projectColumns
 
 	row := tx.QueryRow(ctx, query,
 		project.Title(), project.Description(), imagesJSON,
 		project.IsPublished(), project.OrderIndex(), project.Slug(),
-		project.IsFeatured(), project.MetaTitle(), project.MetaDescription(), seoJSON,
+		project.IsFeatured(), project.MetaTitle(), project.MetaDescription(),
 		project.ProjectTypeID(), project.ClientName(), project.Location(), project.CompletedAt(),
 		project.TestimonialQuote(), project.TestimonialAuthor(), project.UpdatedAt(), project.ID(),
 	)

@@ -14,7 +14,7 @@ import (
 // {admin, user} set a new permission would, so a new constant would be
 // unwarranted until lead-management access actually needs to diverge from
 // content-write access.
-func RegisterRoutes(r chi.Router, h *InquiryHandler, zaloWebhook *ZaloWebhookHandler, verifier httpserver.TokenVerifier) {
+func RegisterRoutes(r chi.Router, h *InquiryHandler, verifier httpserver.TokenVerifier) {
 	r.Route("/inquiries", func(r chi.Router) {
 		r.Post("/", h.Create)
 
@@ -26,9 +26,5 @@ func RegisterRoutes(r chi.Router, h *InquiryHandler, zaloWebhook *ZaloWebhookHan
 			r.Get("/{id}", h.GetByID)
 			r.Patch("/{id}/status", h.UpdateStatus)
 		})
-
-		// Always mounted regardless of Zalo OA configuration state — see
-		// ZaloWebhookHandler.Receive's doc comment.
-		r.Post("/zalo/webhook", zaloWebhook.Receive)
 	})
 }

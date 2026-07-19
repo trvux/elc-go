@@ -8,13 +8,14 @@ import (
 )
 
 func UpdateAttributeDefinition(ctx context.Context, repo domain.AttributeDefinitionRepository, input domain.UpdateAttributeDefinitionInput) (*domain.AttributeDefinition, error) {
-	def, err := repo.GetByID(ctx, input.ID)
+	existing, err := repo.GetByID(ctx, input.ID)
 	if err != nil {
 		return nil, err
 	}
-	if def == nil {
+	if existing == nil {
 		return nil, apperr.NewNotFoundError("attribute_definition")
 	}
+	def := existing.AttributeDefinition
 
 	name := def.Name()
 	if input.Name != nil {

@@ -42,14 +42,14 @@ func UpdateCategory(ctx context.Context, repo domain.CategoryRepository, input d
 	if input.IsFeatured != nil {
 		c.SetFeatured(*input.IsFeatured)
 	}
+	if input.IsHidden != nil {
+		c.SetHidden(*input.IsHidden)
+	}
 	if input.OrderIndex != nil {
 		c.Reorder(*input.OrderIndex)
 	}
 	if input.Content != nil {
 		c.UpdateContent(input.Content)
-	}
-	if input.FAQ != nil {
-		c.SetFAQ(input.FAQ)
 	}
 
 	return repo.Update(ctx, c)

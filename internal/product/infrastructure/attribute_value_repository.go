@@ -20,9 +20,9 @@ func insertProductAttributeValues(ctx context.Context, tx pgx.Tx, productID stri
 	}
 	for _, v := range values {
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO product_attribute_values (product_id, attribute_definition_id, value_text, value_number, value_boolean)
-			VALUES ($1, $2, $3, $4, $5)`,
-			productID, v.AttributeDefinitionID, v.ValueText, v.ValueNumber, v.ValueBoolean,
+			INSERT INTO product_attribute_values (product_id, attribute_definition_id, value_text, value_number, value_boolean, value_options)
+			VALUES ($1, $2, $3, $4, $5, $6)`,
+			productID, v.AttributeDefinitionID, v.ValueText, v.ValueNumber, v.ValueBoolean, orEmptyStrings(v.ValueOptions),
 		); err != nil {
 			return fmt.Errorf("product repository insertProductAttributeValues: %w", err)
 		}
@@ -30,9 +30,11 @@ func insertProductAttributeValues(ctx context.Context, tx pgx.Tx, productID stri
 	return nil
 }
 
-// attachAttributeValuesToProducts loads the structured spec values for a
-// single-product read (GetByID/GetBySlug ONLY — never GetAll/GetByIDs, which
-// stay a join-free single-table scan, same "list reads don't need this"
+// attachAttributeValuesToProducts loads the structured spec values for one or
+// more products — called with a single-element slice from GetByID/GetBySlug,
+// and with a real multi-product slice from GetByIDsWithAttributeValues
+// (Comparison). Plain GetAll/GetByIDs list reads still don't call this (specs
+// aren't needed for list/card rendering, same "list reads don't need this"
 // reasoning as attachVariantTree, see productJoin's doc comment). Joins
 // directly into attribute_definitions (owned by the sibling internal/
 // attribute module) for the display fields — same cross-module SQL-join
@@ -46,7 +48,7 @@ func attachAttributeValuesToProducts(ctx context.Context, pool *pgxpool.Pool, pr
 
 	rows, err := pool.Query(ctx, `
 		SELECT pav.id, pav.product_id, ad.id, ad.code, ad.name, ad.group_label, ad.data_type, ad.unit, ad.options,
-		       pav.value_text, pav.value_number, pav.value_boolean
+		       pav.value_text, pav.value_number, pav.value_boolean, pav.value_options
 		FROM product_attribute_values pav
 		JOIN attribute_definitions ad ON ad.id = pav.attribute_definition_id AND ad.deleted_at IS NULL
 		WHERE pav.product_id = ANY($1) AND pav.deleted_at IS NULL
@@ -65,10 +67,11 @@ func attachAttributeValuesToProducts(ctx context.Context, pool *pgxpool.Pool, pr
 			valueText                                                  *string
 			valueNumber                                                *float64
 			valueBoolean                                               *bool
+			valueOptions                                               []string
 		)
 		if err := rows.Scan(
 			&id, &productID, &attributeDefinitionID, &code, &name, &groupLabel, &dataType, &unit, &options,
-			&valueText, &valueNumber, &valueBoolean,
+			&valueText, &valueNumber, &valueBoolean, &valueOptions,
 		); err != nil {
 			return fmt.Errorf("product repository attachAttributeValues scan: %w", err)
 		}
@@ -76,6 +79,7 @@ func attachAttributeValuesToProducts(ctx context.Context, pool *pgxpool.Pool, pr
 			ID: id, AttributeDefinitionID: attributeDefinitionID, Code: code, Name: name,
 			GroupLabel: groupLabel, DataType: dataType, Unit: unit, Options: options,
 			ValueText: valueText, ValueNumber: valueNumber, ValueBoolean: valueBoolean,
+			ValueOptions: valueOptions,
 		})
 	}
 	if err := rows.Err(); err != nil {

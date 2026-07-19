@@ -69,7 +69,7 @@ func (r *fakeNewsRepository) Create(ctx context.Context, news *domain.News, tagI
 	now := time.Now()
 	created := domain.RehydrateNews(
 		id, news.Title(), news.Slug(), news.Images(), news.Content(), news.Excerpt(), news.CategoryID(), news.AuthorID(),
-		news.IsPublished(), news.MetaTitle(), news.MetaDescription(), news.Seo(), news.OrderIndex(),
+		news.IsPublished(), news.MetaTitle(), news.MetaDescription(), news.OrderIndex(),
 		now, now, nil,
 	)
 	r.items[id] = created

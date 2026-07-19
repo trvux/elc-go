@@ -25,11 +25,10 @@ func TestPostgresBrandRepository_CRUD(t *testing.T) {
 	repo := NewPostgresBrandRepository(pool)
 
 	content := json.RawMessage(`{"type":"doc","content":[]}`)
-	faq := []domain.FAQItem{{Question: "Bao hanh may nam?", Answer: "2 nam"}}
 
 	b, err := domain.NewBrand(
 		"Integration Test Brand", "integration-test-brand-xyz", "https://example.com/logo.png",
-		nil, nil, false, 999, content, faq,
+		nil, nil, false, 999, content,
 	)
 	if err != nil {
 		t.Fatalf("NewBrand failed: %v", err)
@@ -45,9 +44,6 @@ func TestPostgresBrandRepository_CRUD(t *testing.T) {
 
 	if created.ID() == "" {
 		t.Error("expected created brand to have an ID")
-	}
-	if len(created.FAQ()) != 1 || created.FAQ()[0].Answer != "2 nam" {
-		t.Errorf("expected faq to round-trip, got %+v", created.FAQ())
 	}
 	if created.Content() == nil {
 		t.Error("expected content to round-trip")
@@ -108,7 +104,7 @@ func TestPostgresBrandRepository_CRUD(t *testing.T) {
 	// soft-deleted must succeed as a fresh insert, not a conflict/resurrect.
 	reuseSlugInput, err := domain.NewBrand(
 		"Another Brand Reusing Slug", "integration-test-brand-xyz", "",
-		nil, nil, false, 1, nil, nil,
+		nil, nil, false, 1, nil,
 	)
 	if err != nil {
 		t.Fatalf("NewBrand (slug reuse) failed: %v", err)
@@ -141,7 +137,7 @@ func TestPostgresBrandRepository_SoftDeleteLeavesProductBrandIDIntact(t *testing
 
 	repo := NewPostgresBrandRepository(pool)
 
-	b, err := domain.NewBrand("FK Cleanup Test Brand", "fk-cleanup-test-brand-xyz", "", nil, nil, false, 0, nil, nil)
+	b, err := domain.NewBrand("FK Cleanup Test Brand", "fk-cleanup-test-brand-xyz", "", nil, nil, false, 0, nil)
 	if err != nil {
 		t.Fatalf("NewBrand failed: %v", err)
 	}

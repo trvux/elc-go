@@ -1,11 +1,13 @@
 package domain
 
 // ProductAttributeValueInput is the write-shape for one structured spec
-// value — exactly one of ValueText/ValueNumber/ValueBoolean is populated,
-// matching the referenced attribute_definitions.data_type (validated by the
-// frontend form, which only ever renders one control per attribute; not
-// re-validated here, same trust boundary as ProductVariantInput's price
-// fields). AttributeDefinitionID references a row owned by the sibling
+// value — exactly one of ValueText/ValueNumber/ValueBoolean/ValueOptions is
+// populated, matching the referenced attribute_definitions.data_type
+// (number/text/boolean use their matching scalar field; select uses
+// ValueText; multiselect uses ValueOptions — 0..N of the definition's
+// `options`, not a single scalar). Validated against the definition's actual
+// data_type in application.validateAttributeValues, not by the frontend
+// form alone. AttributeDefinitionID references a row owned by the sibling
 // internal/attribute module — same cross-module-by-ID reference pattern as
 // TagIDs on CreateProductInput.
 type ProductAttributeValueInput struct {
@@ -13,6 +15,7 @@ type ProductAttributeValueInput struct {
 	ValueText             *string
 	ValueNumber           *float64
 	ValueBoolean          *bool
+	ValueOptions          []string
 }
 
 // AttributeValueRef is the read-shape, denormalized with the attribute
@@ -32,4 +35,5 @@ type AttributeValueRef struct {
 	ValueText             *string
 	ValueNumber           *float64
 	ValueBoolean          *bool
+	ValueOptions          []string
 }

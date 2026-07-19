@@ -141,7 +141,6 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		IsPublished:       req.IsPublished,
 		MetaTitle:         req.MetaTitle,
 		MetaDescription:   req.MetaDescription,
-		Seo:               toSeoDomain(req.Seo),
 		OrderIndex:        req.OrderIndex,
 		ProjectTypeID:     req.ProjectTypeID,
 		ServiceIDs:        req.ServiceIDs,
@@ -172,12 +171,6 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var seo *domain.Seo
-	if req.Seo != nil {
-		s := toSeoDomain(*req.Seo)
-		seo = &s
-	}
-
 	input := domain.UpdateProjectInput{
 		ID:                id,
 		Title:             req.Title,
@@ -188,7 +181,6 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 		IsPublished:       req.IsPublished,
 		MetaTitle:         req.MetaTitle,
 		MetaDescription:   req.MetaDescription,
-		Seo:               seo,
 		OrderIndex:        req.OrderIndex,
 		ProjectTypeID:     req.ProjectTypeID,
 		ServiceIDs:        req.ServiceIDs,

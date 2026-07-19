@@ -18,6 +18,8 @@ func RegisterRoutes(r chi.Router, h *AttributeDefinitionHandler, verifier httpse
 			r.Post("/", h.Create)
 			r.Put("/{id}", h.Update)
 			r.Post("/{id}/restore", h.Restore)
+			r.Post("/{id}/categories", h.AttachCategories)
+			r.Delete("/{id}/categories/{categoryId}", h.DetachCategory)
 		})
 
 		r.Group(func(r chi.Router) {

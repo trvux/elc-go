@@ -3,11 +3,12 @@ package application
 import (
 	"context"
 
+	attributedomain "github.com/trvux/elc-go/internal/attribute/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/product/domain"
 )
 
-func UpdateProduct(ctx context.Context, repo domain.ProductRepository, input domain.UpdateProductInput) (*domain.Product, error) {
+func UpdateProduct(ctx context.Context, repo domain.ProductRepository, attributeRepo attributedomain.AttributeDefinitionRepository, input domain.UpdateProductInput) (*domain.Product, error) {
 	existing, err := repo.GetByID(ctx, input.ID)
 	if err != nil {
 		return nil, err
@@ -41,67 +42,31 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, input dom
 		product.UpdateDescription(input.Description)
 	}
 
-	// Specs and normalizedSpecs are resolved together, whenever EITHER the
-	// specs themselves or the (possibly just-updated) name changes —
-	// normalizedSpecs is entirely derived from both, so any name-only change
-	// still needs a recompute (e.g. renaming to include "2HP" should add a
-	// capacity facet even if specs didn't change). Same "resolve unchanged
-	// half to its current value" pattern as service's UpdatePricing.
-	if input.Specs != nil || input.Name != nil {
-		specs := product.Specs()
-		if input.Specs != nil {
-			specs = input.Specs
-		}
-		normalizedSpecs := domain.NormalizeProductSpecs(product.Name(), specs)
-		product.UpdateSpecs(specs, normalizedSpecs)
-	}
-
 	if input.Images != nil {
 		product.UpdateImages(input.Images)
-	}
-	if input.Labels != nil {
-		product.SetLabels(input.Labels)
 	}
 
 	if input.IsFeatured != nil {
 		product.SetFeatured(*input.IsFeatured)
 	}
-	if input.IsPublished != nil {
-		product.SetPublished(*input.IsPublished)
-	}
 	if input.OrderIndex != nil {
 		product.Reorder(*input.OrderIndex)
 	}
-	if input.Condition != nil {
-		if err := product.UpdateCondition(*input.Condition); err != nil {
+	if input.MetaTitle != nil {
+		if err := product.UpdateMetaTitle(input.MetaTitle); err != nil {
 			return nil, err
 		}
 	}
-	if input.MetaTitle != nil {
-		product.UpdateMetaTitle(input.MetaTitle)
-	}
 	if input.MetaDescription != nil {
-		product.UpdateMetaDescription(input.MetaDescription)
-	}
-	if input.Seo != nil {
-		product.UpdateSeo(*input.Seo)
+		if err := product.UpdateMetaDescription(input.MetaDescription); err != nil {
+			return nil, err
+		}
 	}
 	if input.ProductLineID != nil {
 		product.UpdateProductLineID(input.ProductLineID)
 	}
 	if input.ShortDescription != nil {
 		product.UpdateShortDescription(input.ShortDescription)
-	}
-	if input.WarrantyMonths != nil || input.WarrantyTerms != nil {
-		warrantyMonths := product.WarrantyMonths()
-		if input.WarrantyMonths != nil {
-			warrantyMonths = input.WarrantyMonths
-		}
-		warrantyTerms := product.WarrantyTerms()
-		if input.WarrantyTerms != nil {
-			warrantyTerms = input.WarrantyTerms
-		}
-		product.UpdateWarranty(warrantyMonths, warrantyTerms)
 	}
 
 	var variants *[]domain.ProductVariantInput
@@ -111,6 +76,19 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, input dom
 			return nil, err
 		}
 		variants = &resolved
+	}
+
+	// Re-validate against the effective attribute set even when this
+	// request doesn't resend AttributeValues (nil = "leave untouched") —
+	// the category may have changed, or its required-attribute rules may
+	// have changed since this product was last saved.
+	effectiveAttributeValues := input.AttributeValues
+	if effectiveAttributeValues == nil {
+		converted := attributeValueRefsToInputs(existing.AttributeValues)
+		effectiveAttributeValues = &converted
+	}
+	if err := validateAttributeValues(ctx, attributeRepo, product.CategoryID(), *effectiveAttributeValues); err != nil {
+		return nil, err
 	}
 
 	return repo.Update(ctx, product, input.TagIDs, input.Options, variants, input.AttributeValues)
