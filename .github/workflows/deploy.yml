@@ -118,6 +118,16 @@ jobs:
 
             # Cron backup hang dem cho Postgres tu host (volume khong phai la
             # backup) -- idempotent, chi them dong crontab neu chua co.
-            ( crontab -l 2>/dev/null | grep -v 'backup-postgres.sh' ; \
+            #
+            # `|| true` sau grep -v: found 2026-07-19, day la ly do that su
+            # cron bi mat suot 11 ngay ma khong deploy nao bao loi -- khi
+            # crontab chi co dung 1 dong (chinh dong backup-postgres.sh) hoac
+            # rong, grep -v loc het, khong con dong nao -> grep thoat exit 1
+            # (quy uoc cua grep: khong dong nao duoc chon = exit 1). Duoi
+            # `set -e` o dau script, exit 1 nay giet ngay subshell TRUOC KHI
+            # dong echo kip chay, nen `crontab -` nhan stdin rong va ghi de
+            # thanh crontab RONG -- deploy van bao "success" vi day la lenh
+            # cuoi cung, khong co buoc nao sau do de phat hien loi.
+            ( crontab -l 2>/dev/null | grep -v 'backup-postgres.sh' || true ; \
               echo "0 3 * * * /var/www/elc-go/scripts/backup-postgres.sh >> /var/www/elc-go/backups/backup.log 2>&1" \
             ) | crontab -
