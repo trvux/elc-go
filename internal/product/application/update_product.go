@@ -53,10 +53,14 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, attribute
 		product.Reorder(*input.OrderIndex)
 	}
 	if input.MetaTitle != nil {
-		product.UpdateMetaTitle(input.MetaTitle)
+		if err := product.UpdateMetaTitle(input.MetaTitle); err != nil {
+			return nil, err
+		}
 	}
 	if input.MetaDescription != nil {
-		product.UpdateMetaDescription(input.MetaDescription)
+		if err := product.UpdateMetaDescription(input.MetaDescription); err != nil {
+			return nil, err
+		}
 	}
 	if input.ProductLineID != nil {
 		product.UpdateProductLineID(input.ProductLineID)

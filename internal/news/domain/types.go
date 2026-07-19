@@ -8,6 +8,7 @@ import (
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/media"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 // ImageAsset re-exports the shared media type — see product/domain/types.go's
@@ -73,10 +74,10 @@ func NewNews(
 	if errs := validateSlug(slug); len(errs) > 0 {
 		fields["slug"] = errs
 	}
-	if errs := validateMetaTitle(metaTitle); len(errs) > 0 {
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
 		fields["metaTitle"] = errs
 	}
-	if errs := validateMetaDescription(metaDescription); len(errs) > 0 {
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
 		fields["metaDescription"] = errs
 	}
 
@@ -212,7 +213,7 @@ func (n *News) SetPublished(isPublished bool) {
 }
 
 func (n *News) UpdateMetaTitle(metaTitle *string) error {
-	if errs := validateMetaTitle(metaTitle); len(errs) > 0 {
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
 		return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
 	}
 	n.metaTitle = metaTitle
@@ -221,7 +222,7 @@ func (n *News) UpdateMetaTitle(metaTitle *string) error {
 }
 
 func (n *News) UpdateMetaDescription(metaDescription *string) error {
-	if errs := validateMetaDescription(metaDescription); len(errs) > 0 {
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
 		return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
 	}
 	n.metaDescription = metaDescription
@@ -262,20 +263,6 @@ func validateSlug(slug string) []string {
 	}
 	if !slugRegex.MatchString(slug) {
 		return []string{"Slug chỉ được chứa chữ thường, số và dấu gạch ngang"}
-	}
-	return nil
-}
-
-func validateMetaTitle(metaTitle *string) []string {
-	if metaTitle != nil && utf8.RuneCountInString(*metaTitle) > 70 {
-		return []string{"Tiêu đề SEO không nên quá 70 ký tự"}
-	}
-	return nil
-}
-
-func validateMetaDescription(metaDescription *string) []string {
-	if metaDescription != nil && utf8.RuneCountInString(*metaDescription) > 160 {
-		return []string{"Mô tả SEO không nên quá 160 ký tự"}
 	}
 	return nil
 }

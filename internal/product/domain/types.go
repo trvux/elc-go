@@ -6,6 +6,7 @@ import (
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/media"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 // ImageAsset re-exports the shared media type so callers outside this
@@ -164,6 +165,12 @@ func NewProduct(
 	}
 	if errs := validateBrandID(brandID); len(errs) > 0 {
 		fields["brand_id"] = errs
+	}
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		fields["metaTitle"] = errs
+	}
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		fields["metaDescription"] = errs
 	}
 
 	if len(fields) > 0 {
@@ -379,14 +386,22 @@ func (p *Product) Unarchive() error {
 	return nil
 }
 
-func (p *Product) UpdateMetaTitle(metaTitle *string) {
+func (p *Product) UpdateMetaTitle(metaTitle *string) error {
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
+	}
 	p.metaTitle = metaTitle
 	p.updatedAt = time.Now()
+	return nil
 }
 
-func (p *Product) UpdateMetaDescription(metaDescription *string) {
+func (p *Product) UpdateMetaDescription(metaDescription *string) error {
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
+	}
 	p.metaDescription = metaDescription
 	p.updatedAt = time.Now()
+	return nil
 }
 
 func (p *Product) UpdateProductLineID(productLineID *string) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/media"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 // ImageAsset re-exports the shared media type — see product/domain/types.go's
@@ -141,6 +142,12 @@ func NewProject(
 	}
 	if errs := validateSlug(slug); len(errs) > 0 {
 		fields["slug"] = errs
+	}
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		fields["metaTitle"] = errs
+	}
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		fields["metaDescription"] = errs
 	}
 
 	if len(fields) > 0 {
@@ -283,14 +290,22 @@ func (p *Project) SetPublished(isPublished bool) {
 	p.updatedAt = time.Now()
 }
 
-func (p *Project) UpdateMetaTitle(metaTitle *string) {
+func (p *Project) UpdateMetaTitle(metaTitle *string) error {
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
+	}
 	p.metaTitle = metaTitle
 	p.updatedAt = time.Now()
+	return nil
 }
 
-func (p *Project) UpdateMetaDescription(metaDescription *string) {
+func (p *Project) UpdateMetaDescription(metaDescription *string) error {
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
+	}
 	p.metaDescription = metaDescription
 	p.updatedAt = time.Now()
+	return nil
 }
 
 func (p *Project) Reorder(orderIndex int) {
