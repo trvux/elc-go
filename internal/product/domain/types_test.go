@@ -14,7 +14,7 @@ func newTestProduct(t *testing.T) *Product {
 		nil, nil,
 		false, 0,
 		nil, nil,
-		nil, nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -37,22 +37,22 @@ func TestNewProduct(t *testing.T) {
 	})
 
 	t.Run("empty name fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "", "slug", nil, nil, false, 0, nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "brand-1", "", "slug", nil, nil, false, 0, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty slug fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "name", "", nil, nil, false, 0, nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "brand-1", "name", "", nil, nil, false, 0, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty category_id fails validation", func(t *testing.T) {
-		_, err := NewProduct("", "brand-1", "name", "slug", nil, nil, false, 0, nil, nil, nil, nil)
+		_, err := NewProduct("", "brand-1", "name", "slug", nil, nil, false, 0, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty brand_id fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "", "name", "slug", nil, nil, false, 0, nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "", "name", "slug", nil, nil, false, 0, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 }
