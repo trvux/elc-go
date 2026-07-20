@@ -16,6 +16,7 @@ func CreateProduct(ctx context.Context, repo domain.ProductRepository, attribute
 		input.IsFeatured, input.OrderIndex,
 		input.MetaTitle, input.MetaDescription,
 		input.ProductLineID,
+		input.Highlights,
 	)
 	if err != nil {
 		return nil, err

@@ -105,7 +105,7 @@ func TestUpdateProduct_ResendingPreExistingOverLongMetaTitle_NoError(t *testing.
 		nil, nil,
 		false, domain.ProductStatusPublished, nil, 0,
 		&overLongTitle, nil,
-		nil,
+		nil, nil,
 		nil, nil, nil, nil, nil, "",
 		now, now, nil,
 	)

@@ -80,6 +80,7 @@ type productResponse struct {
 	MetaTitle          *string                   `json:"meta_title"`
 	MetaDescription    *string                   `json:"meta_description"`
 	ProductLineID      *string                   `json:"product_line_id"`
+	Highlights         []string                  `json:"highlights"`
 	DefaultVariantID   *string                   `json:"default_variant_id"`
 	DisplayPrice       *int64                    `json:"display_price"`
 	DisplayStockStatus *string                   `json:"display_stock_status"`
@@ -147,6 +148,7 @@ func toPlainProductResponse(p *domain.Product) productResponse {
 		MetaTitle:          p.MetaTitle(),
 		MetaDescription:    p.MetaDescription(),
 		ProductLineID:      p.ProductLineID(),
+		Highlights:         p.Highlights(),
 		DefaultVariantID:   p.DefaultVariantID(),
 		DisplayPrice:       p.DisplayPrice(),
 		DisplayStockStatus: p.DisplayStockStatus(),
@@ -521,6 +523,7 @@ type createProductRequest struct {
 	MetaDescription *string                   `json:"meta_description"`
 	TagIDs          []string                  `json:"tag_ids"`
 	ProductLineID   *string                   `json:"product_line_id,omitempty"`
+	Highlights      []string                  `json:"highlights,omitempty"`
 	Options         []productOptionRequestDTO `json:"options,omitempty"`
 	// Variants must contain at least one entry — see domain.CreateProductInput.
 	Variants        []productVariantRequestDTO `json:"variants,omitempty"`
@@ -543,6 +546,7 @@ type updateProductRequest struct {
 	MetaDescription *string         `json:"meta_description"`
 	TagIDs          *[]string       `json:"tag_ids"`
 	ProductLineID   *string         `json:"product_line_id"`
+	Highlights      []string        `json:"highlights"`
 	// Options/Variants: absent from the JSON body (nil) leaves the variant
 	// tree untouched; present (even as []) replaces it wholesale — same
 	// convention as domain.UpdateProductInput. A present Variants must

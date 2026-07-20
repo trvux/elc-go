@@ -134,7 +134,7 @@ func (r *fakeProductRepository) Create(ctx context.Context, product *domain.Prod
 		product.Images(),
 		product.IsFeatured(), product.Status(), product.RejectionReason(), product.OrderIndex(),
 		product.MetaTitle(), product.MetaDescription(),
-		product.ProductLineID(),
+		product.ProductLineID(), product.Highlights(),
 		nil, nil, nil, nil, nil, "",
 		now, now, nil,
 	)
