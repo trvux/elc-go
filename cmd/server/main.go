@@ -40,8 +40,6 @@ import (
 	"github.com/trvux/elc-go/internal/platform/db"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
 	"github.com/trvux/elc-go/internal/platform/logger"
-	productqainfra "github.com/trvux/elc-go/internal/product-qa/infrastructure"
-	productqapresentation "github.com/trvux/elc-go/internal/product-qa/presentation"
 	productInfra "github.com/trvux/elc-go/internal/product/infrastructure"
 	productPresentation "github.com/trvux/elc-go/internal/product/presentation"
 	projecttypeinfra "github.com/trvux/elc-go/internal/project-type/infrastructure"
@@ -50,6 +48,8 @@ import (
 	projectpresentation "github.com/trvux/elc-go/internal/project/presentation"
 	recentlyviewedinfra "github.com/trvux/elc-go/internal/recently-viewed/infrastructure"
 	recentlyviewedpresentation "github.com/trvux/elc-go/internal/recently-viewed/presentation"
+	reviewinfra "github.com/trvux/elc-go/internal/review/infrastructure"
+	reviewpresentation "github.com/trvux/elc-go/internal/review/presentation"
 	servicegroupinfra "github.com/trvux/elc-go/internal/service-group/infrastructure"
 	servicegrouppresentation "github.com/trvux/elc-go/internal/service-group/presentation"
 	serviceinfra "github.com/trvux/elc-go/internal/service/infrastructure"
@@ -134,6 +134,10 @@ func main() {
 	inquiryHandler := inquirypresentation.NewInquiryHandler(inquiryRepo)
 	inquirypresentation.RegisterRoutes(router, inquiryHandler, tokenIssuer)
 
+	reviewRepo := reviewinfra.NewPostgresReviewRepository(pool)
+	reviewHandler := reviewpresentation.NewReviewHandler(reviewRepo)
+	reviewpresentation.RegisterRoutes(router, reviewHandler, tokenIssuer)
+
 	eventRepo := eventinfra.NewPostgresEventRepository(pool)
 	eventHandler := eventpresentation.NewEventHandler(eventRepo)
 	eventpresentation.RegisterRoutes(router, eventHandler)
@@ -165,10 +169,6 @@ func main() {
 	catalogPageRepo := productInfra.NewPostgresCatalogPageRepository(pool)
 	catalogPageHandler := productPresentation.NewCatalogPageHandler(catalogPageRepo)
 	productPresentation.RegisterCatalogPageRoutes(router, catalogPageHandler, tokenIssuer)
-
-	questionRepo := productqainfra.NewPostgresQuestionRepository(pool)
-	questionHandler := productqapresentation.NewQuestionHandler(questionRepo)
-	productqapresentation.RegisterRoutes(router, questionHandler, tokenIssuer)
 
 	// secureCookies also gates the wishlist/recently-viewed visitor_id
 	// cookie's Secure flag — same production-only rule as auth's
