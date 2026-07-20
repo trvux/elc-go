@@ -30,10 +30,14 @@ func UpdateServiceGroup(ctx context.Context, repo domain.ServiceGroupRepository,
 		serviceGroup.UpdateImageURL(input.ImageURL)
 	}
 	if input.MetaTitle != nil {
-		serviceGroup.UpdateMetaTitle(input.MetaTitle)
+		if err := serviceGroup.UpdateMetaTitle(input.MetaTitle); err != nil {
+			return nil, err
+		}
 	}
 	if input.MetaDescription != nil {
-		serviceGroup.UpdateMetaDescription(input.MetaDescription)
+		if err := serviceGroup.UpdateMetaDescription(input.MetaDescription); err != nil {
+			return nil, err
+		}
 	}
 	if input.IsFeatured != nil {
 		serviceGroup.SetFeatured(*input.IsFeatured)

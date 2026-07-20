@@ -1,7 +1,8 @@
 // Package seo holds the meta title/description length limits shared by
-// every content module (news, product, project) that carries its own SEO
-// fields — before this, only news validated at all (≤70/≤160), so a
-// product/project title written past what Google actually displays would
+// every content module that carries its own SEO fields (news, product,
+// project, brand, category, branch, group, page, project-type, service,
+// service-group, system-page) — before this, only news validated at all
+// (≤70/≤160), so a title written past what Google actually displays would
 // silently get truncated with "..." instead of being caught at write time.
 package seo
 

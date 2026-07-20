@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 type Brand struct {
@@ -44,6 +45,12 @@ func NewBrand(
 	}
 	if errs := validateSlug(slug); len(errs) > 0 {
 		fields["slug"] = errs
+	}
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		fields["metaTitle"] = errs
+	}
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		fields["metaDescription"] = errs
 	}
 
 	if len(fields) > 0 {
@@ -136,14 +143,22 @@ func (b *Brand) UpdateLogoURL(logoURL string) {
 	b.updatedAt = time.Now()
 }
 
-func (b *Brand) UpdateMetaTitle(metaTitle *string) {
+func (b *Brand) UpdateMetaTitle(metaTitle *string) error {
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
+	}
 	b.metaTitle = metaTitle
 	b.updatedAt = time.Now()
+	return nil
 }
 
-func (b *Brand) UpdateMetaDescription(metaDescription *string) {
+func (b *Brand) UpdateMetaDescription(metaDescription *string) error {
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
+	}
 	b.metaDescription = metaDescription
 	b.updatedAt = time.Now()
+	return nil
 }
 
 func (b *Brand) SetFeatured(isFeatured bool) {

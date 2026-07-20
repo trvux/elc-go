@@ -64,10 +64,14 @@ func UpdateBranch(ctx context.Context, repo domain.BranchRepository, input domai
 		b.Reorder(*input.OrderIndex)
 	}
 	if input.MetaTitle != nil {
-		b.UpdateMetaTitle(input.MetaTitle)
+		if err := b.UpdateMetaTitle(input.MetaTitle); err != nil {
+			return nil, err
+		}
 	}
 	if input.MetaDescription != nil {
-		b.UpdateMetaDescription(input.MetaDescription)
+		if err := b.UpdateMetaDescription(input.MetaDescription); err != nil {
+			return nil, err
+		}
 	}
 
 	return repo.Update(ctx, b)

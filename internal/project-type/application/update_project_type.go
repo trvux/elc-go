@@ -31,10 +31,14 @@ func UpdateProjectType(ctx context.Context, repo domain.ProjectTypeRepository, i
 		pt.UpdateImage(input.Image)
 	}
 	if input.MetaTitle != nil {
-		pt.UpdateMetaTitle(input.MetaTitle)
+		if err := pt.UpdateMetaTitle(input.MetaTitle); err != nil {
+			return nil, err
+		}
 	}
 	if input.MetaDescription != nil {
-		pt.UpdateMetaDescription(input.MetaDescription)
+		if err := pt.UpdateMetaDescription(input.MetaDescription); err != nil {
+			return nil, err
+		}
 	}
 	if input.IsFeatured != nil {
 		pt.SetFeatured(*input.IsFeatured)

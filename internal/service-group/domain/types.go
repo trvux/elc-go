@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 type ServiceGroup struct {
@@ -30,6 +31,12 @@ func NewServiceGroup(name, slug string, imageURL, metaTitle, metaDescription *st
 	}
 	if errs := validateSlug(slug); len(errs) > 0 {
 		fields["slug"] = errs
+	}
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		fields["metaTitle"] = errs
+	}
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		fields["metaDescription"] = errs
 	}
 
 	if len(fields) > 0 {
@@ -118,14 +125,22 @@ func (s *ServiceGroup) UpdateImageURL(imageURL *string) {
 	s.updatedAt = time.Now()
 }
 
-func (s *ServiceGroup) UpdateMetaTitle(metaTitle *string) {
+func (s *ServiceGroup) UpdateMetaTitle(metaTitle *string) error {
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
+	}
 	s.metaTitle = metaTitle
 	s.updatedAt = time.Now()
+	return nil
 }
 
-func (s *ServiceGroup) UpdateMetaDescription(metaDescription *string) {
+func (s *ServiceGroup) UpdateMetaDescription(metaDescription *string) error {
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
+	}
 	s.metaDescription = metaDescription
 	s.updatedAt = time.Now()
+	return nil
 }
 
 func (s *ServiceGroup) SetFeatured(isFeatured bool) {

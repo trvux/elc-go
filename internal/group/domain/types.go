@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 type Group struct {
@@ -41,6 +42,12 @@ func NewGroup(
 	}
 	if errs := validateSlug(slug); len(errs) > 0 {
 		fields["slug"] = errs
+	}
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		fields["metaTitle"] = errs
+	}
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		fields["metaDescription"] = errs
 	}
 
 	if len(fields) > 0 {
@@ -134,14 +141,22 @@ func (g *Group) UpdateImageURL(imageUrl *string) {
 	g.updatedAt = time.Now()
 }
 
-func (g *Group) UpdateMetaTitle(metaTitle *string) {
+func (g *Group) UpdateMetaTitle(metaTitle *string) error {
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
+	}
 	g.metaTitle = metaTitle
 	g.updatedAt = time.Now()
+	return nil
 }
 
-func (g *Group) UpdateMetaDescription(metaDescription *string) {
+func (g *Group) UpdateMetaDescription(metaDescription *string) error {
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
+	}
 	g.metaDescription = metaDescription
 	g.updatedAt = time.Now()
+	return nil
 }
 
 func (g *Group) SetFeatured(isFeatured bool) {

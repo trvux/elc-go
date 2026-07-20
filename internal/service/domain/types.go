@@ -6,6 +6,7 @@ import (
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/media"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 // ImageAsset re-exports the shared media type — see product/domain/types.go's
@@ -82,6 +83,12 @@ func NewService(
 	}
 	if errs := validateSlug(slug); len(errs) > 0 {
 		fields["slug"] = errs
+	}
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		fields["metaTitle"] = errs
+	}
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		fields["metaDescription"] = errs
 	}
 
 	if len(fields) > 0 {
@@ -245,14 +252,22 @@ func (s *Service) UpdateImages(images []ImageAsset) {
 	s.updatedAt = time.Now()
 }
 
-func (s *Service) UpdateMetaTitle(metaTitle *string) {
+func (s *Service) UpdateMetaTitle(metaTitle *string) error {
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
+	}
 	s.metaTitle = metaTitle
 	s.updatedAt = time.Now()
+	return nil
 }
 
-func (s *Service) UpdateMetaDescription(metaDescription *string) {
+func (s *Service) UpdateMetaDescription(metaDescription *string) error {
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
+	}
 	s.metaDescription = metaDescription
 	s.updatedAt = time.Now()
+	return nil
 }
 
 func (s *Service) SetFeatured(isFeatured bool) {

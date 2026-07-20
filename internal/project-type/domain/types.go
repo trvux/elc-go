@@ -5,6 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 type ProjectType struct {
@@ -81,6 +82,12 @@ func NewProjectType(
 	}
 	if errs := validateSlug(slug); len(errs) > 0 {
 		fields["slug"] = errs
+	}
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		fields["metaTitle"] = errs
+	}
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		fields["metaDescription"] = errs
 	}
 
 	if len(fields) > 0 {
@@ -165,14 +172,22 @@ func (p *ProjectType) UpdateImage(image *string) {
 	p.updatedAt = time.Now()
 }
 
-func (p *ProjectType) UpdateMetaTitle(metaTitle *string) {
+func (p *ProjectType) UpdateMetaTitle(metaTitle *string) error {
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
+	}
 	p.metaTitle = metaTitle
 	p.updatedAt = time.Now()
+	return nil
 }
 
-func (p *ProjectType) UpdateMetaDescription(metaDescription *string) {
+func (p *ProjectType) UpdateMetaDescription(metaDescription *string) error {
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
+	}
 	p.metaDescription = metaDescription
 	p.updatedAt = time.Now()
+	return nil
 }
 
 func (p *ProjectType) SetFeatured(isFeatured bool) {

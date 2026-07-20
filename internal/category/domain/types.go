@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 type Category struct {
@@ -66,6 +67,12 @@ func NewCategory(
 	}
 	if errs := validateSlug(slug); len(errs) > 0 {
 		fields["slug"] = errs
+	}
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		fields["metaTitle"] = errs
+	}
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		fields["metaDescription"] = errs
 	}
 
 	if len(fields) > 0 {
@@ -168,14 +175,22 @@ func (c *Category) UpdateImageURL(imageUrl *string) {
 	c.updatedAt = time.Now()
 }
 
-func (c *Category) UpdateMetaTitle(metaTitle *string) {
+func (c *Category) UpdateMetaTitle(metaTitle *string) error {
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
+	}
 	c.metaTitle = metaTitle
 	c.updatedAt = time.Now()
+	return nil
 }
 
-func (c *Category) UpdateMetaDescription(metaDescription *string) {
+func (c *Category) UpdateMetaDescription(metaDescription *string) error {
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
+	}
 	c.metaDescription = metaDescription
 	c.updatedAt = time.Now()
+	return nil
 }
 
 func (c *Category) SetFeatured(isFeatured bool) {

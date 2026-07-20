@@ -30,10 +30,14 @@ func UpdateGroup(ctx context.Context, repo domain.GroupRepository, input domain.
 		g.UpdateImageURL(input.ImageURL)
 	}
 	if input.MetaTitle != nil {
-		g.UpdateMetaTitle(input.MetaTitle)
+		if err := g.UpdateMetaTitle(input.MetaTitle); err != nil {
+			return nil, err
+		}
 	}
 	if input.MetaDescription != nil {
-		g.UpdateMetaDescription(input.MetaDescription)
+		if err := g.UpdateMetaDescription(input.MetaDescription); err != nil {
+			return nil, err
+		}
 	}
 	if input.IsFeatured != nil {
 		g.SetFeatured(*input.IsFeatured)

@@ -2,9 +2,9 @@ package domain
 
 import (
 	"time"
-	"unicode/utf8"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 // SystemPage represents SEO metadata for one of a fixed, admin-seeded set of
@@ -46,15 +46,15 @@ func (p *SystemPage) MetaDescription() *string { return p.metaDescription }
 func (p *SystemPage) CreatedAt() time.Time     { return p.createdAt }
 func (p *SystemPage) UpdatedAt() time.Time     { return p.updatedAt }
 
-// UpdateMeta mirrors the TS zod schema's length limits (70/160 chars), the
-// only validation the old module applied.
+// UpdateMeta uses the same length limits as every other content module —
+// see internal/platform/seo.
 func (p *SystemPage) UpdateMeta(metaTitle, metaDescription *string) error {
 	fields := map[string][]string{}
-	if metaTitle != nil && utf8.RuneCountInString(*metaTitle) > 70 {
-		fields["meta_title"] = []string{"meta title must not exceed 70 characters"}
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		fields["meta_title"] = errs
 	}
-	if metaDescription != nil && utf8.RuneCountInString(*metaDescription) > 160 {
-		fields["meta_description"] = []string{"meta description must not exceed 160 characters"}
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		fields["meta_description"] = errs
 	}
 	if len(fields) > 0 {
 		return apperr.NewValidationError("validation failed", fields)
