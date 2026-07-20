@@ -66,6 +66,9 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, attribute
 	if input.ProductLineID != nil {
 		product.UpdateProductLineID(input.ProductLineID)
 	}
+	if input.Highlights != nil {
+		product.UpdateHighlights(input.Highlights)
+	}
 
 	var variants *[]domain.ProductVariantInput
 	if input.Variants != nil {

@@ -124,6 +124,11 @@ type Product struct {
 	metaTitle       *string
 	metaDescription *string
 	productLineID   *string
+	// Đặc điểm nổi bật — short bullet-point claims shown above the
+	// description article on the detail page, distinct from description's
+	// rich-text body. Nil/empty is normal (most products don't have this
+	// written yet); see migration 000017's doc comment.
+	highlights []string
 	// Denormalized read cache of the variant tree — recomputed by the
 	// infrastructure layer whenever a variant changes, never mutated
 	// through this entity's own Update* methods. defaultVariantID/
@@ -157,6 +162,7 @@ func NewProduct(
 	orderIndex int,
 	metaTitle, metaDescription *string,
 	productLineID *string,
+	highlights []string,
 ) (*Product, error) {
 	fields := map[string][]string{}
 
@@ -197,6 +203,7 @@ func NewProduct(
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
 		productLineID:   productLineID,
+		highlights:      highlights,
 		createdAt:       now,
 		updatedAt:       now,
 	}, nil
@@ -214,6 +221,7 @@ func RehydrateProduct(
 	orderIndex int,
 	metaTitle, metaDescription *string,
 	productLineID *string,
+	highlights []string,
 	defaultVariantID *string,
 	displayPrice *int64,
 	displayStockStatus *string,
@@ -230,7 +238,7 @@ func RehydrateProduct(
 		isFeatured:  isFeatured, status: status, rejectionReason: rejectionReason,
 		orderIndex: orderIndex,
 		metaTitle:  metaTitle, metaDescription: metaDescription,
-		productLineID:    productLineID,
+		productLineID: productLineID, highlights: highlights,
 		defaultVariantID: defaultVariantID, displayPrice: displayPrice,
 		displayStockStatus: displayStockStatus, priceMin: priceMin, priceMax: priceMax,
 		variantMpns: variantMpns,
@@ -252,6 +260,7 @@ func (p *Product) OrderIndex() int              { return p.orderIndex }
 func (p *Product) MetaTitle() *string           { return p.metaTitle }
 func (p *Product) MetaDescription() *string     { return p.metaDescription }
 func (p *Product) ProductLineID() *string       { return p.productLineID }
+func (p *Product) Highlights() []string         { return p.highlights }
 func (p *Product) DefaultVariantID() *string    { return p.defaultVariantID }
 func (p *Product) DisplayPrice() *int64         { return p.displayPrice }
 func (p *Product) DisplayStockStatus() *string  { return p.displayStockStatus }
@@ -309,6 +318,11 @@ func (p *Product) UpdateDescription(description json.RawMessage) {
 
 func (p *Product) UpdateImages(images []ImageAsset) {
 	p.images = images
+	p.updatedAt = time.Now()
+}
+
+func (p *Product) UpdateHighlights(highlights []string) {
+	p.highlights = highlights
 	p.updatedAt = time.Now()
 }
 
@@ -473,6 +487,7 @@ type CreateProductInput struct {
 	MetaDescription *string
 	TagIDs          []string
 	ProductLineID   *string
+	Highlights      []string
 	Options         []ProductOptionInput
 	// Variants must contain at least one entry — a product with zero
 	// variants is rejected by the application layer (resolveDefaultVariant),
@@ -500,6 +515,9 @@ type UpdateProductInput struct {
 	MetaDescription *string
 	TagIDs          *[]string
 	ProductLineID   *string
+	// Highlights: nil = leave untouched, non-nil (even []) = replace —
+	// same convention as Images.
+	Highlights []string
 	// Options/Variants: nil = leave the whole variant tree untouched,
 	// non-nil = replace wholesale — same *[]T "replace if present" convention
 	// as TagIDs. Options and Variants are always sent together (a variant's
