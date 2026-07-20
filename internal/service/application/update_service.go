@@ -67,10 +67,14 @@ func UpdateService(ctx context.Context, repo domain.ServiceRepository, input dom
 		service.UpdateImages(input.Images)
 	}
 	if input.MetaTitle != nil {
-		service.UpdateMetaTitle(input.MetaTitle)
+		if err := service.UpdateMetaTitle(input.MetaTitle); err != nil {
+			return nil, err
+		}
 	}
 	if input.MetaDescription != nil {
-		service.UpdateMetaDescription(input.MetaDescription)
+		if err := service.UpdateMetaDescription(input.MetaDescription); err != nil {
+			return nil, err
+		}
 	}
 	if input.IsFeatured != nil {
 		service.SetFeatured(*input.IsFeatured)

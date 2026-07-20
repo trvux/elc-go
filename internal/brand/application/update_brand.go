@@ -30,10 +30,14 @@ func UpdateBrand(ctx context.Context, repo domain.BrandRepository, input domain.
 		brand.UpdateLogoURL(*input.LogoURL)
 	}
 	if input.MetaTitle != nil {
-		brand.UpdateMetaTitle(input.MetaTitle)
+		if err := brand.UpdateMetaTitle(input.MetaTitle); err != nil {
+			return nil, err
+		}
 	}
 	if input.MetaDescription != nil {
-		brand.UpdateMetaDescription(input.MetaDescription)
+		if err := brand.UpdateMetaDescription(input.MetaDescription); err != nil {
+			return nil, err
+		}
 	}
 	if input.IsFeatured != nil {
 		brand.SetFeatured(*input.IsFeatured)

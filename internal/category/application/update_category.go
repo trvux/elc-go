@@ -34,10 +34,14 @@ func UpdateCategory(ctx context.Context, repo domain.CategoryRepository, input d
 		c.UpdateImageURL(input.ImageURL)
 	}
 	if input.MetaTitle != nil {
-		c.UpdateMetaTitle(input.MetaTitle)
+		if err := c.UpdateMetaTitle(input.MetaTitle); err != nil {
+			return nil, err
+		}
 	}
 	if input.MetaDescription != nil {
-		c.UpdateMetaDescription(input.MetaDescription)
+		if err := c.UpdateMetaDescription(input.MetaDescription); err != nil {
+			return nil, err
+		}
 	}
 	if input.IsFeatured != nil {
 		c.SetFeatured(*input.IsFeatured)

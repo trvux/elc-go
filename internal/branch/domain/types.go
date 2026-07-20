@@ -10,6 +10,7 @@ import (
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/media"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 // ImageAsset re-exports the shared media type — see product/domain/types.go's
@@ -69,6 +70,12 @@ func NewBranch(
 	}
 	if errs := validateMapsEmbed(mapsEmbed); len(errs) > 0 {
 		fields["mapsEmbed"] = errs
+	}
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		fields["metaTitle"] = errs
+	}
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		fields["metaDescription"] = errs
 	}
 
 	if len(fields) > 0 {
@@ -232,14 +239,22 @@ func (b *Branch) Reorder(orderIndex int) {
 	b.updatedAt = time.Now()
 }
 
-func (b *Branch) UpdateMetaTitle(title *string) {
+func (b *Branch) UpdateMetaTitle(title *string) error {
+	if errs := seo.ValidateMetaTitle(title); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
+	}
 	b.metaTitle = title
 	b.updatedAt = time.Now()
+	return nil
 }
 
-func (b *Branch) UpdateMetaDescription(desc *string) {
+func (b *Branch) UpdateMetaDescription(desc *string) error {
+	if errs := seo.ValidateMetaDescription(desc); len(errs) > 0 {
+		return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
+	}
 	b.metaDescription = desc
 	b.updatedAt = time.Now()
+	return nil
 }
 
 func (b *Branch) MarkDeleted(deletedAt time.Time) {

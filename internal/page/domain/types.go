@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 type Page struct {
@@ -34,6 +35,12 @@ func NewPage(
 	}
 	if slug == "" {
 		fieldErrors["slug"] = []string{"slug cannot be empty"}
+	}
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		fieldErrors["metaTitle"] = errs
+	}
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		fieldErrors["metaDescription"] = errs
 	}
 	if len(fieldErrors) > 0 {
 		return nil, apperr.NewValidationError("invalid page input", fieldErrors)
@@ -104,6 +111,12 @@ func (p *Page) Update(
 	}
 	if slug == "" {
 		fieldErrors["slug"] = []string{"slug cannot be empty"}
+	}
+	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+		fieldErrors["metaTitle"] = errs
+	}
+	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+		fieldErrors["metaDescription"] = errs
 	}
 	if len(fieldErrors) > 0 {
 		return apperr.NewValidationError("invalid page input", fieldErrors)
