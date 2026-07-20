@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 	"github.com/trvux/elc-go/internal/service/domain"
 )
 
@@ -66,12 +67,12 @@ func UpdateService(ctx context.Context, repo domain.ServiceRepository, input dom
 	if input.Images != nil {
 		service.UpdateImages(input.Images)
 	}
-	if input.MetaTitle != nil {
+	if input.MetaTitle != nil && !seo.Unchanged(service.MetaTitle(), input.MetaTitle) {
 		if err := service.UpdateMetaTitle(input.MetaTitle); err != nil {
 			return nil, err
 		}
 	}
-	if input.MetaDescription != nil {
+	if input.MetaDescription != nil && !seo.Unchanged(service.MetaDescription(), input.MetaDescription) {
 		if err := service.UpdateMetaDescription(input.MetaDescription); err != nil {
 			return nil, err
 		}

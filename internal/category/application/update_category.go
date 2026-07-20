@@ -5,6 +5,7 @@ import (
 
 	"github.com/trvux/elc-go/internal/category/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 func UpdateCategory(ctx context.Context, repo domain.CategoryRepository, input domain.UpdateCategoryInput) (*domain.Category, error) {
@@ -33,12 +34,12 @@ func UpdateCategory(ctx context.Context, repo domain.CategoryRepository, input d
 	if input.ImageURL != nil {
 		c.UpdateImageURL(input.ImageURL)
 	}
-	if input.MetaTitle != nil {
+	if input.MetaTitle != nil && !seo.Unchanged(c.MetaTitle(), input.MetaTitle) {
 		if err := c.UpdateMetaTitle(input.MetaTitle); err != nil {
 			return nil, err
 		}
 	}
-	if input.MetaDescription != nil {
+	if input.MetaDescription != nil && !seo.Unchanged(c.MetaDescription(), input.MetaDescription) {
 		if err := c.UpdateMetaDescription(input.MetaDescription); err != nil {
 			return nil, err
 		}

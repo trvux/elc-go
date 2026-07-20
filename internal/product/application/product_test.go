@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/product/domain"
@@ -84,6 +85,54 @@ func TestUpdateProduct_PartialUpdate(t *testing.T) {
 	}
 	if updated.Name() != newName {
 		t.Errorf("expected name updated, got %s", updated.Name())
+	}
+}
+
+// TestUpdateProduct_ResendingPreExistingOverLongMetaTitle_NoError guards
+// against a real regression: legacy products written before the seo
+// validation existed can have a metaTitle over MaxMetaTitleLength, and
+// every admin save resends the whole form (including untouched fields).
+// Editing an unrelated field (OrderIndex here) must not be blocked by that
+// pre-existing, unrelated meta title.
+func TestUpdateProduct_ResendingPreExistingOverLongMetaTitle_NoError(t *testing.T) {
+	repo := newFakeProductRepository()
+	ctx := context.Background()
+
+	overLongTitle := "This meta title is deliberately far longer than sixty characters allows"
+	now := time.Now()
+	legacy := domain.RehydrateProduct(
+		"legacy-1", "cat-1", "brand-1", "Legacy Product", "legacy-product",
+		nil, nil,
+		false, domain.ProductStatusPublished, nil, 0,
+		&overLongTitle, nil,
+		nil,
+		nil, nil, nil, nil, nil, "",
+		now, now, nil,
+	)
+	repo.items[legacy.ID()] = legacy
+
+	newOrderIndex := 5
+	updated, err := UpdateProduct(ctx, repo, newFakeAttributeDefinitionRepository(), domain.UpdateProductInput{
+		ID:         legacy.ID(),
+		OrderIndex: &newOrderIndex,
+		MetaTitle:  &overLongTitle,
+	})
+	if err != nil {
+		t.Fatalf("expected no error resending an unchanged over-long metaTitle, got %v", err)
+	}
+	if updated.OrderIndex() != newOrderIndex {
+		t.Errorf("expected order index updated, got %d", updated.OrderIndex())
+	}
+
+	// Sanity check the guard actually still fires for a genuinely new,
+	// over-long value.
+	newOverLongTitle := overLongTitle + " and now even longer still"
+	_, err = UpdateProduct(ctx, repo, newFakeAttributeDefinitionRepository(), domain.UpdateProductInput{
+		ID:        legacy.ID(),
+		MetaTitle: &newOverLongTitle,
+	})
+	if err == nil {
+		t.Fatal("expected validation error when actually changing to a new over-long metaTitle")
 	}
 }
 

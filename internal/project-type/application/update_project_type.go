@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 	"github.com/trvux/elc-go/internal/project-type/domain"
 )
 
@@ -30,12 +31,12 @@ func UpdateProjectType(ctx context.Context, repo domain.ProjectTypeRepository, i
 	if input.Image != nil {
 		pt.UpdateImage(input.Image)
 	}
-	if input.MetaTitle != nil {
+	if input.MetaTitle != nil && !seo.Unchanged(pt.MetaTitle(), input.MetaTitle) {
 		if err := pt.UpdateMetaTitle(input.MetaTitle); err != nil {
 			return nil, err
 		}
 	}
-	if input.MetaDescription != nil {
+	if input.MetaDescription != nil && !seo.Unchanged(pt.MetaDescription(), input.MetaDescription) {
 		if err := pt.UpdateMetaDescription(input.MetaDescription); err != nil {
 			return nil, err
 		}

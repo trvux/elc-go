@@ -26,3 +26,16 @@ func ValidateMetaDescription(metaDescription *string) []string {
 	}
 	return nil
 }
+
+// Unchanged reports whether newValue is the same as current (nil-safe).
+// Callers should skip re-validating (and re-writing) a meta field when this
+// is true — every module's edit form resends the whole record on every
+// save, so a pre-existing title/description that already exceeds the limit
+// above would otherwise fail validation on completely unrelated field
+// edits, not just when someone actually changes the SEO copy itself.
+func Unchanged(current, newValue *string) bool {
+	if current == nil || newValue == nil {
+		return current == nil && newValue == nil
+	}
+	return *current == *newValue
+}
