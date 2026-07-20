@@ -65,6 +65,13 @@ type ProductWithRelations struct {
 	// AttributeValues is only ever populated on single-product reads
 	// (GetByID/GetBySlug) — see ProductRepository's doc comment.
 	AttributeValues []AttributeValueRef
+	// CapacitySiblings is only ever populated on single-product reads
+	// (GetByID/GetBySlug) — other published products that are the same
+	// model at a different HP/capacity (see attachCapacitySiblings), never
+	// on GetByIDs/list reads. Nil when there are no siblings (a
+	// single-capacity model), same "don't attach a length-1 selector"
+	// convention as the frontend's variant option switcher.
+	CapacitySiblings []CapacitySibling
 }
 
 // ProductStatus is the publish lifecycle: employees submit a draft for
@@ -103,21 +110,20 @@ func (s ProductStatus) IsValid() bool {
 // variants on ProductVariant" hybrid inconsistent with the rest of the
 // variant model (migration 000005). See docs/product-v2-design.md.
 type Product struct {
-	id               string
-	categoryID       string
-	brandID          string
-	name             string
-	slug             string
-	description      json.RawMessage
-	images           []ImageAsset
-	isFeatured       bool
-	status           ProductStatus
-	rejectionReason  *string
-	orderIndex       int
-	metaTitle        *string
-	metaDescription  *string
-	productLineID    *string
-	shortDescription *string
+	id              string
+	categoryID      string
+	brandID         string
+	name            string
+	slug            string
+	description     json.RawMessage
+	images          []ImageAsset
+	isFeatured      bool
+	status          ProductStatus
+	rejectionReason *string
+	orderIndex      int
+	metaTitle       *string
+	metaDescription *string
+	productLineID   *string
 	// Denormalized read cache of the variant tree — recomputed by the
 	// infrastructure layer whenever a variant changes, never mutated
 	// through this entity's own Update* methods. defaultVariantID/
@@ -150,7 +156,7 @@ func NewProduct(
 	isFeatured bool,
 	orderIndex int,
 	metaTitle, metaDescription *string,
-	productLineID, shortDescription *string,
+	productLineID *string,
 ) (*Product, error) {
 	fields := map[string][]string{}
 
@@ -179,21 +185,20 @@ func NewProduct(
 
 	now := time.Now()
 	return &Product{
-		categoryID:       categoryID,
-		brandID:          brandID,
-		name:             name,
-		slug:             slug,
-		description:      description,
-		images:           images,
-		isFeatured:       isFeatured,
-		status:           ProductStatusDraft,
-		orderIndex:       orderIndex,
-		metaTitle:        metaTitle,
-		metaDescription:  metaDescription,
-		productLineID:    productLineID,
-		shortDescription: shortDescription,
-		createdAt:        now,
-		updatedAt:        now,
+		categoryID:      categoryID,
+		brandID:         brandID,
+		name:            name,
+		slug:            slug,
+		description:     description,
+		images:          images,
+		isFeatured:      isFeatured,
+		status:          ProductStatusDraft,
+		orderIndex:      orderIndex,
+		metaTitle:       metaTitle,
+		metaDescription: metaDescription,
+		productLineID:   productLineID,
+		createdAt:       now,
+		updatedAt:       now,
 	}, nil
 }
 
@@ -208,7 +213,7 @@ func RehydrateProduct(
 	rejectionReason *string,
 	orderIndex int,
 	metaTitle, metaDescription *string,
-	productLineID, shortDescription *string,
+	productLineID *string,
 	defaultVariantID *string,
 	displayPrice *int64,
 	displayStockStatus *string,
@@ -225,7 +230,7 @@ func RehydrateProduct(
 		isFeatured:  isFeatured, status: status, rejectionReason: rejectionReason,
 		orderIndex: orderIndex,
 		metaTitle:  metaTitle, metaDescription: metaDescription,
-		productLineID: productLineID, shortDescription: shortDescription,
+		productLineID:    productLineID,
 		defaultVariantID: defaultVariantID, displayPrice: displayPrice,
 		displayStockStatus: displayStockStatus, priceMin: priceMin, priceMax: priceMax,
 		variantMpns: variantMpns,
@@ -247,7 +252,6 @@ func (p *Product) OrderIndex() int              { return p.orderIndex }
 func (p *Product) MetaTitle() *string           { return p.metaTitle }
 func (p *Product) MetaDescription() *string     { return p.metaDescription }
 func (p *Product) ProductLineID() *string       { return p.productLineID }
-func (p *Product) ShortDescription() *string    { return p.shortDescription }
 func (p *Product) DefaultVariantID() *string    { return p.defaultVariantID }
 func (p *Product) DisplayPrice() *int64         { return p.displayPrice }
 func (p *Product) DisplayStockStatus() *string  { return p.displayStockStatus }
@@ -409,11 +413,6 @@ func (p *Product) UpdateProductLineID(productLineID *string) {
 	p.updatedAt = time.Now()
 }
 
-func (p *Product) UpdateShortDescription(shortDescription *string) {
-	p.shortDescription = shortDescription
-	p.updatedAt = time.Now()
-}
-
 func (p *Product) MarkDeleted(deletedAt time.Time) {
 	p.deletedAt = &deletedAt
 }
@@ -462,20 +461,19 @@ func validateBrandID(brandID string) []string {
 // advances through the dedicated submit/approve/reject/archive endpoints
 // (see ProductStatus doc comment), never through create/update payloads.
 type CreateProductInput struct {
-	CategoryID       string
-	BrandID          string
-	Name             string
-	Slug             string
-	Description      json.RawMessage
-	Images           []ImageAsset
-	IsFeatured       bool
-	OrderIndex       int
-	MetaTitle        *string
-	MetaDescription  *string
-	TagIDs           []string
-	ProductLineID    *string
-	ShortDescription *string
-	Options          []ProductOptionInput
+	CategoryID      string
+	BrandID         string
+	Name            string
+	Slug            string
+	Description     json.RawMessage
+	Images          []ImageAsset
+	IsFeatured      bool
+	OrderIndex      int
+	MetaTitle       *string
+	MetaDescription *string
+	TagIDs          []string
+	ProductLineID   *string
+	Options         []ProductOptionInput
 	// Variants must contain at least one entry — a product with zero
 	// variants is rejected by the application layer (resolveDefaultVariant),
 	// not silently accepted. See the Product doc comment above.
@@ -489,20 +487,19 @@ type CreateProductInput struct {
 // clears it). Deliberately no status field — see CreateProductInput's doc
 // comment; status only moves through submit/approve/reject/archive.
 type UpdateProductInput struct {
-	ID               string
-	CategoryID       *string
-	BrandID          *string
-	Name             *string
-	Slug             *string
-	Description      json.RawMessage
-	Images           []ImageAsset
-	IsFeatured       *bool
-	OrderIndex       *int
-	MetaTitle        *string
-	MetaDescription  *string
-	TagIDs           *[]string
-	ProductLineID    *string
-	ShortDescription *string
+	ID              string
+	CategoryID      *string
+	BrandID         *string
+	Name            *string
+	Slug            *string
+	Description     json.RawMessage
+	Images          []ImageAsset
+	IsFeatured      *bool
+	OrderIndex      *int
+	MetaTitle       *string
+	MetaDescription *string
+	TagIDs          *[]string
+	ProductLineID   *string
 	// Options/Variants: nil = leave the whole variant tree untouched,
 	// non-nil = replace wholesale — same *[]T "replace if present" convention
 	// as TagIDs. Options and Variants are always sent together (a variant's

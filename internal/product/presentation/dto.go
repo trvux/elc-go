@@ -66,35 +66,35 @@ type brandRefResponse struct {
 }
 
 type productResponse struct {
-	ID                 string                   `json:"id"`
-	CategoryID         string                   `json:"category_id"`
-	BrandID            string                   `json:"brand_id"`
-	Name               string                   `json:"name"`
-	Slug               string                   `json:"slug"`
-	Description        json.RawMessage          `json:"description"`
-	Images             []imageAssetDTO          `json:"images"`
-	IsFeatured         bool                     `json:"is_featured"`
-	Status             string                   `json:"status"`
-	RejectionReason    *string                  `json:"rejection_reason"`
-	OrderIndex         int                      `json:"order_index"`
-	MetaTitle          *string                  `json:"meta_title"`
-	MetaDescription    *string                  `json:"meta_description"`
-	ProductLineID      *string                  `json:"product_line_id"`
-	ShortDescription   *string                  `json:"short_description"`
-	DefaultVariantID   *string                  `json:"default_variant_id"`
-	DisplayPrice       *int64                   `json:"display_price"`
-	DisplayStockStatus *string                  `json:"display_stock_status"`
-	PriceMin           *int64                   `json:"price_min"`
-	PriceMax           *int64                   `json:"price_max"`
-	CreatedAt          time.Time                `json:"created_at"`
-	UpdatedAt          time.Time                `json:"updated_at"`
-	DeletedAt          *time.Time               `json:"deleted_at"`
-	Category           *categoryRefResponse     `json:"category"`
-	Brand              *brandRefResponse        `json:"brand"`
-	Tags               []tagRefResponse         `json:"tags"`
-	Options            []productOptionResponse  `json:"options,omitempty"`
-	Variants           []productVariantResponse `json:"variants,omitempty"`
-	AttributeValues    []attributeValueResponse `json:"attribute_values,omitempty"`
+	ID                 string                    `json:"id"`
+	CategoryID         string                    `json:"category_id"`
+	BrandID            string                    `json:"brand_id"`
+	Name               string                    `json:"name"`
+	Slug               string                    `json:"slug"`
+	Description        json.RawMessage           `json:"description"`
+	Images             []imageAssetDTO           `json:"images"`
+	IsFeatured         bool                      `json:"is_featured"`
+	Status             string                    `json:"status"`
+	RejectionReason    *string                   `json:"rejection_reason"`
+	OrderIndex         int                       `json:"order_index"`
+	MetaTitle          *string                   `json:"meta_title"`
+	MetaDescription    *string                   `json:"meta_description"`
+	ProductLineID      *string                   `json:"product_line_id"`
+	DefaultVariantID   *string                   `json:"default_variant_id"`
+	DisplayPrice       *int64                    `json:"display_price"`
+	DisplayStockStatus *string                   `json:"display_stock_status"`
+	PriceMin           *int64                    `json:"price_min"`
+	PriceMax           *int64                    `json:"price_max"`
+	CreatedAt          time.Time                 `json:"created_at"`
+	UpdatedAt          time.Time                 `json:"updated_at"`
+	DeletedAt          *time.Time                `json:"deleted_at"`
+	Category           *categoryRefResponse      `json:"category"`
+	Brand              *brandRefResponse         `json:"brand"`
+	Tags               []tagRefResponse          `json:"tags"`
+	Options            []productOptionResponse   `json:"options,omitempty"`
+	Variants           []productVariantResponse  `json:"variants,omitempty"`
+	AttributeValues    []attributeValueResponse  `json:"attribute_values,omitempty"`
+	CapacitySiblings   []capacitySiblingResponse `json:"capacity_siblings,omitempty"`
 }
 
 func toProductResponse(p *domain.ProductWithRelations) productResponse {
@@ -122,6 +122,9 @@ func toProductResponse(p *domain.ProductWithRelations) productResponse {
 	if p.AttributeValues != nil {
 		resp.AttributeValues = toAttributeValueResponseList(p.AttributeValues)
 	}
+	if p.CapacitySiblings != nil {
+		resp.CapacitySiblings = toCapacitySiblingResponseList(p.CapacitySiblings)
+	}
 	return resp
 }
 
@@ -144,7 +147,6 @@ func toPlainProductResponse(p *domain.Product) productResponse {
 		MetaTitle:          p.MetaTitle(),
 		MetaDescription:    p.MetaDescription(),
 		ProductLineID:      p.ProductLineID(),
-		ShortDescription:   p.ShortDescription(),
 		DefaultVariantID:   p.DefaultVariantID(),
 		DisplayPrice:       p.DisplayPrice(),
 		DisplayStockStatus: p.DisplayStockStatus(),
@@ -485,24 +487,41 @@ func toAttributeValueResponseList(refs []domain.AttributeValueRef) []attributeVa
 	return result
 }
 
+type capacitySiblingResponse struct {
+	ID            string `json:"id"`
+	Slug          string `json:"slug"`
+	Name          string `json:"name"`
+	CapacityLabel string `json:"capacity_label"`
+	IsCurrent     bool   `json:"is_current"`
+}
+
+func toCapacitySiblingResponseList(siblings []domain.CapacitySibling) []capacitySiblingResponse {
+	result := make([]capacitySiblingResponse, len(siblings))
+	for i, s := range siblings {
+		result[i] = capacitySiblingResponse{
+			ID: s.ID, Slug: s.Slug, Name: s.Name, CapacityLabel: s.CapacityLabel, IsCurrent: s.IsCurrent,
+		}
+	}
+	return result
+}
+
 // createProductRequest deliberately carries no status field — a created
 // product always starts as draft, see domain.CreateProductInput's doc
 // comment.
 type createProductRequest struct {
-	CategoryID       string                    `json:"category_id"`
-	BrandID          string                    `json:"brand_id"`
-	Name             string                    `json:"name"`
-	Slug             string                    `json:"slug"`
-	Description      json.RawMessage           `json:"description"`
-	Images           []imageAssetDTO           `json:"images"`
-	IsFeatured       bool                      `json:"is_featured"`
-	OrderIndex       int                       `json:"order_index"`
-	MetaTitle        *string                   `json:"meta_title"`
-	MetaDescription  *string                   `json:"meta_description"`
-	TagIDs           []string                  `json:"tag_ids"`
-	ProductLineID    *string                   `json:"product_line_id,omitempty"`
-	ShortDescription *string                   `json:"short_description,omitempty"`
-	Options          []productOptionRequestDTO `json:"options,omitempty"`
+	CategoryID      string                    `json:"category_id"`
+	BrandID         string                    `json:"brand_id"`
+	Name            string                    `json:"name"`
+	Slug            string                    `json:"slug"`
+	Description     json.RawMessage           `json:"description"`
+	Images          []imageAssetDTO           `json:"images"`
+	IsFeatured      bool                      `json:"is_featured"`
+	OrderIndex      int                       `json:"order_index"`
+	MetaTitle       *string                   `json:"meta_title"`
+	MetaDescription *string                   `json:"meta_description"`
+	TagIDs          []string                  `json:"tag_ids"`
+	ProductLineID   *string                   `json:"product_line_id,omitempty"`
+	Options         []productOptionRequestDTO `json:"options,omitempty"`
 	// Variants must contain at least one entry — see domain.CreateProductInput.
 	Variants        []productVariantRequestDTO `json:"variants,omitempty"`
 	AttributeValues []attributeValueRequestDTO `json:"attribute_values,omitempty"`
@@ -512,19 +531,18 @@ type createProductRequest struct {
 // moves through the dedicated submit/approve/reject/archive endpoints, see
 // domain.UpdateProductInput's doc comment.
 type updateProductRequest struct {
-	CategoryID       *string         `json:"category_id"`
-	BrandID          *string         `json:"brand_id"`
-	Name             *string         `json:"name"`
-	Slug             *string         `json:"slug"`
-	Description      json.RawMessage `json:"description"`
-	Images           []imageAssetDTO `json:"images"`
-	IsFeatured       *bool           `json:"is_featured"`
-	OrderIndex       *int            `json:"order_index"`
-	MetaTitle        *string         `json:"meta_title"`
-	MetaDescription  *string         `json:"meta_description"`
-	TagIDs           *[]string       `json:"tag_ids"`
-	ProductLineID    *string         `json:"product_line_id"`
-	ShortDescription *string         `json:"short_description"`
+	CategoryID      *string         `json:"category_id"`
+	BrandID         *string         `json:"brand_id"`
+	Name            *string         `json:"name"`
+	Slug            *string         `json:"slug"`
+	Description     json.RawMessage `json:"description"`
+	Images          []imageAssetDTO `json:"images"`
+	IsFeatured      *bool           `json:"is_featured"`
+	OrderIndex      *int            `json:"order_index"`
+	MetaTitle       *string         `json:"meta_title"`
+	MetaDescription *string         `json:"meta_description"`
+	TagIDs          *[]string       `json:"tag_ids"`
+	ProductLineID   *string         `json:"product_line_id"`
 	// Options/Variants: absent from the JSON body (nil) leaves the variant
 	// tree untouched; present (even as []) replaces it wholesale — same
 	// convention as domain.UpdateProductInput. A present Variants must

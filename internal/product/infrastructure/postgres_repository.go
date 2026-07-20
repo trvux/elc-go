@@ -117,7 +117,7 @@ const productColumns = `p.id, p.category_id, p.brand_id, p.name, p.slug,
 	p.images,
 	p.is_featured, p.status, p.rejection_reason, p.order_index,
 	p.meta_title, p.meta_description,
-	p.product_line_id, p.short_description,
+	p.product_line_id,
 	p.default_variant_id, p.display_price, p.display_stock_status, p.price_min, p.price_max, p.variant_mpns,
 	p.created_at, p.updated_at, p.deleted_at,
 	c.id, c.name, c.slug, c.meta_title, c.meta_description,
@@ -143,7 +143,7 @@ const plainProductColumns = `id, category_id, brand_id, name, slug, description,
 	images,
 	is_featured, status, rejection_reason, order_index,
 	meta_title, meta_description,
-	product_line_id, short_description,
+	product_line_id,
 	default_variant_id, display_price, display_stock_status, price_min, price_max, variant_mpns,
 	created_at, updated_at, deleted_at`
 
@@ -415,6 +415,9 @@ func (r *PostgresProductRepository) GetByID(ctx context.Context, id string) (*do
 	if err := attachAttributeValuesToProducts(ctx, r.pool, []*domain.ProductWithRelations{p}); err != nil {
 		return nil, err
 	}
+	if err := attachCapacitySiblings(ctx, r.pool, p); err != nil {
+		return nil, err
+	}
 	return p, nil
 }
 
@@ -436,6 +439,9 @@ func (r *PostgresProductRepository) GetBySlug(ctx context.Context, slug string) 
 		return nil, err
 	}
 	if err := attachAttributeValuesToProducts(ctx, r.pool, []*domain.ProductWithRelations{p}); err != nil {
+		return nil, err
+	}
+	if err := attachCapacitySiblings(ctx, r.pool, p); err != nil {
 		return nil, err
 	}
 	return p, nil
@@ -510,9 +516,9 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 			images,
 			is_featured, status, rejection_reason, order_index,
 			meta_title, meta_description,
-			product_line_id, short_description
+			product_line_id
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 		RETURNING ` + plainProductColumns
 
 	imagesJSON, err := media.MarshalImages(product.Images())
@@ -526,7 +532,7 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 		imagesJSON,
 		product.IsFeatured(), string(product.Status()), product.RejectionReason(), product.OrderIndex(),
 		product.MetaTitle(), product.MetaDescription(),
-		product.ProductLineID(), product.ShortDescription(),
+		product.ProductLineID(),
 	)
 	created, err := scanProduct(row)
 	if err != nil {
@@ -578,8 +584,8 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 			images = $6,
 			is_featured = $7, status = $8, rejection_reason = $9, order_index = $10,
 			meta_title = $11, meta_description = $12,
-			product_line_id = $13, short_description = $14
-		WHERE id = $15
+			product_line_id = $13
+		WHERE id = $14
 		RETURNING ` + plainProductColumns
 
 	imagesJSON, err := media.MarshalImages(product.Images())
@@ -593,7 +599,7 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 		imagesJSON,
 		product.IsFeatured(), string(product.Status()), product.RejectionReason(), product.OrderIndex(),
 		product.MetaTitle(), product.MetaDescription(),
-		product.ProductLineID(), product.ShortDescription(),
+		product.ProductLineID(),
 		product.ID(),
 	)
 	updated, err := scanProduct(row)
@@ -720,7 +726,7 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 		rejectionReason                      *string
 		orderIndex                           int
 		metaTitle, metaDescription           *string
-		productLineID, shortDescription      *string
+		productLineID                        *string
 		defaultVariantID, displayStockStatus *string
 		displayPrice, priceMin, priceMax     *int64
 		variantMpns                          string
@@ -734,7 +740,7 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 		&imagesRaw,
 		&isFeatured, &status, &rejectionReason, &orderIndex,
 		&metaTitle, &metaDescription,
-		&productLineID, &shortDescription,
+		&productLineID,
 		&defaultVariantID, &displayPrice, &displayStockStatus, &priceMin, &priceMax, &variantMpns,
 		&createdAt, &updatedAt, &deletedAt,
 	); err != nil {
@@ -752,7 +758,7 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 		images,
 		isFeatured, domain.ProductStatus(status), rejectionReason, orderIndex,
 		metaTitle, metaDescription,
-		productLineID, shortDescription,
+		productLineID,
 		defaultVariantID, displayPrice, displayStockStatus, priceMin, priceMax, variantMpns,
 		createdAt, updatedAt, deletedAt,
 	), nil
@@ -769,7 +775,7 @@ func scanProductWithRelationsRow(row rowScanner) (*domain.ProductWithRelations, 
 		rejectionReason                      *string
 		orderIndex                           int
 		metaTitle, metaDescription           *string
-		productLineID, shortDescription      *string
+		productLineID                        *string
 		defaultVariantID, displayStockStatus *string
 		displayPrice, priceMin, priceMax     *int64
 		variantMpns                          string
@@ -789,7 +795,7 @@ func scanProductWithRelationsRow(row rowScanner) (*domain.ProductWithRelations, 
 		&imagesRaw,
 		&isFeatured, &status, &rejectionReason, &orderIndex,
 		&metaTitle, &metaDescription,
-		&productLineID, &shortDescription,
+		&productLineID,
 		&defaultVariantID, &displayPrice, &displayStockStatus, &priceMin, &priceMax, &variantMpns,
 		&createdAt, &updatedAt, &deletedAt,
 		&catID, &catName, &catSlug, &catMetaTitle, &catMetaDescription,
@@ -811,7 +817,7 @@ func scanProductWithRelationsRow(row rowScanner) (*domain.ProductWithRelations, 
 		images,
 		isFeatured, domain.ProductStatus(status), rejectionReason, orderIndex,
 		metaTitle, metaDescription,
-		productLineID, shortDescription,
+		productLineID,
 		defaultVariantID, displayPrice, displayStockStatus, priceMin, priceMax, variantMpns,
 		createdAt, updatedAt, deletedAt,
 	)
