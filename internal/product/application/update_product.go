@@ -5,6 +5,7 @@ import (
 
 	attributedomain "github.com/trvux/elc-go/internal/attribute/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 	"github.com/trvux/elc-go/internal/product/domain"
 )
 
@@ -52,12 +53,12 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, attribute
 	if input.OrderIndex != nil {
 		product.Reorder(*input.OrderIndex)
 	}
-	if input.MetaTitle != nil {
+	if input.MetaTitle != nil && !seo.Unchanged(product.MetaTitle(), input.MetaTitle) {
 		if err := product.UpdateMetaTitle(input.MetaTitle); err != nil {
 			return nil, err
 		}
 	}
-	if input.MetaDescription != nil {
+	if input.MetaDescription != nil && !seo.Unchanged(product.MetaDescription(), input.MetaDescription) {
 		if err := product.UpdateMetaDescription(input.MetaDescription); err != nil {
 			return nil, err
 		}

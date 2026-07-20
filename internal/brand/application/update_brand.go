@@ -5,6 +5,7 @@ import (
 
 	"github.com/trvux/elc-go/internal/brand/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 func UpdateBrand(ctx context.Context, repo domain.BrandRepository, input domain.UpdateBrandInput) (*domain.Brand, error) {
@@ -29,12 +30,12 @@ func UpdateBrand(ctx context.Context, repo domain.BrandRepository, input domain.
 	if input.LogoURL != nil {
 		brand.UpdateLogoURL(*input.LogoURL)
 	}
-	if input.MetaTitle != nil {
+	if input.MetaTitle != nil && !seo.Unchanged(brand.MetaTitle(), input.MetaTitle) {
 		if err := brand.UpdateMetaTitle(input.MetaTitle); err != nil {
 			return nil, err
 		}
 	}
-	if input.MetaDescription != nil {
+	if input.MetaDescription != nil && !seo.Unchanged(brand.MetaDescription(), input.MetaDescription) {
 		if err := brand.UpdateMetaDescription(input.MetaDescription); err != nil {
 			return nil, err
 		}

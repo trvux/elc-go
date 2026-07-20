@@ -5,6 +5,7 @@ import (
 
 	"github.com/trvux/elc-go/internal/group/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 func UpdateGroup(ctx context.Context, repo domain.GroupRepository, input domain.UpdateGroupInput) (*domain.Group, error) {
@@ -29,12 +30,12 @@ func UpdateGroup(ctx context.Context, repo domain.GroupRepository, input domain.
 	if input.ImageURL != nil {
 		g.UpdateImageURL(input.ImageURL)
 	}
-	if input.MetaTitle != nil {
+	if input.MetaTitle != nil && !seo.Unchanged(g.MetaTitle(), input.MetaTitle) {
 		if err := g.UpdateMetaTitle(input.MetaTitle); err != nil {
 			return nil, err
 		}
 	}
-	if input.MetaDescription != nil {
+	if input.MetaDescription != nil && !seo.Unchanged(g.MetaDescription(), input.MetaDescription) {
 		if err := g.UpdateMetaDescription(input.MetaDescription); err != nil {
 			return nil, err
 		}

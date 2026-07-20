@@ -5,6 +5,7 @@ import (
 
 	"github.com/trvux/elc-go/internal/branch/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/seo"
 )
 
 func UpdateBranch(ctx context.Context, repo domain.BranchRepository, input domain.UpdateBranchInput) (*domain.Branch, error) {
@@ -63,12 +64,12 @@ func UpdateBranch(ctx context.Context, repo domain.BranchRepository, input domai
 	if input.OrderIndex != nil {
 		b.Reorder(*input.OrderIndex)
 	}
-	if input.MetaTitle != nil {
+	if input.MetaTitle != nil && !seo.Unchanged(b.MetaTitle(), input.MetaTitle) {
 		if err := b.UpdateMetaTitle(input.MetaTitle); err != nil {
 			return nil, err
 		}
 	}
-	if input.MetaDescription != nil {
+	if input.MetaDescription != nil && !seo.Unchanged(b.MetaDescription(), input.MetaDescription) {
 		if err := b.UpdateMetaDescription(input.MetaDescription); err != nil {
 			return nil, err
 		}

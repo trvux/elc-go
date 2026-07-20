@@ -112,11 +112,20 @@ func (p *Page) Update(
 	if slug == "" {
 		fieldErrors["slug"] = []string{"slug cannot be empty"}
 	}
-	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
-		fieldErrors["metaTitle"] = errs
+	// Only re-validate a meta field against the length limit if it's
+	// actually changing — Update always resends the whole record (no
+	// pointer-based partial-update convention here), so a pre-existing
+	// title/description that already exceeds the limit would otherwise
+	// block every edit to the page, not just ones that touch its SEO copy.
+	if !seo.Unchanged(p.metaTitle, metaTitle) {
+		if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
+			fieldErrors["metaTitle"] = errs
+		}
 	}
-	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
-		fieldErrors["metaDescription"] = errs
+	if !seo.Unchanged(p.metaDescription, metaDescription) {
+		if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
+			fieldErrors["metaDescription"] = errs
+		}
 	}
 	if len(fieldErrors) > 0 {
 		return apperr.NewValidationError("invalid page input", fieldErrors)
