@@ -37,3 +37,18 @@ type AttributeValueRef struct {
 	ValueBoolean          *bool
 	ValueOptions          []string
 }
+
+// CapacitySibling is one other published product that's the same model as
+// the current one at a different HP/capacity — see
+// infrastructure.attachCapacitySiblings for how the group is resolved
+// (variant_mpns with digits stripped, scoped to brand+category) and where
+// CapacityLabel comes from (the phan_khuc_hp attribute, falling back to the
+// raw variant_mpns for products with no HP concept, e.g. Menred fresh-air
+// units keyed by airflow model number).
+type CapacitySibling struct {
+	ID            string
+	Slug          string
+	Name          string
+	CapacityLabel string
+	IsCurrent     bool
+}
