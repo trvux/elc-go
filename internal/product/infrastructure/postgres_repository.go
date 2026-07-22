@@ -183,6 +183,11 @@ func buildFilterConditions(filter domain.ProductFilter, exclude facetExclude) ([
 	} else if len(filter.CategoryIDs) > 0 {
 		conditions = append(conditions, fmt.Sprintf("p.category_id = ANY($%d::uuid[])", next()))
 		args = append(args, filter.CategoryIDs)
+	} else if len(filter.CategorySlugs) > 0 {
+		conditions = append(conditions, fmt.Sprintf(
+			"p.category_id IN (SELECT id FROM categories WHERE slug = ANY($%d::text[]))", next(),
+		))
+		args = append(args, filter.CategorySlugs)
 	}
 
 	if !exclude.Brand {
@@ -209,14 +214,58 @@ func buildFilterConditions(filter domain.ProductFilter, exclude facetExclude) ([
 		args = append(args, *filter.Status)
 	}
 
-	if filter.Search != "" {
+	if words := strings.Fields(filter.Search); len(words) > 0 {
 		// Combines full-text (accent/case-insensitive, name + variant MPNs)
-		// with a trigram similarity fallback in one OR'd condition — catches
-		// typos/partial matches without a separate zero-results probe query.
+		// with a trigram fallback for typos/partial matches, in one OR'd
+		// condition rather than a separate zero-results probe query.
+		//
+		// The fallback is per-word (AND'd across every word in the search
+		// string), not similarity() against the whole search string.
+		// similarity() compares total trigram overlap across both FULL
+		// strings — for a multi-word query like "máy lạnh Panasonic"
+		// against a long product name, a short/absent word (a brand
+		// that isn't actually present) gets diluted by the rest of the
+		// name and can still clear a low threshold purely from an
+		// unrelated shared prefix like "máy lạnh", independent of
+		// whether "Panasonic" is anywhere in it.
+		//
+		// Each word uses word_similarity() (checks the word against its
+		// best-matching substring of the name, so an absent word scores
+		// ~0 regardless of how long or similar the rest of the name is)
+		// — except words under 4 runes, which use an exact
+		// (accent/case-insensitive) substring match instead. Trigram
+		// scoring is unreliable at that length: pg_trgm pads/compares in
+		// 3-character windows, so a 2-character word like a brand
+		// abbreviation ("LG") barely has any trigrams to work with and
+		// measured a *flat* ~0.33 word_similarity against unrelated
+		// product names in testing — indistinguishable from a genuine
+		// near-miss typo on a longer word, so no single threshold
+		// separates "present" from "absent" for short words.
 		n := next()
-		conditions = append(conditions,
-			fmt.Sprintf("(p.search_vector @@ websearch_to_tsquery('simple', immutable_unaccent($%d)) OR similarity(p.name, $%d) > 0.2)", n, n))
 		args = append(args, filter.Search)
+
+		const minRunesForTrigram = 4
+		wordConds := make([]string, len(words))
+		for i, w := range words {
+			wn := next()
+			if len([]rune(w)) < minRunesForTrigram {
+				wordConds[i] = fmt.Sprintf("immutable_unaccent(p.name) ILIKE '%%' || immutable_unaccent($%d) || '%%'", wn)
+			} else {
+				// Both sides unaccented: word_similarity() is sensitive to
+				// accent differences (a diacritic-stripped query word like
+				// "may" scored ~0.25 against "Máy..." in testing — below
+				// threshold — even though it's the same word), which
+				// immutable_unaccent() on the tsquery side already doesn't
+				// have to worry about.
+				wordConds[i] = fmt.Sprintf("word_similarity(immutable_unaccent($%d), immutable_unaccent(p.name)) > 0.3", wn)
+			}
+			args = append(args, w)
+		}
+
+		conditions = append(conditions, fmt.Sprintf(
+			"(p.search_vector @@ websearch_to_tsquery('simple', immutable_unaccent($%d)) OR (%s))",
+			n, strings.Join(wordConds, " AND "),
+		))
 	}
 
 	if !exclude.Price {

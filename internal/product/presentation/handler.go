@@ -5,12 +5,14 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	attributedomain "github.com/trvux/elc-go/internal/attribute/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
+	"github.com/trvux/elc-go/internal/platform/ratelimit"
 	"github.com/trvux/elc-go/internal/product/application"
 	"github.com/trvux/elc-go/internal/product/domain"
 )
@@ -18,10 +20,20 @@ import (
 type ProductHandler struct {
 	repo          domain.ProductRepository
 	attributeRepo attributedomain.AttributeDefinitionRepository
+	// chatSearchLimiter guards ChatSearch specifically: it's a public,
+	// unauthenticated endpoint that runs a DB query per request (unlike
+	// List/GetBySlug/etc., which browsers-and-crawlers hit anyway as part
+	// of normal navigation), so it's the one product read path worth
+	// capping against spam.
+	chatSearchLimiter *ratelimit.Limiter
 }
 
 func NewProductHandler(repo domain.ProductRepository, attributeRepo attributedomain.AttributeDefinitionRepository) *ProductHandler {
-	return &ProductHandler{repo: repo, attributeRepo: attributeRepo}
+	return &ProductHandler{
+		repo:              repo,
+		attributeRepo:     attributeRepo,
+		chatSearchLimiter: ratelimit.New(30, time.Minute),
+	}
 }
 
 func parseProductFilter(r *http.Request) (domain.ProductFilter, error) {
