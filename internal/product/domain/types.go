@@ -546,9 +546,18 @@ const (
 // structured attribute system (attribute_definitions/product_attribute_values)
 // after the original free-text-spec-based facet/search system was removed.
 type ProductFilter struct {
-	CategoryID     *string
-	CategoryIDs    []string
-	BrandID        *string
+	CategoryID  *string
+	CategoryIDs []string
+	// CategorySlugs filters by category slug instead of ID — for callers
+	// (chat search) that know a category by its stable, hardcoded slug
+	// (e.g. "may-lanh-treo-tuong") but not its UUID, which isn't safe to
+	// hardcode since it isn't guaranteed stable across environments.
+	// Resolved via a subquery against the categories table, same
+	// cross-module read pattern already used for CategoryRef (see its doc
+	// comment) — combined with CategoryID/CategoryIDs via AND if more than
+	// one of these is set (not expected in practice, but harmless).
+	CategorySlugs []string
+	BrandID       *string
 	BrandIDs       []string
 	ProductLineID  *string
 	IsFeatured     *bool
