@@ -58,6 +58,8 @@ import (
 	servicepresentation "github.com/trvux/elc-go/internal/service/presentation"
 	settingsinfra "github.com/trvux/elc-go/internal/settings/infrastructure"
 	settingspresentation "github.com/trvux/elc-go/internal/settings/presentation"
+	shippingzoneinfra "github.com/trvux/elc-go/internal/shippingzone/infrastructure"
+	shippingzonepresentation "github.com/trvux/elc-go/internal/shippingzone/presentation"
 	slugregistryinfra "github.com/trvux/elc-go/internal/slug-registry/infrastructure"
 	slugregistrypresentation "github.com/trvux/elc-go/internal/slug-registry/presentation"
 	systempageinfra "github.com/trvux/elc-go/internal/system-page/infrastructure"
@@ -212,6 +214,12 @@ func main() {
 	settingsRepo := settingsinfra.NewPostgresSettingsRepository(pool)
 	settingsHandler := settingspresentation.NewSettingsHandler(settingsRepo)
 	settingspresentation.RegisterRoutes(router, settingsHandler, tokenIssuer)
+
+	shippingZoneRepo := shippingzoneinfra.NewPostgresShippingZoneRepository(pool)
+	provinceRepo := shippingzoneinfra.NewPostgresProvinceRepository(pool)
+	wardRepo := shippingzoneinfra.NewPostgresWardRepository(pool)
+	shippingZoneHandler := shippingzonepresentation.NewShippingZoneHandler(shippingZoneRepo, provinceRepo, wardRepo)
+	shippingzonepresentation.RegisterRoutes(router, shippingZoneHandler, tokenIssuer)
 
 	pageRepo := pageinfra.NewPostgresPageRepository(pool)
 	pageHandler := pagepresentation.NewPageHandler(pageRepo)

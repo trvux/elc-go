@@ -16,6 +16,7 @@ func TestNewBranch(t *testing.T) {
 		b, err := NewBranch(
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "https://maps.google.com/q1", "<iframe></iframe>",
+			nil, nil, nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
 		if err != nil {
@@ -33,6 +34,7 @@ func TestNewBranch(t *testing.T) {
 		_, err := NewBranch(
 			"", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "https://maps.google.com/q1", "<iframe></iframe>",
+			nil, nil, nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
 		if err == nil {
@@ -51,6 +53,7 @@ func TestNewBranch(t *testing.T) {
 		_, err := NewBranch(
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"invalid-email", "https://maps.google.com/q1", "<iframe></iframe>",
+			nil, nil, nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
 		if err == nil {
@@ -69,6 +72,7 @@ func TestNewBranch(t *testing.T) {
 		_, err := NewBranch(
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "not-a-valid-url", "<iframe></iframe>",
+			nil, nil, nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
 		if err == nil {
@@ -89,6 +93,7 @@ func TestBranch_UpdateFields(t *testing.T) {
 	b, _ := NewBranch(
 		"ELC Q1", "elc-q1", "123 Le Loi", "0901234567",
 		"q1@elc.vn", "https://maps.google.com/q1", "<iframe></iframe>",
+		nil, nil, nil, nil, nil,
 		desc, nil, true, 1, nil, nil,
 	)
 

@@ -41,6 +41,11 @@ type branchResponse struct {
 	Email           string          `json:"email"`
 	MapsURL         string          `json:"maps_url"`
 	MapsEmbed       string          `json:"maps_embed"`
+	ProvinceCode    *string         `json:"province_code"`
+	ProvinceName    *string         `json:"province_name"`
+	WardCode        *string         `json:"ward_code"`
+	WardName        *string         `json:"ward_name"`
+	PostalCode      *string         `json:"postal_code"`
 	Description     json.RawMessage `json:"description"`
 	Images          []imageAssetDTO `json:"images"`
 	IsPublished     bool            `json:"is_published"`
@@ -62,6 +67,11 @@ func toBranchResponse(b *domain.Branch) branchResponse {
 		Email:           b.Email(),
 		MapsURL:         b.MapsURL(),
 		MapsEmbed:       b.MapsEmbed(),
+		ProvinceCode:    b.ProvinceCode(),
+		ProvinceName:    b.ProvinceName(),
+		WardCode:        b.WardCode(),
+		WardName:        b.WardName(),
+		PostalCode:      b.PostalCode(),
 		Description:     b.Description(),
 		Images:          toImageAssetDTOList(b.Images()),
 		IsPublished:     b.IsPublished(),
@@ -90,6 +100,11 @@ type createBranchRequest struct {
 	Email           string          `json:"email"`
 	MapsURL         string          `json:"maps_url"`
 	MapsEmbed       string          `json:"maps_embed"`
+	ProvinceCode    *string         `json:"province_code"`
+	ProvinceName    *string         `json:"province_name"`
+	WardCode        *string         `json:"ward_code"`
+	WardName        *string         `json:"ward_name"`
+	PostalCode      *string         `json:"postal_code"`
 	Description     json.RawMessage `json:"description"`
 	Images          []imageAssetDTO `json:"images"`
 	IsPublished     bool            `json:"is_published"`
@@ -106,6 +121,11 @@ type updateBranchRequest struct {
 	Email           *string         `json:"email"`
 	MapsURL         *string         `json:"maps_url"`
 	MapsEmbed       *string         `json:"maps_embed"`
+	ProvinceCode    *string         `json:"province_code"`
+	ProvinceName    *string         `json:"province_name"`
+	WardCode        *string         `json:"ward_code"`
+	WardName        *string         `json:"ward_name"`
+	PostalCode      *string         `json:"postal_code"`
 	Description     json.RawMessage `json:"description"`
 	Images          []imageAssetDTO `json:"images"`
 	IsPublished     *bool           `json:"is_published"`

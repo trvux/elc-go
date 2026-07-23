@@ -28,6 +28,11 @@ type Branch struct {
 	email           string
 	mapsURL         string
 	mapsEmbed       string
+	provinceCode    *string
+	provinceName    *string
+	wardCode        *string
+	wardName        *string
+	postalCode      *string
 	description     json.RawMessage
 	images          []ImageAsset
 	isPublished     bool
@@ -40,8 +45,14 @@ type Branch struct {
 }
 
 // NewBranch validates and creates a new branch entity from user input.
+// provinceCode/provinceName/wardCode/wardName/postalCode are optional — they
+// reference internal/shippingzone's provinces/wards reference data (by code,
+// no DB foreign key across module boundaries) with the human-readable name
+// denormalized alongside so shared/lib/seo-schema.ts (frontend) never needs
+// a runtime lookup to build a real PostalAddress.
 func NewBranch(
 	name, slug, address, phone, email, mapsURL, mapsEmbed string,
+	provinceCode, provinceName, wardCode, wardName, postalCode *string,
 	description json.RawMessage,
 	images []ImageAsset,
 	isPublished bool,
@@ -91,6 +102,11 @@ func NewBranch(
 		email:           email,
 		mapsURL:         mapsURL,
 		mapsEmbed:       mapsEmbed,
+		provinceCode:    provinceCode,
+		provinceName:    provinceName,
+		wardCode:        wardCode,
+		wardName:        wardName,
+		postalCode:      postalCode,
 		description:     description,
 		images:          images,
 		isPublished:     isPublished,
@@ -105,6 +121,7 @@ func NewBranch(
 // RehydrateBranch reconstructs a branch entity from a trusted DB row.
 func RehydrateBranch(
 	id, name, slug, address, phone, email, mapsURL, mapsEmbed string,
+	provinceCode, provinceName, wardCode, wardName, postalCode *string,
 	description json.RawMessage,
 	images []ImageAsset,
 	isPublished bool,
@@ -122,6 +139,11 @@ func RehydrateBranch(
 		email:           email,
 		mapsURL:         mapsURL,
 		mapsEmbed:       mapsEmbed,
+		provinceCode:    provinceCode,
+		provinceName:    provinceName,
+		wardCode:        wardCode,
+		wardName:        wardName,
+		postalCode:      postalCode,
 		description:     description,
 		images:          images,
 		isPublished:     isPublished,
@@ -142,6 +164,11 @@ func (b *Branch) Phone() string                { return b.phone }
 func (b *Branch) Email() string                { return b.email }
 func (b *Branch) MapsURL() string              { return b.mapsURL }
 func (b *Branch) MapsEmbed() string            { return b.mapsEmbed }
+func (b *Branch) ProvinceCode() *string        { return b.provinceCode }
+func (b *Branch) ProvinceName() *string        { return b.provinceName }
+func (b *Branch) WardCode() *string            { return b.wardCode }
+func (b *Branch) WardName() *string            { return b.wardName }
+func (b *Branch) PostalCode() *string          { return b.postalCode }
 func (b *Branch) Description() json.RawMessage { return b.description }
 func (b *Branch) Images() []ImageAsset         { return b.images }
 func (b *Branch) IsPublished() bool            { return b.isPublished }
@@ -217,6 +244,18 @@ func (b *Branch) UpdateMapsEmbed(mapsEmbed string) error {
 	b.mapsEmbed = mapsEmbed
 	b.updatedAt = time.Now()
 	return nil
+}
+
+// UpdateLocation is bundled (rather than one setter per field) because
+// province/ward code+name are always chosen together from the same
+// cascading combobox on the frontend — see BranchManagement.tsx.
+func (b *Branch) UpdateLocation(provinceCode, provinceName, wardCode, wardName, postalCode *string) {
+	b.provinceCode = provinceCode
+	b.provinceName = provinceName
+	b.wardCode = wardCode
+	b.wardName = wardName
+	b.postalCode = postalCode
+	b.updatedAt = time.Now()
 }
 
 func (b *Branch) UpdateDescription(desc json.RawMessage) {
@@ -339,6 +378,11 @@ type CreateBranchInput struct {
 	Email           string
 	MapsURL         string
 	MapsEmbed       string
+	ProvinceCode    *string
+	ProvinceName    *string
+	WardCode        *string
+	WardName        *string
+	PostalCode      *string
 	Description     json.RawMessage
 	Images          []ImageAsset
 	IsPublished     bool
@@ -356,6 +400,11 @@ type UpdateBranchInput struct {
 	Email           *string
 	MapsURL         *string
 	MapsEmbed       *string
+	ProvinceCode    *string
+	ProvinceName    *string
+	WardCode        *string
+	WardName        *string
+	PostalCode      *string
 	Description     json.RawMessage
 	Images          []ImageAsset
 	IsPublished     *bool

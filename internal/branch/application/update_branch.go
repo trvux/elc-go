@@ -52,6 +52,13 @@ func UpdateBranch(ctx context.Context, repo domain.BranchRepository, input domai
 			return nil, err
 		}
 	}
+	// Bundled: the frontend's cascading combobox always submits
+	// province/ward code+name+postalCode together (see BranchManagement.tsx),
+	// so treat "any one present" as "replace the whole location" rather than
+	// merging field-by-field.
+	if input.ProvinceCode != nil || input.ProvinceName != nil || input.WardCode != nil || input.WardName != nil || input.PostalCode != nil {
+		b.UpdateLocation(input.ProvinceCode, input.ProvinceName, input.WardCode, input.WardName, input.PostalCode)
+	}
 	if input.Description != nil {
 		b.UpdateDescription(input.Description)
 	}
