@@ -33,6 +33,8 @@ import (
 	eventpresentation "github.com/trvux/elc-go/internal/event/presentation"
 	groupinfra "github.com/trvux/elc-go/internal/group/infrastructure"
 	grouppresentation "github.com/trvux/elc-go/internal/group/presentation"
+	hppageinfra "github.com/trvux/elc-go/internal/hp-page/infrastructure"
+	hppagepresentation "github.com/trvux/elc-go/internal/hp-page/presentation"
 	inquiryinfra "github.com/trvux/elc-go/internal/inquiry/infrastructure"
 	inquirypresentation "github.com/trvux/elc-go/internal/inquiry/presentation"
 	newsinfra "github.com/trvux/elc-go/internal/news/infrastructure"
@@ -149,6 +151,10 @@ func main() {
 	brandRepo := brandinfra.NewPostgresBrandRepository(pool)
 	brandHandler := brandpresentation.NewBrandHandler(brandRepo)
 	brandpresentation.RegisterRoutes(router, brandHandler, tokenIssuer)
+
+	hpPageRepo := hppageinfra.NewPostgresHpPageRepository(pool)
+	hpPageHandler := hppagepresentation.NewHpPageHandler(hpPageRepo)
+	hppagepresentation.RegisterRoutes(router, hpPageHandler, tokenIssuer)
 
 	authorRepo := authorinfra.NewPostgresAuthorRepository(pool)
 	authorHandler := authorpresentation.NewAuthorHandler(authorRepo)
