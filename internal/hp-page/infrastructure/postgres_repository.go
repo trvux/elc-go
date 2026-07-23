@@ -24,7 +24,7 @@ func NewPostgresHpPageRepository(pool *pgxpool.Pool) *PostgresHpPageRepository {
 }
 
 const hpPageColumns = `id, name, slug, image_url, meta_title, meta_description,
-	order_index, content, attribute_code, attribute_values, created_at, updated_at, deleted_at`
+	order_index, content, attribute_code, attribute_values, category_ids, brand_ids, created_at, updated_at, deleted_at`
 
 func (r *PostgresHpPageRepository) GetAll(ctx context.Context, filter domain.HpPageFilter) ([]*domain.HpPage, error) {
 	query := "SELECT " + hpPageColumns + " FROM hp_pages"
@@ -108,13 +108,14 @@ func (r *PostgresHpPageRepository) GetBySlug(ctx context.Context, slug string) (
 // slug and no "resurrect" step is needed here, same as brand.
 func (r *PostgresHpPageRepository) Create(ctx context.Context, page *domain.HpPage) (*domain.HpPage, error) {
 	query := `
-		INSERT INTO hp_pages (name, slug, image_url, meta_title, meta_description, order_index, content, attribute_code, attribute_values)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO hp_pages (name, slug, image_url, meta_title, meta_description, order_index, content, attribute_code, attribute_values, category_ids, brand_ids)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING ` + hpPageColumns
 
 	row := r.pool.QueryRow(ctx, query,
 		page.Name(), page.Slug(), page.ImageURL(), page.MetaTitle(), page.MetaDescription(),
 		page.OrderIndex(), page.Content(), page.AttributeCode(), page.AttributeValues(),
+		page.CategoryIDs(), page.BrandIDs(),
 	)
 	created, err := scanHpPage(row)
 	if err != nil {
@@ -127,13 +128,15 @@ func (r *PostgresHpPageRepository) Update(ctx context.Context, page *domain.HpPa
 	query := `
 		UPDATE hp_pages
 		SET name = $1, slug = $2, image_url = $3, meta_title = $4, meta_description = $5,
-			order_index = $6, content = $7, attribute_code = $8, attribute_values = $9, updated_at = $10
-		WHERE id = $11
+			order_index = $6, content = $7, attribute_code = $8, attribute_values = $9,
+			category_ids = $10, brand_ids = $11, updated_at = $12
+		WHERE id = $13
 		RETURNING ` + hpPageColumns
 
 	row := r.pool.QueryRow(ctx, query,
 		page.Name(), page.Slug(), page.ImageURL(), page.MetaTitle(), page.MetaDescription(),
 		page.OrderIndex(), page.Content(), page.AttributeCode(), page.AttributeValues(),
+		page.CategoryIDs(), page.BrandIDs(),
 		page.UpdatedAt(), page.ID(),
 	)
 	updated, err := scanHpPage(row)
@@ -175,21 +178,25 @@ func scanHpPage(row rowScanner) (*domain.HpPage, error) {
 		metaTitle, metaDescription *string
 		orderIndex                 int
 		content                    json.RawMessage
-		attributeCode              string
+		attributeCode              *string
 		attributeValues            []string
+		categoryIDs                []string
+		brandIDs                   []string
 		createdAt, updatedAt       time.Time
 		deletedAt                  *time.Time
 	)
 
 	if err := row.Scan(
 		&id, &name, &slug, &imageURL, &metaTitle, &metaDescription,
-		&orderIndex, &content, &attributeCode, &attributeValues, &createdAt, &updatedAt, &deletedAt,
+		&orderIndex, &content, &attributeCode, &attributeValues,
+		&categoryIDs, &brandIDs, &createdAt, &updatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
 	}
 
 	return domain.RehydrateHpPage(
 		id, name, slug, imageURL, metaTitle, metaDescription,
-		orderIndex, content, attributeCode, attributeValues, createdAt, updatedAt, deletedAt,
+		orderIndex, content, attributeCode, attributeValues,
+		categoryIDs, brandIDs, createdAt, updatedAt, deletedAt,
 	), nil
 }

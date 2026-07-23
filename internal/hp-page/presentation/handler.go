@@ -101,6 +101,8 @@ func (h *HpPageHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Content:         req.Content,
 		AttributeCode:   req.AttributeCode,
 		AttributeValues: req.AttributeValues,
+		CategoryIDs:     req.CategoryIDs,
+		BrandIDs:        req.BrandIDs,
 	}
 
 	p, err := application.CreateHpPage(r.Context(), h.repo, input)
@@ -132,6 +134,8 @@ func (h *HpPageHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Content:         req.Content,
 		AttributeCode:   req.AttributeCode,
 		AttributeValues: req.AttributeValues,
+		CategoryIDs:     req.CategoryIDs,
+		BrandIDs:        req.BrandIDs,
 	}
 
 	p, err := application.UpdateHpPage(r.Context(), h.repo, input)

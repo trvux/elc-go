@@ -46,15 +46,20 @@ func UpdateHpPage(ctx context.Context, repo domain.HpPageRepository, input domai
 	if input.Content != nil {
 		page.UpdateContent(input.Content)
 	}
-	if input.AttributeCode != nil {
-		if err := page.UpdateAttributeCode(*input.AttributeCode); err != nil {
-			return nil, err
-		}
-	}
-	if input.AttributeValues != nil {
-		if err := page.UpdateAttributeValues(input.AttributeValues); err != nil {
-			return nil, err
-		}
+	// Frontend always resubmits the entire filter configuration on every
+	// save (no partial-patch semantics for this form) — applied
+	// unconditionally so clearing a filter (e.g. removing the attribute
+	// code) actually takes effect instead of being skipped as "not
+	// provided".
+	page.UpdateAttributeCode(input.AttributeCode)
+	page.UpdateAttributeValues(input.AttributeValues)
+	page.UpdateCategoryIDs(input.CategoryIDs)
+	page.UpdateBrandIDs(input.BrandIDs)
+
+	if !page.HasAnyFilter() {
+		return nil, apperr.NewValidationError("validation failed", map[string][]string{
+			"filters": {"page must have at least one filter: attribute, category, or brand"},
+		})
 	}
 
 	return repo.Update(ctx, page)

@@ -23,11 +23,19 @@ type HpPage struct {
 	metaDescription *string
 	orderIndex      int
 	content         json.RawMessage
-	attributeCode   string
+	attributeCode   *string
 	attributeValues []string
-	createdAt       time.Time
-	updatedAt       time.Time
-	deletedAt       *time.Time
+	// categoryIDs/brandIDs let a page scope to specific categories and/or
+	// brands instead of (or combined with) attributeCode/attributeValues
+	// — e.g. "Máy lạnh Daikin" (category=máy lạnh's sub-categories,
+	// brand=Daikin), distinct from the plain brand page (all of Daikin's
+	// products, whatever categories that spans). All three filters AND
+	// together, same as ProductFilter already does.
+	categoryIDs []string
+	brandIDs    []string
+	createdAt   time.Time
+	updatedAt   time.Time
+	deletedAt   *time.Time
 }
 
 // NewHpPage validates and creates a new entity from user input.
@@ -36,8 +44,10 @@ func NewHpPage(
 	metaTitle, metaDescription *string,
 	orderIndex int,
 	content json.RawMessage,
-	attributeCode string,
+	attributeCode *string,
 	attributeValues []string,
+	categoryIDs []string,
+	brandIDs []string,
 ) (*HpPage, error) {
 	fields := map[string][]string{}
 
@@ -53,11 +63,8 @@ func NewHpPage(
 	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
 		fields["metaDescription"] = errs
 	}
-	if errs := validateAttributeCode(attributeCode); len(errs) > 0 {
-		fields["attributeCode"] = errs
-	}
-	if errs := validateAttributeValues(attributeValues); len(errs) > 0 {
-		fields["attributeValues"] = errs
+	if errs := validateHasAnyFilter(attributeCode, attributeValues, categoryIDs, brandIDs); len(errs) > 0 {
+		fields["filters"] = errs
 	}
 
 	if len(fields) > 0 {
@@ -75,6 +82,8 @@ func NewHpPage(
 		content:         content,
 		attributeCode:   attributeCode,
 		attributeValues: attributeValues,
+		categoryIDs:     categoryIDs,
+		brandIDs:        brandIDs,
 		createdAt:       now,
 		updatedAt:       now,
 	}, nil
@@ -87,8 +96,10 @@ func RehydrateHpPage(
 	metaTitle, metaDescription *string,
 	orderIndex int,
 	content json.RawMessage,
-	attributeCode string,
+	attributeCode *string,
 	attributeValues []string,
+	categoryIDs []string,
+	brandIDs []string,
 	createdAt, updatedAt time.Time,
 	deletedAt *time.Time,
 ) *HpPage {
@@ -103,6 +114,8 @@ func RehydrateHpPage(
 		content:         content,
 		attributeCode:   attributeCode,
 		attributeValues: attributeValues,
+		categoryIDs:     categoryIDs,
+		brandIDs:        brandIDs,
 		createdAt:       createdAt,
 		updatedAt:       updatedAt,
 		deletedAt:       deletedAt,
@@ -117,8 +130,10 @@ func (h *HpPage) MetaTitle() *string        { return h.metaTitle }
 func (h *HpPage) MetaDescription() *string  { return h.metaDescription }
 func (h *HpPage) OrderIndex() int           { return h.orderIndex }
 func (h *HpPage) Content() json.RawMessage  { return h.content }
-func (h *HpPage) AttributeCode() string     { return h.attributeCode }
+func (h *HpPage) AttributeCode() *string    { return h.attributeCode }
 func (h *HpPage) AttributeValues() []string { return h.attributeValues }
+func (h *HpPage) CategoryIDs() []string     { return h.categoryIDs }
+func (h *HpPage) BrandIDs() []string        { return h.brandIDs }
 func (h *HpPage) CreatedAt() time.Time      { return h.createdAt }
 func (h *HpPage) UpdatedAt() time.Time      { return h.updatedAt }
 func (h *HpPage) DeletedAt() *time.Time     { return h.deletedAt }
@@ -178,22 +193,37 @@ func (h *HpPage) UpdateContent(content json.RawMessage) {
 	h.updatedAt = time.Now()
 }
 
-func (h *HpPage) UpdateAttributeCode(attributeCode string) error {
-	if errs := validateAttributeCode(attributeCode); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"attributeCode": errs})
-	}
+// UpdateAttributeCode/UpdateAttributeValues/UpdateCategoryIDs/UpdateBrandIDs
+// don't validate "at least one filter" individually — a caller applying
+// several of these in sequence (see application.UpdateHpPage) would trip a
+// false positive mid-sequence. That combined check runs once, after all
+// requested fields are applied, via HasAnyFilter().
+func (h *HpPage) UpdateAttributeCode(attributeCode *string) {
 	h.attributeCode = attributeCode
 	h.updatedAt = time.Now()
-	return nil
 }
 
-func (h *HpPage) UpdateAttributeValues(attributeValues []string) error {
-	if errs := validateAttributeValues(attributeValues); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"attributeValues": errs})
-	}
+func (h *HpPage) UpdateAttributeValues(attributeValues []string) {
 	h.attributeValues = attributeValues
 	h.updatedAt = time.Now()
-	return nil
+}
+
+func (h *HpPage) UpdateCategoryIDs(categoryIDs []string) {
+	h.categoryIDs = categoryIDs
+	h.updatedAt = time.Now()
+}
+
+func (h *HpPage) UpdateBrandIDs(brandIDs []string) {
+	h.brandIDs = brandIDs
+	h.updatedAt = time.Now()
+}
+
+// HasAnyFilter reports whether the page has at least one usable filter —
+// an unfiltered landing page would just list every product, which isn't a
+// meaningful page. Checked after every create/update.
+func (h *HpPage) HasAnyFilter() bool {
+	hasAttribute := h.attributeCode != nil && *h.attributeCode != "" && len(h.attributeValues) > 0
+	return hasAttribute || len(h.categoryIDs) > 0 || len(h.brandIDs) > 0
 }
 
 func (h *HpPage) MarkDeleted(deletedAt time.Time) {
@@ -219,16 +249,10 @@ func validateSlug(slug string) []string {
 	return nil
 }
 
-func validateAttributeCode(code string) []string {
-	if code == "" {
-		return []string{"attributeCode is required"}
-	}
-	return nil
-}
-
-func validateAttributeValues(values []string) []string {
-	if len(values) == 0 {
-		return []string{"attributeValues must have at least one value"}
+func validateHasAnyFilter(attributeCode *string, attributeValues, categoryIDs, brandIDs []string) []string {
+	hasAttribute := attributeCode != nil && *attributeCode != "" && len(attributeValues) > 0
+	if !hasAttribute && len(categoryIDs) == 0 && len(brandIDs) == 0 {
+		return []string{"page must have at least one filter: attribute, category, or brand"}
 	}
 	return nil
 }
@@ -241,8 +265,10 @@ type CreateHpPageInput struct {
 	MetaDescription *string
 	OrderIndex      int
 	Content         json.RawMessage
-	AttributeCode   string
+	AttributeCode   *string
 	AttributeValues []string
+	CategoryIDs     []string
+	BrandIDs        []string
 }
 
 type UpdateHpPageInput struct {
@@ -256,6 +282,8 @@ type UpdateHpPageInput struct {
 	Content         json.RawMessage
 	AttributeCode   *string
 	AttributeValues []string
+	CategoryIDs     []string
+	BrandIDs        []string
 }
 
 type HpPageFilter struct {

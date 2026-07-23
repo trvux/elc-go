@@ -17,6 +17,8 @@ func CreateHpPage(ctx context.Context, repo domain.HpPageRepository, input domai
 		input.Content,
 		input.AttributeCode,
 		input.AttributeValues,
+		input.CategoryIDs,
+		input.BrandIDs,
 	)
 	if err != nil {
 		return nil, err

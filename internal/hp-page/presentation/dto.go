@@ -16,8 +16,10 @@ type hpPageResponse struct {
 	MetaDescription *string         `json:"meta_description"`
 	OrderIndex      int             `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
-	AttributeCode   string          `json:"attribute_code"`
+	AttributeCode   *string         `json:"attribute_code"`
 	AttributeValues []string        `json:"attribute_values"`
+	CategoryIDs     []string        `json:"category_ids"`
+	BrandIDs        []string        `json:"brand_ids"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 	DeletedAt       *time.Time      `json:"deleted_at"`
@@ -35,6 +37,8 @@ func toHpPageResponse(p *domain.HpPage) hpPageResponse {
 		Content:         p.Content(),
 		AttributeCode:   p.AttributeCode(),
 		AttributeValues: p.AttributeValues(),
+		CategoryIDs:     p.CategoryIDs(),
+		BrandIDs:        p.BrandIDs(),
 		CreatedAt:       p.CreatedAt(),
 		UpdatedAt:       p.UpdatedAt(),
 		DeletedAt:       p.DeletedAt(),
@@ -57,8 +61,10 @@ type createHpPageRequest struct {
 	MetaDescription *string         `json:"meta_description"`
 	OrderIndex      int             `json:"order_index"`
 	Content         json.RawMessage `json:"content"`
-	AttributeCode   string          `json:"attribute_code"`
+	AttributeCode   *string         `json:"attribute_code"`
 	AttributeValues []string        `json:"attribute_values"`
+	CategoryIDs     []string        `json:"category_ids"`
+	BrandIDs        []string        `json:"brand_ids"`
 }
 
 type updateHpPageRequest struct {
@@ -71,4 +77,6 @@ type updateHpPageRequest struct {
 	Content         json.RawMessage `json:"content"`
 	AttributeCode   *string         `json:"attribute_code"`
 	AttributeValues []string        `json:"attribute_values"`
+	CategoryIDs     []string        `json:"category_ids"`
+	BrandIDs        []string        `json:"brand_ids"`
 }
