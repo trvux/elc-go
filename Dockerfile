@@ -49,7 +49,12 @@ RUN go run ./cmd/train-chat-classifier > /tmp/chat-classifier-train.txt && \
 
 FROM alpine:3.20
 # libstdc++/libgcc: the fasttext binary is C++, not statically linked.
-RUN apk add --no-cache ca-certificates curl libstdc++ libgcc
+# libwebp-tools: gives internal/upload/infrastructure's crop-on-upload
+# feature the real cwebp encoder — imaging's pure-Go Encode has no WEBP
+# case, and no pure-Go lossy WebP encoder here has libwebp's track record,
+# so this shells out to the reference tool instead (same reasoning as
+# fastText below, just a one-line apk package instead of a from-source build).
+RUN apk add --no-cache ca-certificates curl libstdc++ libgcc libwebp-tools
 COPY --from=build /bin/server /bin/server
 COPY --from=fasttext-build /fasttext-src/fasttext /usr/local/bin/fasttext
 COPY --from=build /app/chat-classifier.ftz /app/chat-classifier.ftz

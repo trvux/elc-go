@@ -247,7 +247,7 @@ func main() {
 		log.Warn("R2_ACCOUNT_ID not set — image uploads will fail until R2 is configured")
 		uploader = uploadinfra.NewNoopUploader()
 	}
-	uploadHandler := uploadpresentation.NewUploadHandler(uploader)
+	uploadHandler := uploadpresentation.NewUploadHandler(uploader, uploadinfra.NewImageCropper())
 	uploadpresentation.RegisterRoutes(router, uploadHandler, tokenIssuer)
 
 	port := os.Getenv("PORT")

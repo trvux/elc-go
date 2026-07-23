@@ -17,6 +17,12 @@ type ImageAsset struct {
 	URL     string `json:"url"`
 	Alt     string `json:"alt,omitempty"`
 	Caption string `json:"caption,omitempty"`
+	// CropVariants maps aspect ratio label ("4:3", "1:1") to a derivative
+	// crop of URL, generated at upload time (see internal/upload) — lets
+	// Product JSON-LD offer Google multiple image aspect ratios without
+	// storing/serving anything beyond what one upload already produces.
+	// Empty/absent for images uploaded before this existed.
+	CropVariants map[string]string `json:"cropVariants,omitempty"`
 }
 
 // MarshalImages/UnmarshalImages hand-roll the jsonb <-> []ImageAsset

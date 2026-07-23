@@ -11,12 +11,18 @@ type imageAssetDTO struct {
 	URL     string `json:"url"`
 	Alt     string `json:"alt,omitempty"`
 	Caption string `json:"caption,omitempty"`
+	// Generated server-side at upload time for the "products" folder only
+	// (see internal/upload's cropVariantsFolder) — must round-trip through
+	// both directions here or it silently vanishes: dropped on create/
+	// update (unmarshaling the request body into this struct) and never
+	// sent back on read (marshaling the response from this struct).
+	CropVariants map[string]string `json:"cropVariants,omitempty"`
 }
 
 func toImageAssetDTOList(images []domain.ImageAsset) []imageAssetDTO {
 	result := make([]imageAssetDTO, len(images))
 	for i, img := range images {
-		result[i] = imageAssetDTO{URL: img.URL, Alt: img.Alt, Caption: img.Caption}
+		result[i] = imageAssetDTO{URL: img.URL, Alt: img.Alt, Caption: img.Caption, CropVariants: img.CropVariants}
 	}
 	return result
 }
@@ -27,7 +33,7 @@ func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
 	}
 	result := make([]domain.ImageAsset, len(dtos))
 	for i, d := range dtos {
-		result[i] = domain.ImageAsset{URL: d.URL, Alt: d.Alt, Caption: d.Caption}
+		result[i] = domain.ImageAsset{URL: d.URL, Alt: d.Alt, Caption: d.Caption, CropVariants: d.CropVariants}
 	}
 	return result
 }
