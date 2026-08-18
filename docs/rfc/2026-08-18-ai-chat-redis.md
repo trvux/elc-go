@@ -29,7 +29,7 @@ type RateLimiter interface {
     Allow(key string) bool // giữ đúng chữ ký hiện có của *Limiter, không đổi gì ở các module đang dùng
 }
 ```
-`*ratelimit.Limiter` (in-memory, hiện có) tự động thỏa interface này, không sửa gì. Thêm `RedisLimiter` (file mới `redis_limiter.go`) cùng thỏa interface, dùng `INCR` + `EXPIRE` (fixed window, cùng ngữ nghĩa "tối đa N lần/window/key" như bản in-memory). Lỗi kết nối Redis khi gọi `Allow` → **fail open** (cho qua) — rate limit là lớp chống spam, không phải business logic đúng/sai; Redis chết không được kéo sập luôn tính năng chat.
+`*ratelimit.Limiter` (in-memory, hiện có) tự động thỏa interface này, không sửa gì. Thêm `RedisLimiter` (file mới `redis_limiter.go`) cùng thỏa interface, dùng **1 Lua script atomic** (`INCR` + `PEXPIRE` chạy chung 1 lệnh trên server Redis, không phải 2 round-trip riêng — sửa sau khi `/code-review` bắt được: bản đầu dùng 2 lệnh tách rời, nếu `EXPIRE` fail đúng lúc `count==1` thì key không bao giờ hết hạn, chặn vĩnh viễn 1 key thay vì đúng 1 window) — cùng ngữ nghĩa "tối đa N lần/window/key" như bản in-memory. Lỗi kết nối Redis khi gọi `Allow` → **fail open** (cho qua) — rate limit là lớp chống spam, không phải business logic đúng/sai; Redis chết không được kéo sập luôn tính năng chat.
 
 `AIHandler.chatLimiter` đổi kiểu từ `*ratelimit.Limiter` sang interface `ratelimit.RateLimiter` — composition root (`main.go`) chọn implementation nào theo `REDIS_URL` có set hay không.
 

@@ -6,6 +6,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # Waits for redis to be healthy before starting — deliberate, even
+      # though internal/ai treats Redis as optional at the code level (see
+      # redis's own comment below). Without this, a fresh `docker compose
+      # up` could start elc-go before redis finishes booting; its one-shot
+      # startup Ping (cmd/server/main.go) would then fail, and the app
+      # would silently run in-memory-only for that entire process lifetime
+      # instead of actually using the Redis this stack provides. The "code
+      # treats it as optional" property is for environments that never
+      # define a redis service at all (e.g. `go run ./cmd/server` on a
+      # laptop with REDIS_URL unset) — not for racing against one that's
+      # merely still starting up here.
       redis:
         condition: service_healthy
     ports:
@@ -20,9 +31,14 @@ services:
     # No `ports:`/volume on purpose: only reachable over the internal
     # Compose network (`redis:6379`, same reasoning as postgres below), and
     # holds only rate-limit counters + AI response caches — ephemeral by
-    # design, losing it on restart is fine, no persistence needed. Optional
-    # at the app level too: REDIS_URL unset means internal/ai falls back to
-    # in-memory rate limiting and no caching (see docs/rfc/2026-08-18-ai-chat-redis.md).
+    # design, losing it on restart is fine, no persistence needed.
+    #
+    # "Optional" in internal/ai's code (REDIS_URL unset, or unreachable at
+    # startup, falls back to in-memory rate limiting + no caching — never a
+    # startup failure) is a property of the Go code, not of this compose
+    # file: this file always defines redis, and elc-go's depends_on above
+    # waits for it to be healthy so the fallback path is never actually
+    # exercised in a normal deploy. See docs/rfc/2026-08-18-ai-chat-redis.md.
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

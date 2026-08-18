@@ -13,10 +13,26 @@ import (
 // this is the only deadline a call gets.
 const redisCallTimeout = 2 * time.Second
 
-// RedisLimiter is a fixed-window limiter backed by Redis INCR+EXPIRE — same
-// "at most Limit attempts per Window, per key" semantics as Limiter, but
-// shared across processes. See the package doc comment for when to reach
-// for this over Limiter.
+// incrWithTTLScript atomically increments a key and sets its expiry on the
+// very first hit — INCR and EXPIRE as two separate round trips (the
+// original version of this file) had a real gap: if the process crashed or
+// the connection dropped between them, the key would be left with no TTL
+// at all, and every request after that would increment a counter that
+// never resets — a permanent block for that key instead of a fixed window.
+// A Lua script runs as one atomic operation on the Redis server, closing
+// that gap entirely (caught by /code-review before this shipped).
+var incrWithTTLScript = redis.NewScript(`
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then
+	redis.call("PEXPIRE", KEYS[1], ARGV[1])
+end
+return count
+`)
+
+// RedisLimiter is a fixed-window limiter backed by Redis — same "at most
+// Limit attempts per Window, per key" semantics as Limiter, but shared
+// across processes. See the package doc comment for when to reach for this
+// over Limiter.
 type RedisLimiter struct {
 	client *redis.Client
 	prefix string
@@ -42,16 +58,9 @@ func (l *RedisLimiter) Allow(key string) bool {
 	defer cancel()
 
 	fullKey := fmt.Sprintf("%s:%s", l.prefix, key)
-	count, err := l.client.Incr(ctx, fullKey).Result()
+	count, err := incrWithTTLScript.Run(ctx, l.client, []string{fullKey}, l.window.Milliseconds()).Int64()
 	if err != nil {
 		return true
-	}
-	if count == 1 {
-		// First hit in this window — set the expiry exactly once, not on
-		// every increment, so the window doesn't keep sliding forward.
-		if err := l.client.Expire(ctx, fullKey, l.window).Err(); err != nil {
-			return true
-		}
 	}
 	return count <= int64(l.limit)
 }
