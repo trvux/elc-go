@@ -15,7 +15,7 @@ Phase 1 (`internal/ai`, đã merge `main`) trả lời non-streaming: khách g�
 
 ### 2.1. Vì sao stream được cả tool-call loop mà không cần stream tool-call deltas
 
-Khi model quyết định gọi tool (`search_products`), field `content` của round đó luôn rỗng — model không sinh text đồng thời với việc gọi tool. Vậy có thể **stream content delta ở MỌI round một cách vô điều kiện** mà không cần biết trước round đó có phải round cuối hay không: round gọi tool sẽ tự nhiên không có gì để stream (content rỗng), round trả lời thật sẽ stream đúng nội dung theo thời gian thực. → Không cần parse/accumulate tool-call streaming deltas (phần phức tạp nhất của SSE chat completion APIs) — chỉ cần accumulate content text + 1 flag "có tool_calls hay không" ở cuối mỗi round.
+Khi model quyết định gọi tool (`search_products`), field `content` của round đó luôn rỗng — model không sinh text đồng thời với việc gọi tool. Vậy có thể **stream content delta ở MỌI round một cách vô điều kiện** mà không cần biết trước round đó có phải round cuối hay không: round gọi tool sẽ tự nhiên không có gì để stream (content rỗng), round trả lời thật sẽ stream đúng nội dung theo thời gian thực. → **Vẫn phải** parse/accumulate tool-call fragments (id/name/arguments rải rác qua nhiều chunk, giống chuẩn OpenAI streaming) để biết chính xác tool nào cần gọi với argument gì — chỉ là **không cần stream chúng ra cho khách xem** (vì content rỗng nên không có gì để forward), khác với accumulate content text thì luôn forward ngay lập tức từng phần.
 
 ### 2.2. domain.LLMClient thêm 1 phương thức stream
 

@@ -14,22 +14,23 @@ import (
 	"github.com/trvux/elc-go/internal/platform/ratelimit"
 )
 
-var (
-	errVisitorIDMissing      = errors.New("ai: visitor_id missing from context — EnsureVisitorID must be mounted on this route")
-	errNoChatModelConfigured = errors.New("ai: no active chat model configured")
-)
-
-// chatTimeout bounds one round trip through the classifier + SendChatMessage
-// (which may itself make a few sequential calls: tool rounds within a
-// model, and another model on fallback) — every external call needs a
-// timeout, and a hung upstream must not hold an HTTP handler goroutine open
-// indefinitely.
-const chatTimeout = 30 * time.Second
+// chatTimeout bounds one round trip through the classifier + streaming chat
+// completion (which may itself make a few sequential calls: tool rounds
+// within a model, and another model on fallback) — every external call
+// needs a timeout, and a hung upstream must not hold an HTTP handler
+// goroutine open indefinitely.
+const chatTimeout = 60 * time.Second
 
 // blockedReplyVI is what the customer sees when the guardrail classifier
 // rejects a message — no chat model is ever called for a blocked turn (the
 // whole cost-saving point of running the classifier first).
 const blockedReplyVI = "Xin lỗi, mình chỉ có thể tư vấn về sản phẩm và dịch vụ của ELC thôi ạ. Anh/chị cần hỗ trợ gì về sản phẩm điện máy không?"
+
+var (
+	errVisitorIDMissing      = errors.New("ai: visitor_id missing from context — EnsureVisitorID must be mounted on this route")
+	errNoChatModelConfigured = errors.New("ai: no active chat model configured")
+	errStreamingUnsupported  = errors.New("ai: response writer does not support streaming")
+)
 
 // AIHandler is the composition root for the AI chat module.
 type AIHandler struct {
@@ -58,12 +59,17 @@ func NewAIHandler(
 	}
 }
 
-// Chat handles a public chat turn: one new customer message in, the
-// assistant's next reply out. The conversation is persisted server-side
-// (keyed by the visitor_id cookie EnsureVisitorID attaches, see routes.go),
-// so the caller only ever sends the newest message — the server owns
-// history, unlike v1's now-superseded stateless "resend everything"
-// contract.
+// Chat handles a public chat turn over Server-Sent Events: one new customer
+// message in, the assistant's reply streamed out delta by delta as the
+// model generates it. The conversation is persisted server-side (keyed by
+// the visitor_id cookie EnsureVisitorID attaches, see routes.go), so the
+// caller only ever sends the newest message — the server owns history.
+//
+// Every early-exit before streaming starts (rate limit, validation, a
+// config problem) is a normal JSON error response via httpserver.WriteError.
+// Once the SSE response has been opened — right before the canned refusal
+// or the real model stream — nothing can fall back to a plain HTTP error
+// anymore; see sse.go's sendError.
 func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	if !h.chatLimiter.Allow(httpserver.ClientIP(r)) {
 		httpserver.WriteError(w, apperr.NewTooManyRequestsError("please try again later"))
@@ -113,18 +119,26 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		httpserver.WriteError(w, apperr.NewInternalError(err))
 		return
 	}
+
 	if verdict := application.ClassifyMessage(ctx, h.clientFactory, classifierModels, req.Message); verdict != nil && !verdict.OnTopic {
+		stream, ok := newSSEWriter(w)
+		if !ok {
+			httpserver.WriteError(w, apperr.NewInternalError(errStreamingUnsupported))
+			return
+		}
+		stream.sendDelta(blockedReplyVI)
+		stream.sendDone(true)
+
 		reason := verdict.Reason
-		if _, err := h.conversationRepo.AppendMessage(ctx, &domain.ConversationMessage{
+		// Best-effort: the SSE response has already succeeded from the
+		// client's perspective, so a persistence failure here has nowhere
+		// left to be reported — same trade-off as the success path below.
+		_, _ = h.conversationRepo.AppendMessage(ctx, &domain.ConversationMessage{
 			ConversationID: conv.ID,
 			Role:           domain.RoleAssistant,
 			Content:        blockedReplyVI,
 			BlockedReason:  &reason,
-		}); err != nil {
-			httpserver.WriteError(w, apperr.NewInternalError(err))
-			return
-		}
-		httpserver.WriteJSON(w, http.StatusOK, chatResponse{Message: toChatMessageDTO(domain.RoleAssistant, blockedReplyVI), Blocked: true})
+		})
 		return
 	}
 
@@ -144,14 +158,23 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	outcome, err := application.SendChatMessage(ctx, h.clientFactory, chatModels, h.tools, toDomainMessages(history))
+	stream, ok := newSSEWriter(w)
+	if !ok {
+		httpserver.WriteError(w, apperr.NewInternalError(errStreamingUnsupported))
+		return
+	}
+
+	outcome, err := application.SendChatMessageStream(ctx, h.clientFactory, chatModels, h.tools, toDomainMessages(history), stream.sendDelta)
 	if err != nil {
-		httpserver.WriteError(w, apperr.NewInternalError(err))
+		// Headers are already sent — this is the only way left to signal
+		// failure to the client, see sse.go's sendError.
+		stream.sendError()
 		return
 	}
 
 	cost := outcome.Model.Pricing.Cost(outcome.Usage, time.Now())
-	if _, err := h.conversationRepo.AppendMessage(ctx, &domain.ConversationMessage{
+	// Best-effort, same reasoning as the blocked-message path above.
+	_, _ = h.conversationRepo.AppendMessage(ctx, &domain.ConversationMessage{
 		ConversationID: conv.ID,
 		Role:           domain.RoleAssistant,
 		Content:        outcome.Message.Content,
@@ -160,12 +183,9 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		Usage:          &outcome.Usage,
 		CostUSD:        &cost,
 		ProductsShown:  outcome.ProductsShown,
-	}); err != nil {
-		httpserver.WriteError(w, apperr.NewInternalError(err))
-		return
-	}
+	})
 
-	httpserver.WriteJSON(w, http.StatusOK, chatResponse{Message: toChatMessageDTO(domain.RoleAssistant, outcome.Message.Content)})
+	stream.sendDone(false)
 }
 
 func toDomainMessages(messages []*domain.ConversationMessage) []domain.Message {
