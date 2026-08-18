@@ -25,7 +25,7 @@ User hỏi trực tiếp khi test: tool `search_products` (Phase 1) chỉ trả 
   ]
 }
 ```
-`specs` map từ `AttributeValueRef`: `Name` (+ `Unit` nếu có) làm `label`; `value` render theo `DataType` — number ghép `Unit`, boolean → "Có"/"Không", text → nguyên văn, multiselect (`ValueOptions`) → nối bằng dấu phẩy. Bỏ qua attribute nào rỗng cả 4 field giá trị (không nhồi noise vào prompt).
+`specs` map từ `AttributeValueRef`: `label` = `Name` (không kèm unit); `value` render theo field nào đang có giá trị (number ghép `Unit` ngay trong `value`, vd "9000 BTU/h" — khớp đúng ví dụ JSON ở trên, boolean → "Có"/"Không", text → nguyên văn, multiselect (`ValueOptions`) → nối bằng dấu phẩy). Bỏ qua attribute nào rỗng cả 4 field giá trị (không nhồi noise vào prompt) — kiểm tra bằng con trỏ `!= nil`, không phải giá trị falsy, nên `0`/`false` vẫn hiển thị đúng, không bị coi là "rỗng".
 
 System prompt (Phase 1, `SystemPrompt` trong `application/send_chat_message.go`) **không đổi nội dung**, chỉ hưởng lợi gián tiếp: dặn dò "không tự bịa" đã có sẵn từ Phase 1, giờ có data thật để tuân theo dặn dò đó thay vì buộc phải suy đoán vì thiếu data.
 
