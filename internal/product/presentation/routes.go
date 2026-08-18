@@ -15,11 +15,6 @@ func RegisterRoutes(r chi.Router, h *ProductHandler, verifier httpserver.TokenVe
 		// POST but read-only (batch fetch by a body-carried ID list) — the
 		// public site uses this too (cart/wishlist), so it stays open.
 		r.Post("/by-ids", h.GetByIDsBatch)
-		// Public, read-only, rate-limited in the handler itself (see
-		// ProductHandler.chatSearchLimiter) since it's the one product
-		// read path that runs a query per request rather than being
-		// cacheable navigation.
-		r.Post("/chat-search", h.ChatSearch)
 		r.Get("/slug/{slug}", h.GetBySlug)
 		r.Get("/{id}", h.GetByID)
 

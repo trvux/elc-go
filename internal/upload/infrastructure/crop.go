@@ -51,9 +51,7 @@ func fitRatio(srcW, srcH, targetW, targetH int) (int, int) {
 // converts each to WebP via cwebp (see encodeWebP) — imaging's pure-Go
 // Encode has no WEBP case (only JPEG/PNG/GIF/TIFF/BMP), and no pure-Go
 // lossy WebP encoder here has libwebp's track record, so this shells out to
-// the real thing instead — same "compile the actual reference tool, invoke
-// it, keep the Go binary itself cgo-free" pattern already used for
-// fastText's classifier (see Dockerfile).
+// the real thing instead, keeping the Go binary itself cgo-free.
 func generateCropVariants(decoded image.Image) (map[string][]byte, error) {
 	srcW, srcH := decoded.Bounds().Dx(), decoded.Bounds().Dy()
 	variants := make(map[string][]byte, len(cropTargets))

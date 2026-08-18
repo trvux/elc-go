@@ -25,8 +25,6 @@ import (
 	brandpresentation "github.com/trvux/elc-go/internal/brand/presentation"
 	categoryinfra "github.com/trvux/elc-go/internal/category/infrastructure"
 	categorypresentation "github.com/trvux/elc-go/internal/category/presentation"
-	chatloginfra "github.com/trvux/elc-go/internal/chat-log/infrastructure"
-	chatlogpresentation "github.com/trvux/elc-go/internal/chat-log/presentation"
 	contactinfra "github.com/trvux/elc-go/internal/contact/infrastructure"
 	contactpresentation "github.com/trvux/elc-go/internal/contact/presentation"
 	eventinfra "github.com/trvux/elc-go/internal/event/infrastructure"
@@ -180,7 +178,7 @@ func main() {
 	catalogPageHandler := productPresentation.NewCatalogPageHandler(catalogPageRepo)
 	productPresentation.RegisterCatalogPageRoutes(router, catalogPageHandler, tokenIssuer)
 
-	// secureCookies also gates the wishlist/recently-viewed/chat-log
+	// secureCookies also gates the wishlist/recently-viewed
 	// visitor_id cookie's Secure flag — same production-only rule as
 	// auth's refresh_token cookie above.
 	secureCookies := env == "production"
@@ -192,10 +190,6 @@ func main() {
 	recentlyViewedRepo := recentlyviewedinfra.NewPostgresRecentlyViewedRepository(pool)
 	recentlyViewedHandler := recentlyviewedpresentation.NewRecentlyViewedHandler(recentlyViewedRepo)
 	recentlyviewedpresentation.RegisterRoutes(router, recentlyViewedHandler, secureCookies)
-
-	chatLogRepo := chatloginfra.NewPostgresChatLogRepository(pool)
-	chatLogHandler := chatlogpresentation.NewChatLogHandler(chatLogRepo)
-	chatlogpresentation.RegisterRoutes(router, chatLogHandler, tokenIssuer, secureCookies)
 
 	branchRepo := branchinfra.NewPostgresBranchRepository(pool)
 	branchHandler := branchpresentation.NewBranchHandler(branchRepo)
