@@ -76,7 +76,7 @@ func (r *PostgresPageRepository) GetAll(ctx context.Context, filter domain.PageF
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error during pages rows iteration: %w", err)
+		return nil, fmt.Errorf("page repository getAll rows: %w", err)
 	}
 
 	return pages, nil

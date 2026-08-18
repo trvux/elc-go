@@ -40,7 +40,7 @@ func (r *PostgresSettingsRepository) GetAll(ctx context.Context) ([]*domain.Site
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error during site settings rows iteration: %w", err)
+		return nil, fmt.Errorf("settings repository getAll rows: %w", err)
 	}
 
 	return settings, nil

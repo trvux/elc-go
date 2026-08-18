@@ -41,7 +41,7 @@ func (r *PostgresSystemPageRepository) GetAll(ctx context.Context) ([]*domain.Sy
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error during system pages rows iteration: %w", err)
+		return nil, fmt.Errorf("system-page repository getAll rows: %w", err)
 	}
 
 	return pages, nil
