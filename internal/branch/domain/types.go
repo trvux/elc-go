@@ -183,115 +183,98 @@ func (b *Branch) IsDeleted() bool {
 	return b.deletedAt != nil
 }
 
-func (b *Branch) UpdateName(name string) error {
-	if errs := validateName(name); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"name": errs})
-	}
-	b.name = name
-	b.updatedAt = time.Now()
-	return nil
-}
-
-func (b *Branch) UpdateSlug(slug string) error {
-	if errs := validateSlug(slug); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"slug": errs})
-	}
-	b.slug = slug
-	b.updatedAt = time.Now()
-	return nil
-}
-
-func (b *Branch) UpdateAddress(address string) error {
-	if errs := validateAddress(address); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"address": errs})
-	}
-	b.address = address
-	b.updatedAt = time.Now()
-	return nil
-}
-
-func (b *Branch) UpdatePhone(phone string) error {
-	if errs := validatePhone(phone); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"phone": errs})
-	}
-	b.phone = phone
-	b.updatedAt = time.Now()
-	return nil
-}
-
-func (b *Branch) UpdateEmail(email string) error {
-	if errs := validateEmail(email); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"email": errs})
-	}
-	b.email = email
-	b.updatedAt = time.Now()
-	return nil
-}
-
-func (b *Branch) UpdateMapsURL(mapsURL string) error {
-	if errs := validateMapsURL(mapsURL); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"mapsUrl": errs})
-	}
-	b.mapsURL = mapsURL
-	b.updatedAt = time.Now()
-	return nil
-}
-
-func (b *Branch) UpdateMapsEmbed(mapsEmbed string) error {
-	if errs := validateMapsEmbed(mapsEmbed); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"mapsEmbed": errs})
-	}
-	b.mapsEmbed = mapsEmbed
-	b.updatedAt = time.Now()
-	return nil
-}
-
-// UpdateLocation is bundled (rather than one setter per field) because
-// province/ward code+name are always chosen together from the same
-// cascading combobox on the frontend — see BranchManagement.tsx.
-func (b *Branch) UpdateLocation(provinceCode, provinceName, wardCode, wardName, postalCode *string) {
-	b.provinceCode = provinceCode
-	b.provinceName = provinceName
-	b.wardCode = wardCode
-	b.wardName = wardName
-	b.postalCode = postalCode
-	b.updatedAt = time.Now()
-}
-
-func (b *Branch) UpdateDescription(desc json.RawMessage) {
-	b.description = desc
-	b.updatedAt = time.Now()
-}
-
-func (b *Branch) UpdateImages(images []ImageAsset) {
-	b.images = images
-	b.updatedAt = time.Now()
-}
-
-func (b *Branch) SetPublished(isPublished bool) {
-	b.isPublished = isPublished
-	b.updatedAt = time.Now()
-}
-
 func (b *Branch) Reorder(orderIndex int) {
 	b.orderIndex = orderIndex
 	b.updatedAt = time.Now()
 }
 
-func (b *Branch) UpdateMetaTitle(title *string) error {
-	if errs := seo.ValidateMetaTitle(title); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
+// Update applies a partial edit from a form submission: only non-nil fields
+// in input are validated and set. Validates and applies in the same order
+// the fields appear below, failing fast on the first invalid field (no error
+// aggregation) — this matches the single call site in
+// application.UpdateBranch, which always submits the whole edit form at once.
+//
+// OrderIndex goes through Reorder rather than setting orderIndex directly,
+// so drag-drop reorder (application.UpdateBranchOrder) and the edit form
+// share one path for that field.
+func (b *Branch) Update(input UpdateBranchInput) error {
+	if input.Name != nil {
+		if errs := validateName(*input.Name); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"name": errs})
+		}
+		b.name = *input.Name
 	}
-	b.metaTitle = title
-	b.updatedAt = time.Now()
-	return nil
-}
-
-func (b *Branch) UpdateMetaDescription(desc *string) error {
-	if errs := seo.ValidateMetaDescription(desc); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
+	if input.Slug != nil {
+		if errs := validateSlug(*input.Slug); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"slug": errs})
+		}
+		b.slug = *input.Slug
 	}
-	b.metaDescription = desc
+	if input.Address != nil {
+		if errs := validateAddress(*input.Address); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"address": errs})
+		}
+		b.address = *input.Address
+	}
+	if input.Phone != nil {
+		if errs := validatePhone(*input.Phone); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"phone": errs})
+		}
+		b.phone = *input.Phone
+	}
+	if input.Email != nil {
+		if errs := validateEmail(*input.Email); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"email": errs})
+		}
+		b.email = *input.Email
+	}
+	if input.MapsURL != nil {
+		if errs := validateMapsURL(*input.MapsURL); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"mapsUrl": errs})
+		}
+		b.mapsURL = *input.MapsURL
+	}
+	if input.MapsEmbed != nil {
+		if errs := validateMapsEmbed(*input.MapsEmbed); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"mapsEmbed": errs})
+		}
+		b.mapsEmbed = *input.MapsEmbed
+	}
+	// Bundled: the frontend's cascading combobox always submits
+	// province/ward code+name+postalCode together (see BranchManagement.tsx),
+	// so treat "any one present" as "replace the whole location" rather than
+	// merging field-by-field.
+	if input.ProvinceCode != nil || input.ProvinceName != nil || input.WardCode != nil || input.WardName != nil || input.PostalCode != nil {
+		b.provinceCode = input.ProvinceCode
+		b.provinceName = input.ProvinceName
+		b.wardCode = input.WardCode
+		b.wardName = input.WardName
+		b.postalCode = input.PostalCode
+	}
+	if input.Description != nil {
+		b.description = input.Description
+	}
+	if input.Images != nil {
+		b.images = input.Images
+	}
+	if input.IsPublished != nil {
+		b.isPublished = *input.IsPublished
+	}
+	if input.OrderIndex != nil {
+		b.Reorder(*input.OrderIndex)
+	}
+	if input.MetaTitle != nil && !seo.Unchanged(b.metaTitle, input.MetaTitle) {
+		if errs := seo.ValidateMetaTitle(input.MetaTitle); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
+		}
+		b.metaTitle = input.MetaTitle
+	}
+	if input.MetaDescription != nil && !seo.Unchanged(b.metaDescription, input.MetaDescription) {
+		if errs := seo.ValidateMetaDescription(input.MetaDescription); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
+		}
+		b.metaDescription = input.MetaDescription
+	}
 	b.updatedAt = time.Now()
 	return nil
 }
