@@ -4,12 +4,14 @@
 package infrastructure
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/trvux/elc-go/internal/ai/domain"
@@ -45,9 +47,15 @@ func NewOpenAICompatibleClient(baseURL, apiKey, model string, httpTimeout time.D
 var _ domain.LLMClient = (*OpenAICompatibleClient)(nil)
 
 // llmClientHTTPTimeout backstops every OpenAICompatibleClient built by
-// NewLLMClient — see NewOpenAICompatibleClient's doc comment on why this
-// isn't the caller's only timeout.
-const llmClientHTTPTimeout = 30 * time.Second
+// NewLLMClient for callers that don't set their own context deadline (e.g.
+// cmd/sync-ai-pricing's one-shot extraction call) — see
+// NewOpenAICompatibleClient's doc comment. Callers that DO set a ctx
+// deadline (every real request path, e.g. AIHandler.Chat's chatTimeout)
+// are bound by whichever fires first, so this only needs to be long enough
+// to never be the thing that cuts off a legitimate streamed answer — 120s
+// comfortably exceeds handler.go's 60s chatTimeout, which is Chat's actual
+// bound in practice.
+const llmClientHTTPTimeout = 120 * time.Second
 
 // NewLLMClient adapts NewOpenAICompatibleClient to domain.LLMClientFactory
 // — the shape SendChatMessage/ClassifyMessage's fallback loops use to build
@@ -84,10 +92,45 @@ type wireTool struct {
 	} `json:"function"`
 }
 
+type wireStreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
+}
+
 type wireRequest struct {
-	Model    string        `json:"model"`
-	Messages []wireMessage `json:"messages"`
-	Tools    []wireTool    `json:"tools,omitempty"`
+	Model         string             `json:"model"`
+	Messages      []wireMessage      `json:"messages"`
+	Tools         []wireTool         `json:"tools,omitempty"`
+	Stream        bool               `json:"stream,omitempty"`
+	StreamOptions *wireStreamOptions `json:"stream_options,omitempty"`
+}
+
+// wireStreamChunk is one `data: {...}` line of an SSE chat-completions
+// stream. ToolCalls arrive as index-keyed fragments — id and the function
+// name typically land whole on the first fragment for a given index,
+// arguments arrive character-by-character across many fragments — see
+// readStream's accumulation.
+type wireStreamChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content   string `json:"content"`
+			ToolCalls []struct {
+				Index    int    `json:"index"`
+				ID       string `json:"id"`
+				Function struct {
+					Name      string `json:"name"`
+					Arguments string `json:"arguments"`
+				} `json:"function"`
+			} `json:"tool_calls"`
+		} `json:"delta"`
+	} `json:"choices"`
+	Usage *struct {
+		PromptTokens         int `json:"prompt_tokens"`
+		CompletionTokens     int `json:"completion_tokens"`
+		PromptCacheHitTokens int `json:"prompt_cache_hit_tokens"`
+	} `json:"usage"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error"`
 }
 
 type wireResponse struct {
@@ -172,6 +215,154 @@ func (c *OpenAICompatibleClient) Chat(ctx context.Context, messages []domain.Mes
 		}
 	}
 	return result, nil
+}
+
+// ChatStream implements domain.LLMClient. It makes the HTTP request and
+// waits for headers/status synchronously — same retryable-vs-plain error
+// classification as Chat — so a caller's fallback loop can still switch to
+// the next model on a pre-stream failure. Only once the response is
+// confirmed 200 OK does it hand off to a goroutine reading the SSE body;
+// errors past that point arrive as the final StreamEvent (Err set) instead,
+// since nothing about a already-flushed-to-the-caller stream can be retried
+// (see the Phase 2 RFC's fallback-only-before-first-byte rule).
+func (c *OpenAICompatibleClient) ChatStream(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition) (<-chan domain.StreamEvent, error) {
+	reqBody := wireRequest{
+		Model:         c.model,
+		Messages:      toWireMessages(messages),
+		Tools:         toWireTools(tools),
+		Stream:        true,
+		StreamOptions: &wireStreamOptions{IncludeUsage: true},
+	}
+
+	payload, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("ai: encode chat stream request: %w", err)
+	}
+
+	url := c.baseURL + "/chat/completions"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("ai: build chat stream request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "text/event-stream")
+	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, &domain.RetryableError{Err: fmt.Errorf("ai: call chat completions (stream): %w", err)}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		var wireResp wireResponse
+		_ = json.Unmarshal(body, &wireResp)
+
+		providerErr := fmt.Errorf("ai: provider returned %d", resp.StatusCode)
+		if wireResp.Error != nil {
+			providerErr = fmt.Errorf("ai: provider returned %d: %s", resp.StatusCode, wireResp.Error.Message)
+		}
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			return nil, &domain.RetryableError{Err: providerErr}
+		}
+		return nil, providerErr
+	}
+
+	events := make(chan domain.StreamEvent)
+	go readStream(resp.Body, events)
+	return events, nil
+}
+
+// readStream parses an SSE chat-completions body, forwarding each content
+// delta immediately and accumulating tool-call fragments (id/name land
+// whole, arguments accumulate character-by-character — index-keyed, same
+// as the OpenAI streaming tool-call convention) until the final `data:
+// [DONE]` line, at which point it emits one Done event carrying the
+// accumulated tool calls and usage. Always closes events before returning.
+//
+// Takes no ctx of its own: body already belongs to an *http.Response from a
+// request built with NewRequestWithContext, so once that ctx is canceled
+// (client disconnect, deadline) further reads on body fail on their own —
+// the scanner loop below exits via scanner.Err() without needing to select
+// on a context separately.
+func readStream(body io.ReadCloser, events chan<- domain.StreamEvent) {
+	defer close(events)
+	defer body.Close()
+
+	type toolCallBuilder struct {
+		id, name, arguments string
+	}
+	builders := make(map[int]*toolCallBuilder)
+	maxIndex := -1
+	var usage domain.TokenUsage
+
+	scanner := bufio.NewScanner(body)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		data, ok := strings.CutPrefix(scanner.Text(), "data: ")
+		if !ok || data == "" {
+			continue
+		}
+		if data == "[DONE]" {
+			break
+		}
+
+		var chunk wireStreamChunk
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			events <- domain.StreamEvent{Done: true, Err: fmt.Errorf("ai: decode stream chunk: %w", err)}
+			return
+		}
+		if chunk.Error != nil {
+			events <- domain.StreamEvent{Done: true, Err: fmt.Errorf("ai: provider stream error: %s", chunk.Error.Message)}
+			return
+		}
+		if chunk.Usage != nil {
+			usage = domain.TokenUsage{
+				InputTokens:    chunk.Usage.PromptTokens,
+				OutputTokens:   chunk.Usage.CompletionTokens,
+				CacheHitTokens: chunk.Usage.PromptCacheHitTokens,
+			}
+		}
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+
+		delta := chunk.Choices[0].Delta
+		if delta.Content != "" {
+			events <- domain.StreamEvent{ContentDelta: delta.Content}
+		}
+		for _, tc := range delta.ToolCalls {
+			b, ok := builders[tc.Index]
+			if !ok {
+				b = &toolCallBuilder{}
+				builders[tc.Index] = b
+				if tc.Index > maxIndex {
+					maxIndex = tc.Index
+				}
+			}
+			if tc.ID != "" {
+				b.id = tc.ID
+			}
+			if tc.Function.Name != "" {
+				b.name = tc.Function.Name
+			}
+			b.arguments += tc.Function.Arguments
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		events <- domain.StreamEvent{Done: true, Err: fmt.Errorf("ai: read stream: %w", err)}
+		return
+	}
+
+	var toolCalls []domain.ToolCall
+	for i := 0; i <= maxIndex; i++ {
+		if b, ok := builders[i]; ok {
+			toolCalls = append(toolCalls, domain.ToolCall{ID: b.id, Name: b.name, Arguments: b.arguments})
+		}
+	}
+	events <- domain.StreamEvent{Done: true, ToolCalls: toolCalls, Usage: usage}
 }
 
 func toWireMessages(messages []domain.Message) []wireMessage {

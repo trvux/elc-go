@@ -72,6 +72,35 @@ type ChatResult struct {
 // call again) is orchestrated by internal/ai/application, not by this port.
 type LLMClient interface {
 	Chat(ctx context.Context, messages []Message, tools []ToolDefinition) (*ChatResult, error)
+	// ChatStream is Chat's streaming counterpart — one round of a chat
+	// completion, but with content deltas pushed to the returned channel as
+	// they arrive instead of waiting for the whole response. The channel is
+	// closed once the round finishes (successfully or not); the final
+	// StreamEvent (Done=true) carries the round's ToolCalls/Usage, same
+	// information ChatResult carries for the non-streaming call.
+	//
+	// A tool-call round never emits ContentDelta (the model doesn't
+	// generate text while requesting a tool) — so a caller can forward
+	// every ContentDelta to its own client unconditionally, without first
+	// knowing whether this round will end up being the final answer or a
+	// tool-call request. See ClassifyMessage's non-streaming Chat use for
+	// why this second method exists rather than replacing Chat outright:
+	// the guardrail classifier never needs to stream, so it stays on the
+	// simpler call.
+	ChatStream(ctx context.Context, messages []Message, tools []ToolDefinition) (<-chan StreamEvent, error)
+}
+
+// StreamEvent is one increment of a ChatStream call.
+type StreamEvent struct {
+	ContentDelta string
+	Done         bool
+	ToolCalls    []ToolCall // only meaningful when Done
+	Usage        TokenUsage // only meaningful when Done
+	// Err is set on the final event when the stream ended because of an
+	// error (network failure, non-200 status, malformed chunk) rather than
+	// a normal finish — Done is also true in that case. Wrapped in
+	// *RetryableError under the same rules Chat's returned error follows.
+	Err error
 }
 
 // LLMClientFactory builds an LLMClient for one resolved ModelConfig. The

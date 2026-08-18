@@ -29,10 +29,17 @@ type ConversationMessage struct {
 	// turn — Provider/Model/Usage/CostUSD are all nil in that case, since
 	// no chat completion was ever called.
 	BlockedReason *string
-	ProviderID    *string
-	ModelID       *string
-	Usage         *TokenUsage
-	CostUSD       *float64
+	// Incomplete is set when a streaming reply was cut short by a
+	// mid-stream error (see the Phase 2 RFC §2.4) — Content is whatever
+	// text had already reached the client before the failure, not the
+	// model's full intended answer. Provider/Model/Usage/CostUSD are still
+	// populated (a real completion did partially happen and did cost
+	// something), unlike a guardrail block.
+	Incomplete bool
+	ProviderID *string
+	ModelID    *string
+	Usage      *TokenUsage
+	CostUSD    *float64
 	// ProductsShown is the slugs search_products surfaced this turn — feeds
 	// the ads/marketing-planning analytics goal, not just support review.
 	ProductsShown []string
