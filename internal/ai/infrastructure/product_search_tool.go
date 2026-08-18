@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/trvux/elc-go/internal/ai/domain"
 	productdomain "github.com/trvux/elc-go/internal/product/domain"
@@ -19,6 +21,14 @@ type searchProductsArgs struct {
 	MaxPrice     *int64 `json:"max_price"`
 }
 
+// specEntry is one rendered spec, e.g. {"label": "Công suất làm lạnh",
+// "value": "9000 BTU/h"} — see renderAttributeValue for how each
+// AttributeValueRef data_type becomes a display string.
+type specEntry struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
 type productSummary struct {
 	Name        string `json:"name"`
 	Slug        string `json:"slug"`
@@ -27,6 +37,13 @@ type productSummary struct {
 	PriceFrom   *int64 `json:"price_from,omitempty"`
 	PriceTo     *int64 `json:"price_to,omitempty"`
 	StockStatus string `json:"stock_status,omitempty"`
+	// Highlights/Specs ground the model in the product's real recorded
+	// features/technical specs — without these, a question about a
+	// specific feature or spec has nothing here to answer from, and the
+	// model falls back to its general training knowledge instead of this
+	// store's actual catalog (the exact failure mode this fixes).
+	Highlights []string    `json:"highlights,omitempty"`
+	Specs      []specEntry `json:"specs,omitempty"`
 }
 
 // searchResultLimit caps how many products the tool returns per call — keeps
@@ -37,14 +54,15 @@ const searchResultLimit = 5
 // NewProductSearchTool builds the search_products tool definition plus its
 // executor, backed by repo — the same ProductRepository the product module's
 // own HTTP handlers use, so the assistant's answers stay grounded in the
-// real catalog (price, stock, publish status) instead of the model
-// inventing a product or price.
+// real catalog (price, stock, publish status, specs) instead of the model
+// inventing a product, price, or feature.
 func NewProductSearchTool(repo productdomain.ProductRepository) (domain.ToolDefinition, func(ctx context.Context, argumentsJSON string) (string, error)) {
 	def := domain.ToolDefinition{
 		Name: "search_products",
 		Description: "Search the store's published product catalog by keyword, category slug, " +
-			"and/or price range (VND). Always call this before recommending or quoting a price for " +
-			"any specific product — never invent a product name or price.",
+			"and/or price range (VND). Returns each match's price, stock, highlights, and technical " +
+			"specs. Always call this before recommending or quoting a price, feature, or spec for " +
+			"any specific product — never invent a product name, price, or spec.",
 		Parameters: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -82,9 +100,22 @@ func NewProductSearchTool(repo productdomain.ProductRepository) (domain.ToolDefi
 			return "", fmt.Errorf("ai: search_products query: %w", err)
 		}
 
+		// GetAll (a list query) never populates AttributeValues — see
+		// ProductRepository's doc comment — so a second, bounded (≤
+		// searchResultLimit) lookup is needed to ground specs too. Reuses
+		// GetByIDsWithAttributeValues as-is (already built for Compare
+		// Products), no new SQL.
+		specsByID, err := fetchSpecsByID(ctx, repo, result.Products)
+		if err != nil {
+			return "", fmt.Errorf("ai: search_products specs query: %w", err)
+		}
+
 		summaries := make([]productSummary, 0, len(result.Products))
 		for _, p := range result.Products {
-			s := productSummary{Name: p.Name(), Slug: p.Slug(), PriceFrom: p.PriceMin(), PriceTo: p.PriceMax()}
+			s := productSummary{
+				Name: p.Name(), Slug: p.Slug(), PriceFrom: p.PriceMin(), PriceTo: p.PriceMax(),
+				Highlights: p.Highlights(), Specs: renderSpecs(specsByID[p.ID()]),
+			}
 			if p.Brand != nil {
 				s.Brand = p.Brand.Name
 			}
@@ -105,4 +136,71 @@ func NewProductSearchTool(repo productdomain.ProductRepository) (domain.ToolDefi
 	}
 
 	return def, execute
+}
+
+func fetchSpecsByID(ctx context.Context, repo productdomain.ProductRepository, products []*productdomain.ProductWithRelations) (map[string][]productdomain.AttributeValueRef, error) {
+	if len(products) == 0 {
+		return nil, nil
+	}
+	ids := make([]string, len(products))
+	for i, p := range products {
+		ids[i] = p.ID()
+	}
+
+	withSpecs, err := repo.GetByIDsWithAttributeValues(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	byID := make(map[string][]productdomain.AttributeValueRef, len(withSpecs))
+	for _, p := range withSpecs {
+		byID[p.ID()] = p.AttributeValues
+	}
+	return byID, nil
+}
+
+// renderSpecs turns each AttributeValueRef into a label/value pair the
+// model can read directly — skips any attribute with no value recorded at
+// all, so the tool result doesn't pad the prompt with empty specs.
+func renderSpecs(values []productdomain.AttributeValueRef) []specEntry {
+	if len(values) == 0 {
+		return nil
+	}
+	specs := make([]specEntry, 0, len(values))
+	for _, v := range values {
+		value := renderAttributeValue(v)
+		if value == "" {
+			continue
+		}
+		specs = append(specs, specEntry{Label: v.Name, Value: value})
+	}
+	if len(specs) == 0 {
+		return nil
+	}
+	return specs
+}
+
+// renderAttributeValue picks the one populated value field for v's
+// data_type — see AttributeValueRef's doc comment: exactly one of
+// ValueText/ValueNumber/ValueBoolean/ValueOptions is meaningful per row.
+func renderAttributeValue(v productdomain.AttributeValueRef) string {
+	switch {
+	case v.ValueText != nil && *v.ValueText != "":
+		return *v.ValueText
+	case v.ValueNumber != nil:
+		s := strconv.FormatFloat(*v.ValueNumber, 'f', -1, 64)
+		if v.Unit != nil && *v.Unit != "" {
+			return s + " " + *v.Unit
+		}
+		return s
+	case v.ValueBoolean != nil:
+		if *v.ValueBoolean {
+			return "Có"
+		}
+		return "Không"
+	case len(v.ValueOptions) > 0:
+		return strings.Join(v.ValueOptions, ", ")
+	default:
+		return ""
+	}
 }
