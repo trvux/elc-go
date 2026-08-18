@@ -61,7 +61,7 @@ Với `NewProductVariant`/`validVariantStockStatus`: nếu xóa, sửa `variant_
 - **`Detach` thiếu check tồn tại** (`internal/attribute/application/category_association.go:26-28`): thêm `GetByID` check giống `Attach` nếu muốn nhất quán 404 thay vì 204 im lặng — cân nhắc: DELETE idempotent là hành vi REST hợp lệ, có thể giữ nguyên nếu không gây nhầm lẫn thực tế.
 - **UUID validate ở review** (`internal/review/presentation/handler.go:65,127`): validate `entityID` là UUID hợp lệ trước khi vào query, trả 400 thay vì để Postgres lỗi 500.
 - **Rate-limit map không prune** (`internal/platform/ratelimit/ratelimit.go:21-53`): thêm goroutine dọn định kỳ hoặc lazy-eviction khi window hết hạn.
-- **page Update TOCTOU** (`internal/page/infrastructure/postgres_repository.go:173-192`): map `pgx.ErrNoRows` thành `apperr.NewNotFoundError` giống các domain khác.
+- **page Update TOCTOU** (`internal/page/infrastructure/postgres_repository.go:173-192`): map `pgx.ErrNoRows` thành `apperr.NewNotFoundError`. Lưu ý (sửa lại so với bản draft ban đầu): không có domain nào khác trong repo làm mapping này ở tầng repository cho `Update` — convention chung là application layer tự `GetByID` trước rồi mới gọi `Update` (page cũng vậy), nên đây là cải tiến riêng cho page để đóng khoảng hở TOCTOU giữa check và write, không phải "đồng bộ với domain khác".
 
 ### 3d. Cosmetic cleanup
 

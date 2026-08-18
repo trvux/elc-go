@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/trvux/elc-go/internal/page/domain"
+	"github.com/trvux/elc-go/internal/platform/apperr"
 )
 
 type PostgresPageRepository struct {
@@ -182,6 +183,12 @@ func (r *PostgresPageRepository) Update(ctx context.Context, p *domain.Page) (*d
 		p.Title(), p.Slug(), p.Content(), p.IsPublished(), p.MetaTitle(), p.MetaDescription(), p.OrderIndex(), p.ID(),
 	).Scan(&updatedAt)
 	if err != nil {
+		// The application layer already checked existence via GetByID before
+		// calling Update, but the row can still be deleted in between (TOCTOU).
+		// Map that case to a proper 404 instead of leaking a raw 500.
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, apperr.NewNotFoundError("page")
+		}
 		return nil, fmt.Errorf("page repository update: %w", err)
 	}
 
