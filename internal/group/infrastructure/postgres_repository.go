@@ -104,10 +104,19 @@ func (r *PostgresGroupRepository) GetBySlug(ctx context.Context, slug string) (*
 }
 
 func (r *PostgresGroupRepository) Create(ctx context.Context, group *domain.Group) (*domain.Group, error) {
-	// Resurrect-on-create logic: check if there's an existing soft-deleted group with same slug
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("group repository create (begin tx): %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Resurrect-on-create logic: check if there's an existing soft-deleted
+	// group with same slug. FOR UPDATE locks that row for the rest of this
+	// transaction so a second concurrent Create for the same slug blocks
+	// here instead of racing this check against the UPDATE below.
 	var existingID string
-	err := r.pool.QueryRow(ctx,
-		"SELECT id FROM group_categories WHERE slug = $1 AND deleted_at IS NOT NULL",
+	err = tx.QueryRow(ctx,
+		"SELECT id FROM group_categories WHERE slug = $1 AND deleted_at IS NOT NULL FOR UPDATE",
 		group.Slug(),
 	).Scan(&existingID)
 
@@ -116,6 +125,7 @@ func (r *PostgresGroupRepository) Create(ctx context.Context, group *domain.Grou
 	}
 	isResurrect := (err == nil)
 
+	var result *domain.Group
 	if isResurrect {
 		// Existing soft-deleted row found, resurrect it by updating it and setting deleted_at = NULL
 		query := `
@@ -126,7 +136,7 @@ func (r *PostgresGroupRepository) Create(ctx context.Context, group *domain.Grou
 			WHERE id = $10
 			RETURNING ` + groupColumns
 
-		row := r.pool.QueryRow(ctx, query,
+		row := tx.QueryRow(ctx, query,
 			group.Name(), group.ImageURL(), group.MetaTitle(), group.MetaDescription(),
 			group.IsFeatured(), group.IsHidden(), group.OrderIndex(), group.Content(),
 			time.Now(), existingID,
@@ -135,24 +145,29 @@ func (r *PostgresGroupRepository) Create(ctx context.Context, group *domain.Grou
 		if err != nil {
 			return nil, fmt.Errorf("group repository create (resurrect): %w", err)
 		}
-		return resurrected, nil
+		result = resurrected
+	} else {
+		// No soft-deleted row, insert as new
+		query := `
+			INSERT INTO group_categories (name, slug, image_url, meta_title, meta_description, is_featured, is_hidden, order_index, content)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			RETURNING ` + groupColumns
+
+		row := tx.QueryRow(ctx, query,
+			group.Name(), group.Slug(), group.ImageURL(), group.MetaTitle(), group.MetaDescription(),
+			group.IsFeatured(), group.IsHidden(), group.OrderIndex(), group.Content(),
+		)
+		created, err := scanGroup(row)
+		if err != nil {
+			return nil, fmt.Errorf("group repository create: %w", err)
+		}
+		result = created
 	}
 
-	// No soft-deleted row, insert as new
-	query := `
-		INSERT INTO group_categories (name, slug, image_url, meta_title, meta_description, is_featured, is_hidden, order_index, content)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING ` + groupColumns
-
-	row := r.pool.QueryRow(ctx, query,
-		group.Name(), group.Slug(), group.ImageURL(), group.MetaTitle(), group.MetaDescription(),
-		group.IsFeatured(), group.IsHidden(), group.OrderIndex(), group.Content(),
-	)
-	created, err := scanGroup(row)
-	if err != nil {
-		return nil, fmt.Errorf("group repository create: %w", err)
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("group repository create (commit): %w", err)
 	}
-	return created, nil
+	return result, nil
 }
 
 func (r *PostgresGroupRepository) Update(ctx context.Context, group *domain.Group) (*domain.Group, error) {

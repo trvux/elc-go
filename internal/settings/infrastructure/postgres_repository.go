@@ -21,7 +21,7 @@ func (r *PostgresSettingsRepository) GetAll(ctx context.Context) ([]*domain.Site
 	query := `SELECT key, value FROM site_settings`
 	rows, err := r.pool.Query(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch site settings: %w", err)
+		return nil, fmt.Errorf("settings repository getAll: %w", err)
 	}
 	defer rows.Close()
 
@@ -30,7 +30,7 @@ func (r *PostgresSettingsRepository) GetAll(ctx context.Context) ([]*domain.Site
 		var key string
 		var value *string
 		if err := rows.Scan(&key, &value); err != nil {
-			return nil, fmt.Errorf("failed to scan site setting: %w", err)
+			return nil, fmt.Errorf("settings repository getAll scan: %w", err)
 		}
 		valStr := ""
 		if value != nil {
@@ -53,7 +53,7 @@ func (r *PostgresSettingsRepository) UpdateMany(ctx context.Context, settings []
 
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to start transaction for update settings: %w", err)
+		return fmt.Errorf("settings repository updateMany (begin tx): %w", err)
 	}
 	defer func() {
 		_ = tx.Rollback(ctx)
@@ -67,12 +67,12 @@ func (r *PostgresSettingsRepository) UpdateMany(ctx context.Context, settings []
 	for _, s := range settings {
 		_, err := tx.Exec(ctx, query, s.Key(), s.Value())
 		if err != nil {
-			return fmt.Errorf("failed to upsert site setting %s: %w", s.Key(), err)
+			return fmt.Errorf("settings repository updateMany upsert %s: %w", s.Key(), err)
 		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit update settings transaction: %w", err)
+		return fmt.Errorf("settings repository updateMany (commit): %w", err)
 	}
 
 	return nil

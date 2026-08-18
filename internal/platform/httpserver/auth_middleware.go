@@ -54,25 +54,6 @@ func RequireAuth(verifier TokenVerifier) func(http.Handler) http.Handler {
 	}
 }
 
-// RequireRole must be mounted after RequireAuth. Responds 403 if the
-// caller's role isn't in the allowed list.
-func RequireRole(roles ...string) func(http.Handler) http.Handler {
-	allowed := make(map[string]bool, len(roles))
-	for _, role := range roles {
-		allowed[role] = true
-	}
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			role, _ := RoleFromContext(r.Context())
-			if !allowed[role] {
-				WriteError(w, apperr.NewForbiddenError("insufficient role"))
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
 // RequirePermission must be mounted after RequireAuth. check is normally a
 // closure over a business module's own permission map, e.g.:
 //

@@ -6,8 +6,8 @@ import (
 	"github.com/trvux/elc-go/internal/brand/domain"
 )
 
-// DeleteBrand soft-deletes — see docs/brand.md for the products.brand_id
-// cleanup this cascades into at the repository level.
+// DeleteBrand soft-deletes the brand row only — it does not cascade into
+// products.brand_id (see SoftDelete's comment in the postgres repository).
 func DeleteBrand(ctx context.Context, repo domain.BrandRepository, id string) error {
 	return repo.SoftDelete(ctx, id)
 }

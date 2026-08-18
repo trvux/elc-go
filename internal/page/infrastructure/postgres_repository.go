@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/trvux/elc-go/internal/page/domain"
+	"github.com/trvux/elc-go/internal/platform/apperr"
 )
 
 type PostgresPageRepository struct {
@@ -61,7 +62,7 @@ func (r *PostgresPageRepository) GetAll(ctx context.Context, filter domain.PageF
 
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query pages: %w", err)
+		return nil, fmt.Errorf("page repository getAll: %w", err)
 	}
 	defer rows.Close()
 
@@ -108,7 +109,7 @@ func (r *PostgresPageRepository) Count(ctx context.Context, filter domain.PageFi
 	var count int
 	err := r.pool.QueryRow(ctx, query, args...).Scan(&count)
 	if err != nil {
-		return 0, fmt.Errorf("failed to count pages: %w", err)
+		return 0, fmt.Errorf("page repository count: %w", err)
 	}
 
 	return count, nil
@@ -161,7 +162,7 @@ func (r *PostgresPageRepository) Create(ctx context.Context, p *domain.Page) (*d
 		p.Title(), p.Slug(), p.Content(), p.IsPublished(), p.MetaTitle(), p.MetaDescription(), p.OrderIndex(),
 	).Scan(&id, &createdAt, &updatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create page: %w", err)
+		return nil, fmt.Errorf("page repository create: %w", err)
 	}
 
 	return domain.RehydratePage(
@@ -182,7 +183,13 @@ func (r *PostgresPageRepository) Update(ctx context.Context, p *domain.Page) (*d
 		p.Title(), p.Slug(), p.Content(), p.IsPublished(), p.MetaTitle(), p.MetaDescription(), p.OrderIndex(), p.ID(),
 	).Scan(&updatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update page: %w", err)
+		// The application layer already checked existence via GetByID before
+		// calling Update, but the row can still be deleted in between (TOCTOU).
+		// Map that case to a proper 404 instead of leaking a raw 500.
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, apperr.NewNotFoundError("page")
+		}
+		return nil, fmt.Errorf("page repository update: %w", err)
 	}
 
 	return domain.RehydratePage(
@@ -195,7 +202,7 @@ func (r *PostgresPageRepository) Delete(ctx context.Context, id string) error {
 	query := `UPDATE pages SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL`
 	_, err := r.pool.Exec(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("failed to delete page: %w", err)
+		return fmt.Errorf("page repository delete: %w", err)
 	}
 	return nil
 }
@@ -204,7 +211,7 @@ func (r *PostgresPageRepository) Restore(ctx context.Context, id string) error {
 	query := `UPDATE pages SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL`
 	_, err := r.pool.Exec(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("failed to restore page: %w", err)
+		return fmt.Errorf("page repository restore: %w", err)
 	}
 	return nil
 }

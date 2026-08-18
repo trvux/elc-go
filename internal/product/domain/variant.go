@@ -16,15 +16,6 @@ const (
 	StockStatusDiscontinued      = "discontinued"
 )
 
-func validVariantStockStatus(s string) bool {
-	switch s {
-	case StockStatusInStock, StockStatusOrderFromSupplier, StockStatusDiscontinued:
-		return true
-	default:
-		return false
-	}
-}
-
 // ProductLine models "dòng sản phẩm" — e.g. Daikin's FTF/FTKB/FTKF/FTKY/FTKZ
 // tiers. Lives inside the product module (not its own bounded context)
 // since it currently has exactly one consumer, Product.
@@ -194,47 +185,6 @@ type ProductVariant struct {
 	createdAt       time.Time
 	updatedAt       time.Time
 	deletedAt       *time.Time
-}
-
-func NewProductVariant(
-	productID, mpn, sku string,
-	gtin *string,
-	isDefault, isStandalone bool,
-	stockStatus string,
-	leadTimeDays *int,
-	costPrice *int64,
-	originalPrice int64,
-	salePrice *int64,
-	discountPercent float64,
-	weight *float64,
-	isActive bool,
-	orderIndex int,
-	optionValueIDs []string,
-) (*ProductVariant, error) {
-	fields := map[string][]string{}
-	if mpn == "" {
-		fields["mpn"] = []string{"mpn is required"}
-	}
-	if sku == "" {
-		fields["sku"] = []string{"sku is required"}
-	}
-	if stockStatus == "" {
-		stockStatus = StockStatusInStock
-	} else if !validVariantStockStatus(stockStatus) {
-		fields["stock_status"] = []string{"stock_status must be one of: in_stock, order_from_supplier, discontinued"}
-	}
-	if len(fields) > 0 {
-		return nil, apperr.NewValidationError("validation failed", fields)
-	}
-	now := time.Now()
-	return &ProductVariant{
-		productID: productID, mpn: mpn, sku: sku, gtin: gtin,
-		isDefault: isDefault, isStandalone: isStandalone, stockStatus: stockStatus,
-		leadTimeDays: leadTimeDays, costPrice: costPrice,
-		originalPrice: originalPrice, salePrice: salePrice, discountPercent: discountPercent,
-		weight: weight, isActive: isActive, orderIndex: orderIndex,
-		optionValueIDs: optionValueIDs, createdAt: now, updatedAt: now,
-	}, nil
 }
 
 func RehydrateProductVariant(

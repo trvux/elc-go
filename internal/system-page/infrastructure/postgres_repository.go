@@ -27,7 +27,7 @@ func (r *PostgresSystemPageRepository) GetAll(ctx context.Context) ([]*domain.Sy
 
 	rows, err := r.pool.Query(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query system pages: %w", err)
+		return nil, fmt.Errorf("system-page repository getAll: %w", err)
 	}
 	defer rows.Close()
 
@@ -85,7 +85,7 @@ func (r *PostgresSystemPageRepository) Update(ctx context.Context, p *domain.Sys
 	var updatedAt time.Time
 	err := r.pool.QueryRow(ctx, query, p.MetaTitle(), p.MetaDescription(), p.ID()).Scan(&updatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update system page: %w", err)
+		return nil, fmt.Errorf("system-page repository update: %w", err)
 	}
 
 	return domain.RehydrateSystemPage(

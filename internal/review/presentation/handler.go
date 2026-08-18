@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
@@ -63,6 +64,12 @@ func (h *ReviewHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	entityID := chi.URLParam(r, "entityID")
+	if _, err := uuid.Parse(entityID); err != nil {
+		httpserver.WriteError(w, apperr.NewValidationError("validation failed", map[string][]string{
+			"entityID": {"must be a valid UUID"},
+		}))
+		return
+	}
 
 	var req createReviewRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -125,6 +132,12 @@ func (h *ReviewHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	entityID := chi.URLParam(r, "entityID")
+	if _, err := uuid.Parse(entityID); err != nil {
+		httpserver.WriteError(w, apperr.NewValidationError("validation failed", map[string][]string{
+			"entityID": {"must be a valid UUID"},
+		}))
+		return
+	}
 
 	reviews, aggregate, err := application.ListPublishedReviews(r.Context(), h.repo, entityColumn, entityID)
 	if err != nil {

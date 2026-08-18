@@ -542,9 +542,12 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 	}
 	defer tx.Rollback(ctx)
 
+	// FOR UPDATE locks the soft-deleted row (if any) for the rest of this
+	// transaction so a second concurrent Create for the same slug blocks
+	// here instead of racing this check against the UPDATE below.
 	var existingID string
 	err = tx.QueryRow(ctx,
-		"SELECT id FROM projects WHERE slug = $1 AND deleted_at IS NOT NULL",
+		"SELECT id FROM projects WHERE slug = $1 AND deleted_at IS NOT NULL FOR UPDATE",
 		project.Slug(),
 	).Scan(&existingID)
 	if err != nil && err != pgx.ErrNoRows {

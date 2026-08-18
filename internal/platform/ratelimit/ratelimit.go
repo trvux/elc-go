@@ -25,10 +25,33 @@ type Limiter struct {
 }
 
 func New(limit int, per time.Duration) *Limiter {
-	return &Limiter{
+	l := &Limiter{
 		windows: make(map[string]*window),
 		limit:   limit,
 		window:  per,
+	}
+	go l.evictExpiredLoop()
+	return l
+}
+
+// evictExpiredLoop periodically drops expired windows so the map doesn't
+// grow without bound over the process's lifetime (every distinct
+// identifier|IP ever seen would otherwise stay in memory forever). Runs
+// for the lifetime of the process — Limiter is a long-lived singleton with
+// no Close/Stop, same as the rest of this package's design (see the
+// package doc comment).
+func (l *Limiter) evictExpiredLoop() {
+	ticker := time.NewTicker(l.window)
+	defer ticker.Stop()
+	for range ticker.C {
+		now := time.Now()
+		l.mu.Lock()
+		for key, w := range l.windows {
+			if now.After(w.expiresAt) {
+				delete(l.windows, key)
+			}
+		}
+		l.mu.Unlock()
 	}
 }
 

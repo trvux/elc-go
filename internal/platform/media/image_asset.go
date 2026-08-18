@@ -61,13 +61,3 @@ func FirstURL(images []ImageAsset) string {
 	}
 	return images[0].URL
 }
-
-// URLs flattens to a plain URL list — for the few remaining consumers that
-// only ever needed the URLs (e.g. sitemap image entries).
-func URLs(images []ImageAsset) []string {
-	urls := make([]string, len(images))
-	for i, img := range images {
-		urls[i] = img.URL
-	}
-	return urls
-}
