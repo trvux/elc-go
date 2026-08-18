@@ -98,7 +98,8 @@ func TestBranch_UpdateFields(t *testing.T) {
 	)
 
 	t.Run("update name succeeds", func(t *testing.T) {
-		if err := b.UpdateName("ELC Q3"); err != nil {
+		newName := "ELC Q3"
+		if err := b.Update(UpdateBranchInput{Name: &newName}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if b.Name() != "ELC Q3" {
@@ -107,17 +108,29 @@ func TestBranch_UpdateFields(t *testing.T) {
 	})
 
 	t.Run("update name with empty fails", func(t *testing.T) {
-		if err := b.UpdateName(""); err == nil {
+		empty := ""
+		if err := b.Update(UpdateBranchInput{Name: &empty}); err == nil {
 			t.Fatal("expected error")
 		}
 	})
 
 	t.Run("update email succeeds", func(t *testing.T) {
-		if err := b.UpdateEmail("q3@elc.vn"); err != nil {
+		newEmail := "q3@elc.vn"
+		if err := b.Update(UpdateBranchInput{Email: &newEmail}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if b.Email() != "q3@elc.vn" {
 			t.Errorf("expected q3@elc.vn, got %s", b.Email())
+		}
+	})
+
+	t.Run("no-op update leaves updatedAt untouched", func(t *testing.T) {
+		before := b.UpdatedAt()
+		if err := b.Update(UpdateBranchInput{}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !b.UpdatedAt().Equal(before) {
+			t.Errorf("expected updatedAt unchanged, before=%v after=%v", before, b.UpdatedAt())
 		}
 	})
 }
