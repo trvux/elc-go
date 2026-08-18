@@ -150,10 +150,19 @@ func (r *PostgresCategoryRepository) GetBySlug(ctx context.Context, slug string)
 }
 
 func (r *PostgresCategoryRepository) Create(ctx context.Context, category *domain.Category) (*domain.Category, error) {
-	// Resurrect-on-create logic: check if there's an existing soft-deleted category with same slug
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("category repository create (begin tx): %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Resurrect-on-create logic: check if there's an existing soft-deleted
+	// category with same slug. FOR UPDATE locks that row for the rest of
+	// this transaction so a second concurrent Create for the same slug
+	// blocks here instead of racing this check against the UPDATE below.
 	var existingID string
-	err := r.pool.QueryRow(ctx,
-		"SELECT id FROM categories WHERE slug = $1 AND deleted_at IS NOT NULL",
+	err = tx.QueryRow(ctx,
+		"SELECT id FROM categories WHERE slug = $1 AND deleted_at IS NOT NULL FOR UPDATE",
 		category.Slug(),
 	).Scan(&existingID)
 
@@ -162,6 +171,7 @@ func (r *PostgresCategoryRepository) Create(ctx context.Context, category *domai
 	}
 	isResurrect := (err == nil)
 
+	var result *domain.Category
 	if isResurrect {
 		query := `
 			UPDATE categories
@@ -171,7 +181,7 @@ func (r *PostgresCategoryRepository) Create(ctx context.Context, category *domai
 			WHERE id = $11
 			RETURNING ` + categoryColumns
 
-		row := r.pool.QueryRow(ctx, query,
+		row := tx.QueryRow(ctx, query,
 			category.Name(), category.GroupID(), category.ImageURL(), category.MetaTitle(), category.MetaDescription(),
 			category.IsFeatured(), category.IsHidden(), category.OrderIndex(), category.Content(),
 			time.Now(), existingID,
@@ -180,23 +190,28 @@ func (r *PostgresCategoryRepository) Create(ctx context.Context, category *domai
 		if err != nil {
 			return nil, fmt.Errorf("category repository create (resurrect): %w", err)
 		}
-		return resurrected, nil
+		result = resurrected
+	} else {
+		query := `
+			INSERT INTO categories (name, slug, group_id, image_url, meta_title, meta_description, is_featured, is_hidden, order_index, content)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			RETURNING ` + categoryColumns
+
+		row := tx.QueryRow(ctx, query,
+			category.Name(), category.Slug(), category.GroupID(), category.ImageURL(), category.MetaTitle(), category.MetaDescription(),
+			category.IsFeatured(), category.IsHidden(), category.OrderIndex(), category.Content(),
+		)
+		created, err := scanCategory(row)
+		if err != nil {
+			return nil, fmt.Errorf("category repository create: %w", err)
+		}
+		result = created
 	}
 
-	query := `
-		INSERT INTO categories (name, slug, group_id, image_url, meta_title, meta_description, is_featured, is_hidden, order_index, content)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		RETURNING ` + categoryColumns
-
-	row := r.pool.QueryRow(ctx, query,
-		category.Name(), category.Slug(), category.GroupID(), category.ImageURL(), category.MetaTitle(), category.MetaDescription(),
-		category.IsFeatured(), category.IsHidden(), category.OrderIndex(), category.Content(),
-	)
-	created, err := scanCategory(row)
-	if err != nil {
-		return nil, fmt.Errorf("category repository create: %w", err)
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("category repository create (commit): %w", err)
 	}
-	return created, nil
+	return result, nil
 }
 
 func (r *PostgresCategoryRepository) Update(ctx context.Context, category *domain.Category) (*domain.Category, error) {
