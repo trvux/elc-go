@@ -5,8 +5,8 @@ import "time"
 // PricingWindow is one UTC hour range (start inclusive, end exclusive)
 // during which a model's peak price applies.
 type PricingWindow struct {
-	StartHour int `json:"start_hour"`
-	EndHour   int `json:"end_hour"`
+	StartHour int `json:"startHour"`
+	EndHour   int `json:"endHour"`
 }
 
 // Pricing is a model's cost config, stored as JSONB on ai_models and kept
@@ -20,12 +20,12 @@ type PricingWindow struct {
 // InputCacheHitPeak nil (all input then bills at InputCacheMissPeak).
 type Pricing struct {
 	Currency           string          `json:"currency"`
-	PerMillionTokens   bool            `json:"per_million_tokens"`
-	InputCacheHitPeak  *float64        `json:"input_cache_hit_peak,omitempty"`
-	InputCacheMissPeak float64         `json:"input_cache_miss_peak"`
-	OutputPeak         float64         `json:"output_peak"`
-	OffPeakMultiplier  float64         `json:"off_peak_multiplier"`
-	PeakWindowsUTC     []PricingWindow `json:"peak_windows_utc,omitempty"`
+	PerMillionTokens   bool            `json:"perMillionTokens"`
+	InputCacheHitPeak  *float64        `json:"inputCacheHitPeak,omitempty"`
+	InputCacheMissPeak float64         `json:"inputCacheMissPeak"`
+	OutputPeak         float64         `json:"outputPeak"`
+	OffPeakMultiplier  float64         `json:"offPeakMultiplier"`
+	PeakWindowsUTC     []PricingWindow `json:"peakWindowsUtc,omitempty"`
 }
 
 // TokenUsage is one chat-completion call's token counts, as reported by the

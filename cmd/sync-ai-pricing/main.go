@@ -147,7 +147,7 @@ func fetchDocText(url string) (string, error) {
 func extractPricing(ctx context.Context, client domain.LLMClient, docText string, modelNames []string) (map[string]domain.Pricing, error) {
 	prompt := fmt.Sprintf(`Trích xuất bảng giá cho các model sau từ nội dung trang docs bên dưới: %s.
 Chỉ trả về JSON object, key là tên model (đúng như trong danh sách trên), value là object đúng shape:
-{"currency":"USD","per_million_tokens":true,"input_cache_hit_peak":<number hoặc null>,"input_cache_miss_peak":<number>,"output_peak":<number>,"off_peak_multiplier":<number, dùng 1.0 nếu trang không phân biệt peak/off-peak>,"peak_windows_utc":[{"start_hour":<int>,"end_hour":<int>}] (bỏ trống nếu không có khái niệm peak/off-peak)}.
+{"currency":"USD","perMillionTokens":true,"inputCacheHitPeak":<number hoặc null>,"inputCacheMissPeak":<number>,"outputPeak":<number>,"offPeakMultiplier":<number, dùng 1.0 nếu trang không phân biệt peak/off-peak>,"peakWindowsUtc":[{"startHour":<int>,"endHour":<int>}] (bỏ trống nếu không có khái niệm peak/off-peak)}.
 Model nào không tìm thấy trong trang thì bỏ qua, đừng bịa số. CHỈ trả JSON, không thêm chữ nào khác.
 
 Nội dung trang:

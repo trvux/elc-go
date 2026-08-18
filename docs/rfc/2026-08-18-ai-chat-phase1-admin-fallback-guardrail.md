@@ -30,16 +30,17 @@ Quyết định thay user (có lý do, xem chi tiết ở kế hoạch đầy đ
 
 ```json
 {
-  "currency": "USD", "per_million_tokens": true,
-  "input_cache_hit_peak": 0.044,
-  "input_cache_miss_peak": 1.32,
-  "output_peak": 3.96,
-  "off_peak_multiplier": 0.5,
-  "peak_windows_utc": [{"start_hour": 1, "end_hour": 4}, {"start_hour": 6, "end_hour": 10}]
+  "currency": "USD", "perMillionTokens": true,
+  "inputCacheHitPeak": 0.044,
+  "inputCacheMissPeak": 1.32,
+  "outputPeak": 3.96,
+  "offPeakMultiplier": 0.5,
+  "peakWindowsUtc": [{"startHour": 1, "endHour": 4}, {"startHour": 6, "endHour": 10}]
 }
 ```
+(JSON tags are camelCase — consistent with the rest of this module's HTTP API, e.g. `displayName`/`baseUrl` on providers/models — not the snake_case an earlier draft of this doc showed.)
 
-`Pricing.Cost()` tính giá peak trước, nhân `off_peak_multiplier` nếu giờ request rơi ngoài `peak_windows_utc`. Provider không phân biệt peak/off-peak thì để `off_peak_multiplier: 1.0`, bỏ `peak_windows_utc`. Provider không phân biệt cache hit/miss thì bỏ `input_cache_hit_peak`, mọi input tính theo `input_cache_miss_peak`.
+`Pricing.Cost()` tính giá peak trước, nhân `offPeakMultiplier` nếu giờ request rơi ngoài `peakWindowsUtc`. Provider không phân biệt peak/off-peak thì để `offPeakMultiplier: 1.0`, bỏ `peakWindowsUtc`. Provider không phân biệt cache hit/miss thì bỏ `inputCacheHitPeak`, mọi input tính theo `inputCacheMissPeak`.
 
 **Fallback trigger** — cũng lấy từ docs chính thức thay vì đoán: DeepSeek rate-limit theo **concurrency** (không phải request/phút), trả **HTTP 429** khi vượt giới hạn (500 concurrent cho `-pro`, 2500 cho `-flash`, tính theo account chứ không theo riêng từng API key). `SendChatMessage` coi 429, timeout, và 5xx là tín hiệu chuyển sang model kế tiếp theo `fallback_priority` — không coi 4xx khác (vd 400 do lỗi payload) là lý do fallback, vì thử lại provider khác cũng lỗi y hệt.
 
