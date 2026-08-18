@@ -32,13 +32,27 @@ var (
 	errStreamingUnsupported  = errors.New("ai: response writer does not support streaming")
 )
 
+// ChatRateLimit/ChatRateLimitWindow: 20 messages per IP per 10 minutes —
+// generous for a real back-and-forth with a customer, tight enough to
+// blunt a script hammering a paid LLM API. Exported so cmd/server/main.go
+// (the composition root that now picks in-memory vs. Redis-backed, see
+// docs/rfc/2026-08-18-ai-chat-redis.md) builds whichever ratelimit.
+// RateLimiter it chooses with the same numbers.
+const (
+	ChatRateLimit       = 20
+	ChatRateLimitWindow = 10 * time.Minute
+)
+
 // AIHandler is the composition root for the AI chat module.
 type AIHandler struct {
 	clientFactory    domain.LLMClientFactory
 	modelRepo        domain.ModelRepository
 	conversationRepo domain.ConversationRepository
 	tools            []application.Tool
-	chatLimiter      *ratelimit.Limiter
+	// cache is optional (nil = disabled, see domain.Cache's doc comment) —
+	// backs ClassifyMessage's/search_products' result caching.
+	cache       domain.Cache
+	chatLimiter ratelimit.RateLimiter
 }
 
 func NewAIHandler(
@@ -46,16 +60,16 @@ func NewAIHandler(
 	modelRepo domain.ModelRepository,
 	conversationRepo domain.ConversationRepository,
 	tools []application.Tool,
+	cache domain.Cache,
+	chatLimiter ratelimit.RateLimiter,
 ) *AIHandler {
 	return &AIHandler{
 		clientFactory:    clientFactory,
 		modelRepo:        modelRepo,
 		conversationRepo: conversationRepo,
 		tools:            tools,
-		// 20 messages per IP per 10 minutes — generous for a real
-		// back-and-forth with a customer, tight enough to blunt a script
-		// hammering a paid LLM API.
-		chatLimiter: ratelimit.New(20, 10*time.Minute),
+		cache:            cache,
+		chatLimiter:      chatLimiter,
 	}
 }
 
@@ -120,7 +134,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if verdict := application.ClassifyMessage(ctx, h.clientFactory, classifierModels, req.Message); verdict != nil && !verdict.OnTopic {
+	if verdict := application.ClassifyMessage(ctx, h.clientFactory, classifierModels, h.cache, req.Message); verdict != nil && !verdict.OnTopic {
 		stream, ok := newSSEWriter(w)
 		if !ok {
 			httpserver.WriteError(w, apperr.NewInternalError(errStreamingUnsupported))

@@ -6,10 +6,28 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "8090:8090"
     env_file:
       - .env
+
+  redis:
+    image: redis:7-alpine
+    container_name: elc-redis
+    restart: unless-stopped
+    # No `ports:`/volume on purpose: only reachable over the internal
+    # Compose network (`redis:6379`, same reasoning as postgres below), and
+    # holds only rate-limit counters + AI response caches — ephemeral by
+    # design, losing it on restart is fine, no persistence needed. Optional
+    # at the app level too: REDIS_URL unset means internal/ai falls back to
+    # in-memory rate limiting and no caching (see docs/rfc/2026-08-18-ai-chat-redis.md).
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   postgres:
     image: postgres:17-alpine

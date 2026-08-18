@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	aiApplication "github.com/trvux/elc-go/internal/ai/application"
+	aiDomain "github.com/trvux/elc-go/internal/ai/domain"
 	aiInfra "github.com/trvux/elc-go/internal/ai/infrastructure"
 	aiPresentation "github.com/trvux/elc-go/internal/ai/presentation"
 	attributeinfra "github.com/trvux/elc-go/internal/attribute/infrastructure"
@@ -45,6 +47,7 @@ import (
 	"github.com/trvux/elc-go/internal/platform/db"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
 	"github.com/trvux/elc-go/internal/platform/logger"
+	"github.com/trvux/elc-go/internal/platform/ratelimit"
 	productInfra "github.com/trvux/elc-go/internal/product/infrastructure"
 	productPresentation "github.com/trvux/elc-go/internal/product/presentation"
 	projecttypeinfra "github.com/trvux/elc-go/internal/project-type/infrastructure"
@@ -189,10 +192,32 @@ func main() {
 	aiProviderRepo := aiInfra.NewPostgresProviderRepository(pool, aiCipher)
 	aiModelRepo := aiInfra.NewPostgresModelRepository(pool, aiCipher)
 	aiConversationRepo := aiInfra.NewPostgresConversationRepository(pool)
-	searchProductsDef, searchProductsExec := aiInfra.NewProductSearchTool(productRepo)
+
+	// Redis is entirely optional for internal/ai (see
+	// docs/rfc/2026-08-18-ai-chat-redis.md): unset REDIS_URL, or a
+	// connection failure, falls back to in-memory rate limiting and no
+	// caching — same graceful-degrade rule as the rest of this module's
+	// optional config (AI provider, guardrail classifier).
+	var aiCache aiDomain.Cache
+	aiChatLimiter := ratelimit.RateLimiter(ratelimit.New(aiPresentation.ChatRateLimit, aiPresentation.ChatRateLimitWindow))
+	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+		if opt, err := redis.ParseURL(redisURL); err != nil {
+			log.Warn("REDIS_URL is set but invalid — AI chat falls back to in-memory rate limiting, no caching", zap.Error(err))
+		} else {
+			redisClient := redis.NewClient(opt)
+			if err := redisClient.Ping(ctx).Err(); err != nil {
+				log.Warn("could not reach Redis — AI chat falls back to in-memory rate limiting, no caching", zap.Error(err))
+			} else {
+				aiCache = aiInfra.NewRedisCache(redisClient, "ai:cache")
+				aiChatLimiter = ratelimit.NewRedisLimiter(redisClient, "ai:ratelimit:chat", aiPresentation.ChatRateLimit, aiPresentation.ChatRateLimitWindow)
+			}
+		}
+	}
+
+	searchProductsDef, searchProductsExec := aiInfra.NewProductSearchTool(productRepo, aiCache)
 	aiHandler := aiPresentation.NewAIHandler(aiInfra.NewLLMClient, aiModelRepo, aiConversationRepo, []aiApplication.Tool{
 		{Definition: searchProductsDef, Execute: searchProductsExec},
-	})
+	}, aiCache, aiChatLimiter)
 	aiProviderHandler := aiPresentation.NewProviderHandler(aiProviderRepo)
 	aiModelHandler := aiPresentation.NewModelHandler(aiModelRepo)
 	aiReportHandler := aiPresentation.NewReportHandler(aiConversationRepo)

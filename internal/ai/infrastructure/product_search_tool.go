@@ -2,14 +2,24 @@ package infrastructure
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/trvux/elc-go/internal/ai/domain"
 	productdomain "github.com/trvux/elc-go/internal/product/domain"
 )
+
+// searchCacheTTL is deliberately short — this only saves DB load/latency,
+// not LLM cost (see docs/rfc/2026-08-18-ai-chat-redis.md), and price/stock
+// changing mid-cache is exactly the kind of stale-data risk the anomaly-
+// detection RFC (docs/rfc/2026-08-18-product-data-anomaly-detection.md)
+// was written to reduce, not reintroduce.
+const searchCacheTTL = 5 * time.Minute
 
 // searchProductsArgs is the JSON the model sends when it calls
 // search_products — the tool's Parameters schema below documents these same
@@ -56,7 +66,8 @@ const searchResultLimit = 5
 // own HTTP handlers use, so the assistant's answers stay grounded in the
 // real catalog (price, stock, publish status, specs) instead of the model
 // inventing a product, price, or feature.
-func NewProductSearchTool(repo productdomain.ProductRepository) (domain.ToolDefinition, func(ctx context.Context, argumentsJSON string) (string, error)) {
+// cache is optional (nil = disabled, see domain.Cache's doc comment).
+func NewProductSearchTool(repo productdomain.ProductRepository, cache domain.Cache) (domain.ToolDefinition, func(ctx context.Context, argumentsJSON string) (string, error)) {
 	def := domain.ToolDefinition{
 		Name: "search_products",
 		Description: "Search the store's published product catalog by keyword, category slug, " +
@@ -75,6 +86,13 @@ func NewProductSearchTool(repo productdomain.ProductRepository) (domain.ToolDefi
 	}
 
 	execute := func(ctx context.Context, argumentsJSON string) (string, error) {
+		cacheKey := searchCacheKey(argumentsJSON)
+		if cache != nil {
+			if cached, ok, err := cache.Get(ctx, cacheKey); err == nil && ok {
+				return cached, nil
+			}
+		}
+
 		var args searchProductsArgs
 		if argumentsJSON != "" {
 			if err := json.Unmarshal([]byte(argumentsJSON), &args); err != nil {
@@ -132,6 +150,9 @@ func NewProductSearchTool(repo productdomain.ProductRepository) (domain.ToolDefi
 		if err != nil {
 			return "", fmt.Errorf("ai: encode search_products result: %w", err)
 		}
+		if cache != nil {
+			_ = cache.Set(ctx, cacheKey, string(out), searchCacheTTL)
+		}
 		return string(out), nil
 	}
 
@@ -150,6 +171,16 @@ func sanePrice(price *int64) *int64 {
 		return nil
 	}
 	return price
+}
+
+// searchCacheKey hashes the model's raw tool-call arguments as-is — an
+// imperfect cache key (the model could phrase semantically-identical
+// arguments slightly differently between calls) but simple, and a cache
+// miss here just falls through to the real DB query, never a correctness
+// problem.
+func searchCacheKey(argumentsJSON string) string {
+	sum := sha256.Sum256([]byte(argumentsJSON))
+	return "search:" + hex.EncodeToString(sum[:])
 }
 
 func fetchSpecsByID(ctx context.Context, repo productdomain.ProductRepository, products []*productdomain.ProductWithRelations) (map[string][]productdomain.AttributeValueRef, error) {
