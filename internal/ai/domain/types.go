@@ -60,6 +60,11 @@ type ToolDefinition struct {
 // ToolCalls, same as the OpenAI API convention this mirrors.
 type ChatResult struct {
 	Message Message
+	// Usage is the token counts this call billed against, as reported by
+	// the provider — zero value if the provider omitted it. Used by
+	// SendChatMessage to compute Pricing.Cost after the fallback loop
+	// settles on a model.
+	Usage TokenUsage
 }
 
 // LLMClient is a chat-completion round trip against an OpenAI-compatible
@@ -68,3 +73,11 @@ type ChatResult struct {
 type LLMClient interface {
 	Chat(ctx context.Context, messages []Message, tools []ToolDefinition) (*ChatResult, error)
 }
+
+// LLMClientFactory builds an LLMClient for one resolved ModelConfig. The
+// fallback loop (application.SendChatMessage/ClassifyMessage) needs a fresh
+// client per attempt — each ModelConfig carries a different base URL/API
+// key/model — so this is injected as a factory rather than a single client
+// instance, keeping application decoupled from the concrete infrastructure
+// constructor (wired once at the composition root, cmd/server/main.go).
+type LLMClientFactory func(cfg ModelConfig) LLMClient

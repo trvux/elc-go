@@ -44,6 +44,19 @@ func NewOpenAICompatibleClient(baseURL, apiKey, model string, httpTimeout time.D
 
 var _ domain.LLMClient = (*OpenAICompatibleClient)(nil)
 
+// llmClientHTTPTimeout backstops every OpenAICompatibleClient built by
+// NewLLMClient — see NewOpenAICompatibleClient's doc comment on why this
+// isn't the caller's only timeout.
+const llmClientHTTPTimeout = 30 * time.Second
+
+// NewLLMClient adapts NewOpenAICompatibleClient to domain.LLMClientFactory
+// — the shape SendChatMessage/ClassifyMessage's fallback loops use to build
+// a fresh client per resolved ModelConfig. Composition root
+// (cmd/server/main.go) wires this in directly: `aiInfra.NewLLMClient`.
+func NewLLMClient(cfg domain.ModelConfig) domain.LLMClient {
+	return NewOpenAICompatibleClient(cfg.BaseURL, cfg.APIKey, cfg.ModelName, llmClientHTTPTimeout)
+}
+
 // --- wire shapes (OpenAI chat-completions request/response) ---
 
 type wireMessage struct {
@@ -81,6 +94,11 @@ type wireResponse struct {
 	Choices []struct {
 		Message wireMessage `json:"message"`
 	} `json:"choices"`
+	Usage *struct {
+		PromptTokens         int `json:"prompt_tokens"`
+		CompletionTokens     int `json:"completion_tokens"`
+		PromptCacheHitTokens int `json:"prompt_cache_hit_tokens"`
+	} `json:"usage"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
@@ -109,7 +127,9 @@ func (c *OpenAICompatibleClient) Chat(ctx context.Context, messages []domain.Mes
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("ai: call chat completions: %w", err)
+		// Network failure or timeout — the caller's fallback loop should
+		// try the next model, same as a 429/5xx below.
+		return nil, &domain.RetryableError{Err: fmt.Errorf("ai: call chat completions: %w", err)}
 	}
 	defer resp.Body.Close()
 
@@ -124,16 +144,34 @@ func (c *OpenAICompatibleClient) Chat(ctx context.Context, messages []domain.Mes
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		providerErr := fmt.Errorf("ai: provider returned %d", resp.StatusCode)
 		if wireResp.Error != nil {
-			return nil, fmt.Errorf("ai: provider returned %d: %s", resp.StatusCode, wireResp.Error.Message)
+			providerErr = fmt.Errorf("ai: provider returned %d: %s", resp.StatusCode, wireResp.Error.Message)
 		}
-		return nil, fmt.Errorf("ai: provider returned %d", resp.StatusCode)
+		// 429 (DeepSeek's docs: rate-limited by account-wide concurrency,
+		// not requests/minute) and 5xx are retryable against the next
+		// model in the fallback chain — any other 4xx (e.g. a malformed
+		// payload) would fail identically everywhere, so it's returned
+		// plain and SendChatMessage aborts on it instead of wasting the
+		// rest of the chain.
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			return nil, &domain.RetryableError{Err: providerErr}
+		}
+		return nil, providerErr
 	}
 	if len(wireResp.Choices) == 0 {
-		return nil, fmt.Errorf("ai: provider returned no choices")
+		return nil, &domain.RetryableError{Err: fmt.Errorf("ai: provider returned no choices")}
 	}
 
-	return &domain.ChatResult{Message: fromWireMessage(wireResp.Choices[0].Message)}, nil
+	result := &domain.ChatResult{Message: fromWireMessage(wireResp.Choices[0].Message)}
+	if wireResp.Usage != nil {
+		result.Usage = domain.TokenUsage{
+			InputTokens:    wireResp.Usage.PromptTokens,
+			OutputTokens:   wireResp.Usage.CompletionTokens,
+			CacheHitTokens: wireResp.Usage.PromptCacheHitTokens,
+		}
+	}
+	return result, nil
 }
 
 func toWireMessages(messages []domain.Message) []wireMessage {

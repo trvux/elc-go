@@ -173,22 +173,29 @@ func main() {
 	productHandler := productPresentation.NewProductHandler(productRepo, attributeDefinitionRepo)
 	productPresentation.RegisterRoutes(router, productHandler, tokenIssuer)
 
-	// AI chat is optional: if no provider is configured (e.g. local dev
-	// without a DeepSeek key), skip mounting it instead of failing the
-	// whole server to start, same as SMTP above.
-	if aiBaseURL := os.Getenv("AI_PROVIDER_BASE_URL"); aiBaseURL != "" {
-		aiClient := aiInfra.NewOpenAICompatibleClient(
-			aiBaseURL, os.Getenv("AI_PROVIDER_API_KEY"), os.Getenv("AI_PROVIDER_MODEL"),
-			30*time.Second,
-		)
-		searchProductsDef, searchProductsExec := aiInfra.NewProductSearchTool(productRepo)
-		aiHandler := aiPresentation.NewAIHandler(aiClient, []aiApplication.Tool{
-			{Definition: searchProductsDef, Execute: searchProductsExec},
-		})
-		aiPresentation.RegisterRoutes(router, aiHandler)
-	} else {
-		log.Warn("AI_PROVIDER_BASE_URL not set — /ai/chat is disabled")
+	// secureCookies also gates the AI chat and wishlist/recently-viewed
+	// visitor_id cookie's Secure flag — same production-only rule as
+	// auth's refresh_token cookie above.
+	secureCookies := env == "production"
+
+	// AI chat's provider/model config is DB-driven (admin-managed, see the
+	// Phase 1 RFC) — the encryption key protecting stored API keys is the
+	// one thing that must still come from env, fail-fast like JWT_SECRET
+	// rather than silently running with an unencrypted/missing key.
+	aiCipher, err := aiInfra.NewSecretCipherFromEnv("AI_SECRETS_ENCRYPTION_KEY")
+	if err != nil {
+		log.Fatal("AI_SECRETS_ENCRYPTION_KEY must be a base64-encoded 32-byte key", zap.Error(err))
 	}
+	aiProviderRepo := aiInfra.NewPostgresProviderRepository(pool, aiCipher)
+	aiModelRepo := aiInfra.NewPostgresModelRepository(pool, aiCipher)
+	aiConversationRepo := aiInfra.NewPostgresConversationRepository(pool)
+	searchProductsDef, searchProductsExec := aiInfra.NewProductSearchTool(productRepo)
+	aiHandler := aiPresentation.NewAIHandler(aiInfra.NewLLMClient, aiModelRepo, aiConversationRepo, []aiApplication.Tool{
+		{Definition: searchProductsDef, Execute: searchProductsExec},
+	})
+	aiProviderHandler := aiPresentation.NewProviderHandler(aiProviderRepo)
+	aiModelHandler := aiPresentation.NewModelHandler(aiModelRepo)
+	aiPresentation.RegisterRoutes(router, aiHandler, aiProviderHandler, aiModelHandler, tokenIssuer, secureCookies)
 
 	productLineRepo := productInfra.NewPostgresProductLineRepository(pool)
 	productLineHandler := productPresentation.NewProductLineHandler(productLineRepo)
@@ -197,11 +204,6 @@ func main() {
 	catalogPageRepo := productInfra.NewPostgresCatalogPageRepository(pool)
 	catalogPageHandler := productPresentation.NewCatalogPageHandler(catalogPageRepo)
 	productPresentation.RegisterCatalogPageRoutes(router, catalogPageHandler, tokenIssuer)
-
-	// secureCookies also gates the wishlist/recently-viewed
-	// visitor_id cookie's Secure flag — same production-only rule as
-	// auth's refresh_token cookie above.
-	secureCookies := env == "production"
 
 	wishlistRepo := wishlistinfra.NewPostgresWishlistRepository(pool)
 	wishlistHandler := wishlistpresentation.NewWishlistHandler(wishlistRepo)
