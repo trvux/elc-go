@@ -47,9 +47,15 @@ func NewOpenAICompatibleClient(baseURL, apiKey, model string, httpTimeout time.D
 var _ domain.LLMClient = (*OpenAICompatibleClient)(nil)
 
 // llmClientHTTPTimeout backstops every OpenAICompatibleClient built by
-// NewLLMClient — see NewOpenAICompatibleClient's doc comment on why this
-// isn't the caller's only timeout.
-const llmClientHTTPTimeout = 30 * time.Second
+// NewLLMClient for callers that don't set their own context deadline (e.g.
+// cmd/sync-ai-pricing's one-shot extraction call) — see
+// NewOpenAICompatibleClient's doc comment. Callers that DO set a ctx
+// deadline (every real request path, e.g. AIHandler.Chat's chatTimeout)
+// are bound by whichever fires first, so this only needs to be long enough
+// to never be the thing that cuts off a legitimate streamed answer — 120s
+// comfortably exceeds handler.go's 60s chatTimeout, which is Chat's actual
+// bound in practice.
+const llmClientHTTPTimeout = 120 * time.Second
 
 // NewLLMClient adapts NewOpenAICompatibleClient to domain.LLMClientFactory
 // — the shape SendChatMessage/ClassifyMessage's fallback loops use to build
@@ -274,6 +280,12 @@ func (c *OpenAICompatibleClient) ChatStream(ctx context.Context, messages []doma
 // as the OpenAI streaming tool-call convention) until the final `data:
 // [DONE]` line, at which point it emits one Done event carrying the
 // accumulated tool calls and usage. Always closes events before returning.
+//
+// Takes no ctx of its own: body already belongs to an *http.Response from a
+// request built with NewRequestWithContext, so once that ctx is canceled
+// (client disconnect, deadline) further reads on body fail on their own —
+// the scanner loop below exits via scanner.Err() without needing to select
+// on a context separately.
 func readStream(body io.ReadCloser, events chan<- domain.StreamEvent) {
 	defer close(events)
 	defer body.Close()

@@ -103,10 +103,10 @@ func (r *PostgresConversationRepository) AppendMessage(ctx context.Context, msg 
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	row := tx.QueryRow(ctx, `
-		INSERT INTO ai_messages (conversation_id, role, content, blocked_reason, provider_id, model_id, input_tokens, output_tokens, cache_hit_tokens, cost_usd, products_shown)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO ai_messages (conversation_id, role, content, blocked_reason, incomplete, provider_id, model_id, input_tokens, output_tokens, cache_hit_tokens, cost_usd, products_shown)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id, created_at`,
-		msg.ConversationID, string(msg.Role), msg.Content, msg.BlockedReason, msg.ProviderID, msg.ModelID,
+		msg.ConversationID, string(msg.Role), msg.Content, msg.BlockedReason, msg.Incomplete, msg.ProviderID, msg.ModelID,
 		inputTokens, outputTokens, cacheHitTokens, msg.CostUSD, productsJSON,
 	)
 	var id string
@@ -130,10 +130,13 @@ func (r *PostgresConversationRepository) AppendMessage(ctx context.Context, msg 
 }
 
 func (r *PostgresConversationRepository) ListRecentMessages(ctx context.Context, conversationID string, limit int) ([]*domain.ConversationMessage, error) {
+	// incomplete = false excludes replies a mid-stream error cut short —
+	// feeding a truncated answer back to the model as if it were the full
+	// reply would confuse later turns, see the Phase 2 RFC §2.4.
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, conversation_id, role, content, created_at
 		FROM ai_messages
-		WHERE conversation_id = $1 AND role IN ('user', 'assistant') AND blocked_reason IS NULL
+		WHERE conversation_id = $1 AND role IN ('user', 'assistant') AND blocked_reason IS NULL AND NOT incomplete
 		ORDER BY created_at DESC
 		LIMIT $2`,
 		conversationID, limit,

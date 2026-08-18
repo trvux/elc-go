@@ -58,7 +58,12 @@ type ChatOutcome struct {
 // text to its own client cannot cleanly switch to a different model's
 // answer (see the Phase 2 RFC). A non-retryable error aborts the whole
 // fallback loop immediately, same as it would fail identically against
-// every other model.
+// every other model — but the returned *ChatOutcome is still non-nil
+// whenever some text was already streamed to the client before the error,
+// carrying that partial reply in Message.Content so the caller (presentation)
+// can persist it (marked incomplete) instead of silently losing it. A
+// retryable failure (nothing streamed yet) always returns a nil outcome —
+// there is nothing partial to keep in that case.
 func SendChatMessageStream(ctx context.Context, clientFactory domain.LLMClientFactory, chatModels []domain.ModelConfig, tools []Tool, history []domain.Message, emit func(delta string)) (*ChatOutcome, error) {
 	if len(chatModels) == 0 {
 		return nil, fmt.Errorf("ai: no active chat model configured")
@@ -72,12 +77,15 @@ func SendChatMessageStream(ctx context.Context, clientFactory domain.LLMClientFa
 		}
 		lastErr = err
 		if !isRetryable(err) {
-			return nil, err
+			return outcome, err
 		}
 	}
 	return nil, fmt.Errorf("ai: every configured chat model failed, last error: %w", lastErr)
 }
 
+// streamWithModel returns a non-nil *ChatOutcome even on error whenever
+// content was already streamed for this attempt (see streamOnce) — the
+// error itself always still propagates, callers must check both.
 func streamWithModel(ctx context.Context, client domain.LLMClient, cfg domain.ModelConfig, tools []Tool, history []domain.Message, emit func(string)) (*ChatOutcome, error) {
 	toolDefs, executors := splitTools(tools)
 	messages := append([]domain.Message{{Role: domain.RoleSystem, Content: SystemPrompt}}, history...)
@@ -89,7 +97,7 @@ func streamWithModel(ctx context.Context, client domain.LLMClient, cfg domain.Mo
 	for round := 0; round < maxToolRounds; round++ {
 		content, final, err := streamOnce(ctx, client, messages, toolDefs, emit, &emittedAny)
 		if err != nil {
-			return nil, err
+			return partialOutcome(content, cfg, usage, productsShown), err
 		}
 		usage = addUsage(usage, final.Usage)
 
@@ -108,22 +116,38 @@ func streamWithModel(ctx context.Context, client domain.LLMClient, cfg domain.Mo
 	// in real time.
 	content, final, err := streamOnce(ctx, client, messages, nil, emit, &emittedAny)
 	if err != nil {
-		return nil, err
+		return partialOutcome(content, cfg, usage, productsShown), err
 	}
 	usage = addUsage(usage, final.Usage)
 	return &ChatOutcome{Message: domain.Message{Role: domain.RoleAssistant, Content: content}, Model: cfg, Usage: usage, ProductsShown: productsShown}, nil
 }
 
+// partialOutcome wraps whatever content a failed round managed to stream
+// before erroring — nil (not an empty-content outcome) when there's
+// nothing to keep, so callers can tell "partial reply to persist" apart
+// from "nothing was ever shown" with a single nil check.
+func partialOutcome(content string, cfg domain.ModelConfig, usage domain.TokenUsage, productsShown []string) *ChatOutcome {
+	if content == "" {
+		return nil
+	}
+	return &ChatOutcome{Message: domain.Message{Role: domain.RoleAssistant, Content: content}, Model: cfg, Usage: usage, ProductsShown: productsShown}
+}
+
 // streamOnce runs a single ChatStream round, forwarding content deltas to
 // emit and returning the accumulated content plus the round's final event.
-// *emittedAny tracks whether any delta has been forwarded across the whole
-// model attempt (not just this round) — once true, any error from here on
-// is stripped of its RetryableError wrapper via stripRetryable, so
-// SendChatMessageStream's fallback loop won't try another model after the
-// client has already seen partial text.
+// The accumulated content is returned even when it ends in an error — a
+// round that streamed several sentences and then failed still has that
+// text to hand back, see partialOutcome. *emittedAny tracks whether any
+// delta has been forwarded across the whole model attempt (not just this
+// round) — once true, any error from here on is stripped of its
+// RetryableError wrapper via stripRetryable, so SendChatMessageStream's
+// fallback loop won't try another model after the client has already seen
+// partial text.
 func streamOnce(ctx context.Context, client domain.LLMClient, messages []domain.Message, toolDefs []domain.ToolDefinition, emit func(string), emittedAny *bool) (string, domain.StreamEvent, error) {
 	events, err := client.ChatStream(ctx, messages, toolDefs)
 	if err != nil {
+		// ChatStream itself failed before any events — nothing was ever
+		// streamed for this call, so there is no content to return.
 		if *emittedAny {
 			return "", domain.StreamEvent{}, stripRetryable(err)
 		}
@@ -145,9 +169,9 @@ func streamOnce(ctx context.Context, client domain.LLMClient, messages []domain.
 
 	if final.Err != nil {
 		if *emittedAny {
-			return "", domain.StreamEvent{}, stripRetryable(final.Err)
+			return content.String(), domain.StreamEvent{}, stripRetryable(final.Err)
 		}
-		return "", domain.StreamEvent{}, final.Err
+		return content.String(), domain.StreamEvent{}, final.Err
 	}
 	return content.String(), final, nil
 }

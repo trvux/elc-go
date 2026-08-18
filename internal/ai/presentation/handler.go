@@ -167,25 +167,38 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	outcome, err := application.SendChatMessageStream(ctx, h.clientFactory, chatModels, h.tools, toDomainMessages(history), stream.sendDelta)
 	if err != nil {
 		// Headers are already sent — this is the only way left to signal
-		// failure to the client, see sse.go's sendError.
+		// failure to the client, see sse.go's sendError. outcome is still
+		// non-nil whenever some text already reached the client before the
+		// failure (see SendChatMessageStream's doc comment) — persist that
+		// partial reply marked incomplete instead of losing it, per the
+		// Phase 2 RFC §2.4.
 		stream.sendError()
+		if outcome != nil {
+			h.persistAssistantMessage(ctx, conv.ID, outcome, true)
+		}
 		return
 	}
 
+	h.persistAssistantMessage(ctx, conv.ID, outcome, false)
+	stream.sendDone(false)
+}
+
+// persistAssistantMessage is best-effort: by the time it's called the SSE
+// response has already succeeded (or failed) from the client's point of
+// view, so a persistence error here has nowhere left to be reported.
+func (h *AIHandler) persistAssistantMessage(ctx context.Context, conversationID string, outcome *application.ChatOutcome, incomplete bool) {
 	cost := outcome.Model.Pricing.Cost(outcome.Usage, time.Now())
-	// Best-effort, same reasoning as the blocked-message path above.
 	_, _ = h.conversationRepo.AppendMessage(ctx, &domain.ConversationMessage{
-		ConversationID: conv.ID,
+		ConversationID: conversationID,
 		Role:           domain.RoleAssistant,
 		Content:        outcome.Message.Content,
+		Incomplete:     incomplete,
 		ProviderID:     &outcome.Model.ProviderID,
 		ModelID:        &outcome.Model.ModelID,
 		Usage:          &outcome.Usage,
 		CostUSD:        &cost,
 		ProductsShown:  outcome.ProductsShown,
 	})
-
-	stream.sendDone(false)
 }
 
 func toDomainMessages(messages []*domain.ConversationMessage) []domain.Message {

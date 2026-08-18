@@ -59,7 +59,12 @@ data: {"blocked":false}
 ```
 Trường hợp bị guardrail chặn (vẫn chạy classifier non-stream như Phase 1, TRƯỚC khi mở stream) → mở stream, emit đúng 1 `event: delta` chứa câu từ chối, rồi `event: done` với `"blocked":true` — tái dùng cùng 1 khung SSE, FE không cần code nhánh riêng cho trường hợp bị chặn.
 
-Lỗi giữa chừng: `event: error\ndata: {"message":"..."}\n\n` rồi đóng kết nối — không có HTTP status code nào gửi thêm được nữa vì header đã flush.
+Lỗi giữa chừng: `event: error\ndata: {"message":"..."}\n\n` rồi đóng kết nối — không có HTTP status code nào gửi thêm được nữa vì header đã flush. Phần text đã kịp stream cho khách trước khi lỗi **vẫn được lưu vào `ai_messages`**, đánh dấu `incomplete = true` (migration `000002_message_incomplete_flag`) — không vứt bỏ, và không được đưa lại vào context của các lượt chat sau (`ListRecentMessages` lọc `NOT incomplete`) để tránh model tưởng đó là câu trả lời đầy đủ.
+
+### 2.5.1. Sửa sau review (`/code-review`, trước khi merge)
+
+- Timeout tầng HTTP client (`llmClientHTTPTimeout`) ban đầu để 30s trong khi timeout tổng của request (`chatTimeout`) nâng lên 60s cho streaming — client tự cắt stream ở giây 30 dù model vẫn đang trả lời bình thường. Sửa: `llmClientHTTPTimeout` = 120s (chỉ là lưới an toàn cho caller không tự set deadline như `cmd/sync-ai-pricing`; mọi request thật đều bị `ctx` của caller giới hạn trước, nên 120s không bao giờ là cái cắt ngang 1 câu trả lời hợp lệ).
+- Lỗi giữa chừng ban đầu vứt bỏ toàn bộ phần đã stream thay vì lưu `incomplete` như mục 2.5 mô tả — đã sửa (xem migration + `partialOutcome`/`persistAssistantMessage` trong code).
 
 ### 2.6. Những cái KHÔNG đổi
 
