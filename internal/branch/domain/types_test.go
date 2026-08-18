@@ -123,4 +123,14 @@ func TestBranch_UpdateFields(t *testing.T) {
 			t.Errorf("expected q3@elc.vn, got %s", b.Email())
 		}
 	})
+
+	t.Run("no-op update leaves updatedAt untouched", func(t *testing.T) {
+		before := b.UpdatedAt()
+		if err := b.Update(UpdateBranchInput{}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !b.UpdatedAt().Equal(before) {
+			t.Errorf("expected updatedAt unchanged, before=%v after=%v", before, b.UpdatedAt())
+		}
+	})
 }

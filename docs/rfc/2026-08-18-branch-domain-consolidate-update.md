@@ -40,7 +40,7 @@ func (b *Branch) Update(input UpdateBranchInput) error
 ## 4. Rủi ro & an toàn
 
 - **Risk level**: Medium (thay đổi API domain entity, nhưng chỉ 1 call site nội bộ package, có test).
-- **Safety net**: `domain/types_test.go` (`TestBranch_UpdateFields`) và `application/branch_test.go` cập nhật theo API mới, chạy `go build ./... && go vet ./... && go test ./internal/branch/...` xanh trước khi merge.
+- **Safety net**: `domain/types_test.go` (`TestBranch_UpdateFields`) cập nhật theo API mới (gọi `Update(input)` thay vì `UpdateName`/`UpdateEmail`); `application/branch_test.go` không cần đổi vì chỉ gọi `application.UpdateBranch`, không gọi domain method trực tiếp. Chạy `go build ./... && go vet ./... && go test ./internal/branch/...` xanh trước khi merge.
 - **Structural-only**: không đổi behavior HTTP-facing (request/response JSON, validation message, thứ tự lỗi) — thuần túy tổ chức lại code nội bộ.
 
 ## 5. Kế hoạch

@@ -198,47 +198,61 @@ func (b *Branch) Reorder(orderIndex int) {
 // so drag-drop reorder (application.UpdateBranchOrder) and the edit form
 // share one path for that field.
 func (b *Branch) Update(input UpdateBranchInput) error {
+	// changed tracks whether any field below actually mutated b, so a no-op
+	// call (all fields nil, or metaTitle/metaDescription unchanged) leaves
+	// updatedAt untouched — matching the old per-field UpdateX() behavior,
+	// which only ever bumped updatedAt from inside a branch that ran.
+	// OrderIndex is excluded: Reorder bumps updatedAt itself.
+	changed := false
+
 	if input.Name != nil {
 		if errs := validateName(*input.Name); len(errs) > 0 {
 			return apperr.NewValidationError("validation failed", map[string][]string{"name": errs})
 		}
 		b.name = *input.Name
+		changed = true
 	}
 	if input.Slug != nil {
 		if errs := validateSlug(*input.Slug); len(errs) > 0 {
 			return apperr.NewValidationError("validation failed", map[string][]string{"slug": errs})
 		}
 		b.slug = *input.Slug
+		changed = true
 	}
 	if input.Address != nil {
 		if errs := validateAddress(*input.Address); len(errs) > 0 {
 			return apperr.NewValidationError("validation failed", map[string][]string{"address": errs})
 		}
 		b.address = *input.Address
+		changed = true
 	}
 	if input.Phone != nil {
 		if errs := validatePhone(*input.Phone); len(errs) > 0 {
 			return apperr.NewValidationError("validation failed", map[string][]string{"phone": errs})
 		}
 		b.phone = *input.Phone
+		changed = true
 	}
 	if input.Email != nil {
 		if errs := validateEmail(*input.Email); len(errs) > 0 {
 			return apperr.NewValidationError("validation failed", map[string][]string{"email": errs})
 		}
 		b.email = *input.Email
+		changed = true
 	}
 	if input.MapsURL != nil {
 		if errs := validateMapsURL(*input.MapsURL); len(errs) > 0 {
 			return apperr.NewValidationError("validation failed", map[string][]string{"mapsUrl": errs})
 		}
 		b.mapsURL = *input.MapsURL
+		changed = true
 	}
 	if input.MapsEmbed != nil {
 		if errs := validateMapsEmbed(*input.MapsEmbed); len(errs) > 0 {
 			return apperr.NewValidationError("validation failed", map[string][]string{"mapsEmbed": errs})
 		}
 		b.mapsEmbed = *input.MapsEmbed
+		changed = true
 	}
 	// Bundled: the frontend's cascading combobox always submits
 	// province/ward code+name+postalCode together (see BranchManagement.tsx),
@@ -250,15 +264,19 @@ func (b *Branch) Update(input UpdateBranchInput) error {
 		b.wardCode = input.WardCode
 		b.wardName = input.WardName
 		b.postalCode = input.PostalCode
+		changed = true
 	}
 	if input.Description != nil {
 		b.description = input.Description
+		changed = true
 	}
 	if input.Images != nil {
 		b.images = input.Images
+		changed = true
 	}
 	if input.IsPublished != nil {
 		b.isPublished = *input.IsPublished
+		changed = true
 	}
 	if input.OrderIndex != nil {
 		b.Reorder(*input.OrderIndex)
@@ -268,14 +286,18 @@ func (b *Branch) Update(input UpdateBranchInput) error {
 			return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
 		}
 		b.metaTitle = input.MetaTitle
+		changed = true
 	}
 	if input.MetaDescription != nil && !seo.Unchanged(b.metaDescription, input.MetaDescription) {
 		if errs := seo.ValidateMetaDescription(input.MetaDescription); len(errs) > 0 {
 			return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
 		}
 		b.metaDescription = input.MetaDescription
+		changed = true
 	}
-	b.updatedAt = time.Now()
+	if changed {
+		b.updatedAt = time.Now()
+	}
 	return nil
 }
 
