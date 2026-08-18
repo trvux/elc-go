@@ -54,6 +54,37 @@ func RequireAuth(verifier TokenVerifier) func(http.Handler) http.Handler {
 	}
 }
 
+// OptionalAuth is RequireAuth without the "must be authenticated" part: it
+// attaches Claims to the context when a valid bearer token happens to be
+// present, and silently does nothing (no 401, no context value) otherwise.
+// For endpoints open to anonymous callers that still want to identify a
+// logged-in one when possible — e.g. internal/ai's public chat endpoint
+// links a conversation to a user account opportunistically without gating
+// the feature behind login (see the AI chat Phase 1 RFC for why: gating
+// would shrink the anonymous-visitor volume the feature exists to serve).
+func OptionalAuth(verifier TokenVerifier) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			header := r.Header.Get("Authorization")
+			token, hasBearer := strings.CutPrefix(header, "Bearer ")
+			if !hasBearer || token == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			claims, err := verifier.Verify(token)
+			if err != nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			ctx := context.WithValue(r.Context(), ctxKeyUserID, claims.UserID)
+			ctx = context.WithValue(ctx, ctxKeyRole, claims.Role)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
 // RequirePermission must be mounted after RequireAuth. check is normally a
 // closure over a business module's own permission map, e.g.:
 //
