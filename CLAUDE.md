@@ -1,1 +1,7 @@
 Before any Go coding, review, debugging, troubleshooting, or setup task, load the `samber/cc-skills-golang@golang-how-to` skill first — it routes to whichever other Go skills the task actually needs, so only the relevant ones get loaded instead of all of them every time.
+
+## Domain entity: consolidate per-field UpdateX() into one Update(input)
+
+Many small CRUD modules under `internal/` (branch, contact, tag, author, event, brand, page, group, service, ...) still have one `UpdateX()`/`SetX()` domain method per field, copied from before this convention existed. `internal/branch` was refactored to a single `Update(input UpdateXInput) error` method instead — see `docs/rfc/2026-08-18-branch-domain-consolidate-update.md` for the pattern, the exact behavior-preservation pitfall it caught (don't bump `updatedAt` on a no-op call — track whether any field actually changed), and the review process used.
+
+**Do not proactively sweep the remaining modules to this pattern** — the LOC payoff per module is small and the user decided against a dedicated cleanup pass (2026-08-18). Instead, apply it **lazily**: whenever a module's domain entity is touched anyway for an unrelated feature or bugfix, and that entity still has the old per-field UpdateX() shape, fold this consolidation into that same change rather than opening a separate refactor PR for it.
