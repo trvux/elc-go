@@ -77,8 +77,9 @@ func resolveDefaultVariant(variants []domain.ProductVariantInput) ([]domain.Prod
 // previously unenforced anywhere (see
 // docs/rfc/2026-08-18-product-data-anomaly-detection.md §2.1): a customer-
 // facing price of 0 or less always means bad data entry, never a genuine
-// price, so this AI chat grounds answers in. Doesn't check SalePrice
-// against OriginalPrice or anything else — out of this RFC's scope.
+// price, and this is the data internal/ai's search_products tool grounds
+// its answers in. Doesn't check SalePrice against OriginalPrice or
+// anything else — out of this RFC's scope.
 func validateVariantPrices(variants []domain.ProductVariantInput) error {
 	for i, v := range variants {
 		if v.OriginalPrice <= 0 {
