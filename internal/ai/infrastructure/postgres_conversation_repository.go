@@ -167,3 +167,183 @@ func (r *PostgresConversationRepository) ListRecentMessages(ctx context.Context,
 	}
 	return messages, nil
 }
+
+// ListConversations is the admin-facing paginated list (Phase 3) — see
+// ConversationRepository's doc comment on how this differs from
+// ListRecentMessages.
+func (r *PostgresConversationRepository) ListConversations(ctx context.Context, filter domain.ConversationFilter) ([]*domain.ConversationSummary, int, error) {
+	total, err := r.countConversations(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+	if total == 0 {
+		return nil, 0, nil
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT c.id, c.visitor_id, c.user_id, c.created_at, c.updated_at,
+		       COUNT(m.id) AS message_count,
+		       COALESCE(SUM(m.cost_usd), 0) AS total_cost_usd
+		FROM ai_conversations c
+		LEFT JOIN ai_messages m ON m.conversation_id = c.id
+		WHERE ($1::timestamptz IS NULL OR c.created_at >= $1)
+		  AND ($2::timestamptz IS NULL OR c.created_at <= $2)
+		GROUP BY c.id
+		ORDER BY c.updated_at DESC
+		LIMIT $3 OFFSET $4`,
+		filter.From, filter.To, filter.Limit, filter.Offset,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("ai conversation repository listConversations: %w", err)
+	}
+	defer rows.Close()
+
+	var summaries []*domain.ConversationSummary
+	for rows.Next() {
+		var s domain.ConversationSummary
+		if err := rows.Scan(&s.ID, &s.VisitorID, &s.UserID, &s.CreatedAt, &s.UpdatedAt, &s.MessageCount, &s.TotalCostUSD); err != nil {
+			return nil, 0, fmt.Errorf("ai conversation repository listConversations (scan): %w", err)
+		}
+		summaries = append(summaries, &s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("ai conversation repository listConversations (rows): %w", err)
+	}
+	return summaries, total, nil
+}
+
+func (r *PostgresConversationRepository) countConversations(ctx context.Context, filter domain.ConversationFilter) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM ai_conversations
+		WHERE ($1::timestamptz IS NULL OR created_at >= $1)
+		  AND ($2::timestamptz IS NULL OR created_at <= $2)`,
+		filter.From, filter.To,
+	).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("ai conversation repository countConversations: %w", err)
+	}
+	return count, nil
+}
+
+// GetMessages returns every message of one conversation — see
+// ConversationRepository's doc comment on how this differs from
+// ListRecentMessages.
+func (r *PostgresConversationRepository) GetMessages(ctx context.Context, conversationID string) ([]*domain.ConversationMessage, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, conversation_id, role, content, blocked_reason, incomplete,
+		       provider_id, model_id, input_tokens, output_tokens, cache_hit_tokens,
+		       cost_usd, products_shown, created_at
+		FROM ai_messages
+		WHERE conversation_id = $1
+		ORDER BY created_at ASC`,
+		conversationID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("ai conversation repository getMessages: %w", err)
+	}
+	defer rows.Close()
+
+	var messages []*domain.ConversationMessage
+	for rows.Next() {
+		m, err := scanFullConversationMessage(rows)
+		if err != nil {
+			return nil, fmt.Errorf("ai conversation repository getMessages (scan): %w", err)
+		}
+		messages = append(messages, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ai conversation repository getMessages (rows): %w", err)
+	}
+	return messages, nil
+}
+
+func scanFullConversationMessage(row pgx.Row) (*domain.ConversationMessage, error) {
+	var (
+		m                                         domain.ConversationMessage
+		role                                      string
+		inputTokens, outputTokens, cacheHitTokens *int
+		productsJSON                              []byte
+	)
+	if err := row.Scan(
+		&m.ID, &m.ConversationID, &role, &m.Content, &m.BlockedReason, &m.Incomplete,
+		&m.ProviderID, &m.ModelID, &inputTokens, &outputTokens, &cacheHitTokens,
+		&m.CostUSD, &productsJSON, &m.CreatedAt,
+	); err != nil {
+		return nil, err
+	}
+	m.Role = domain.Role(role)
+	if inputTokens != nil || outputTokens != nil || cacheHitTokens != nil {
+		usage := domain.TokenUsage{}
+		if inputTokens != nil {
+			usage.InputTokens = *inputTokens
+		}
+		if outputTokens != nil {
+			usage.OutputTokens = *outputTokens
+		}
+		if cacheHitTokens != nil {
+			usage.CacheHitTokens = *cacheHitTokens
+		}
+		m.Usage = &usage
+	}
+	if len(productsJSON) > 0 {
+		_ = json.Unmarshal(productsJSON, &m.ProductsShown)
+	}
+	return &m, nil
+}
+
+// usageReportQueries maps each UsageGroupBy to its pre-written SQL — never
+// built dynamically from the groupBy param, so an invalid value can't reach
+// SQL (application.GetUsageReport rejects it before this is ever called).
+var usageReportQueries = map[domain.UsageGroupBy]string{
+	domain.UsageGroupByDay: `
+		SELECT to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS key,
+		       COUNT(*), COUNT(*) FILTER (WHERE blocked_reason IS NOT NULL),
+		       COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0), COALESCE(SUM(cost_usd), 0)
+		FROM ai_messages
+		WHERE role = 'assistant' AND created_at BETWEEN $1 AND $2
+		GROUP BY key ORDER BY key`,
+	domain.UsageGroupByProvider: `
+		SELECT COALESCE(p.name, 'unknown') AS key,
+		       COUNT(*), COUNT(*) FILTER (WHERE m.blocked_reason IS NOT NULL),
+		       COALESCE(SUM(m.input_tokens), 0), COALESCE(SUM(m.output_tokens), 0), COALESCE(SUM(m.cost_usd), 0)
+		FROM ai_messages m
+		LEFT JOIN ai_providers p ON p.id = m.provider_id
+		WHERE m.role = 'assistant' AND m.created_at BETWEEN $1 AND $2
+		GROUP BY key ORDER BY key`,
+	domain.UsageGroupByModel: `
+		SELECT COALESCE(p.name || '/' || mo.model_name, 'unknown') AS key,
+		       COUNT(*), COUNT(*) FILTER (WHERE m.blocked_reason IS NOT NULL),
+		       COALESCE(SUM(m.input_tokens), 0), COALESCE(SUM(m.output_tokens), 0), COALESCE(SUM(m.cost_usd), 0)
+		FROM ai_messages m
+		LEFT JOIN ai_models mo ON mo.id = m.model_id
+		LEFT JOIN ai_providers p ON p.id = mo.provider_id
+		WHERE m.role = 'assistant' AND m.created_at BETWEEN $1 AND $2
+		GROUP BY key ORDER BY key`,
+}
+
+func (r *PostgresConversationRepository) GetUsageReport(ctx context.Context, from, to time.Time, groupBy domain.UsageGroupBy) ([]domain.UsageReportRow, error) {
+	query, ok := usageReportQueries[groupBy]
+	if !ok {
+		return nil, fmt.Errorf("ai conversation repository getUsageReport: unknown groupBy %q", groupBy)
+	}
+
+	rows, err := r.pool.Query(ctx, query, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("ai conversation repository getUsageReport: %w", err)
+	}
+	defer rows.Close()
+
+	var report []domain.UsageReportRow
+	for rows.Next() {
+		var row domain.UsageReportRow
+		if err := rows.Scan(&row.Key, &row.MessageCount, &row.BlockedCount, &row.InputTokens, &row.OutputTokens, &row.CostUSD); err != nil {
+			return nil, fmt.Errorf("ai conversation repository getUsageReport (scan): %w", err)
+		}
+		report = append(report, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ai conversation repository getUsageReport (rows): %w", err)
+	}
+	return report, nil
+}

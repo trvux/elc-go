@@ -195,7 +195,8 @@ func main() {
 	})
 	aiProviderHandler := aiPresentation.NewProviderHandler(aiProviderRepo)
 	aiModelHandler := aiPresentation.NewModelHandler(aiModelRepo)
-	aiPresentation.RegisterRoutes(router, aiHandler, aiProviderHandler, aiModelHandler, tokenIssuer, secureCookies)
+	aiReportHandler := aiPresentation.NewReportHandler(aiConversationRepo)
+	aiPresentation.RegisterRoutes(router, aiHandler, aiProviderHandler, aiModelHandler, aiReportHandler, tokenIssuer, secureCookies)
 
 	productLineRepo := productInfra.NewPostgresProductLineRepository(pool)
 	productLineHandler := productPresentation.NewProductLineHandler(productLineRepo)

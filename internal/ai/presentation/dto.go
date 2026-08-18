@@ -133,3 +133,101 @@ type updateModelRequest struct {
 	IsDefault        *bool           `json:"isDefault"`
 	IsActive         *bool           `json:"isActive"`
 }
+
+// --- admin: reporting (Phase 3) ---
+
+const (
+	defaultConversationListLimit = 20
+	maxConversationListLimit     = 100
+)
+
+type usageReportRowDTO struct {
+	Key          string  `json:"key"`
+	MessageCount int     `json:"messageCount"`
+	BlockedCount int     `json:"blockedCount"`
+	InputTokens  int     `json:"inputTokens"`
+	OutputTokens int     `json:"outputTokens"`
+	CostUSD      float64 `json:"costUsd"`
+}
+
+type usageReportResponse struct {
+	GroupBy string              `json:"groupBy"`
+	From    time.Time           `json:"from"`
+	To      time.Time           `json:"to"`
+	Rows    []usageReportRowDTO `json:"rows"`
+}
+
+func toUsageReportResponse(groupBy string, from, to time.Time, rows []domain.UsageReportRow) usageReportResponse {
+	out := make([]usageReportRowDTO, len(rows))
+	for i, r := range rows {
+		out[i] = usageReportRowDTO{
+			Key: r.Key, MessageCount: r.MessageCount, BlockedCount: r.BlockedCount,
+			InputTokens: r.InputTokens, OutputTokens: r.OutputTokens, CostUSD: r.CostUSD,
+		}
+	}
+	return usageReportResponse{GroupBy: groupBy, From: from, To: to, Rows: out}
+}
+
+type conversationSummaryDTO struct {
+	ID           string    `json:"id"`
+	VisitorID    string    `json:"visitorId"`
+	UserID       *string   `json:"userId,omitempty"`
+	MessageCount int       `json:"messageCount"`
+	TotalCostUSD float64   `json:"totalCostUsd"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
+type conversationListResponse struct {
+	Conversations []conversationSummaryDTO `json:"conversations"`
+	Total         int                      `json:"total"`
+	Limit         int                      `json:"limit"`
+	Offset        int                      `json:"offset"`
+}
+
+func toConversationListResponse(summaries []*domain.ConversationSummary, total, limit, offset int) conversationListResponse {
+	out := make([]conversationSummaryDTO, len(summaries))
+	for i, s := range summaries {
+		out[i] = conversationSummaryDTO{
+			ID: s.ID, VisitorID: s.VisitorID, UserID: s.UserID, MessageCount: s.MessageCount,
+			TotalCostUSD: s.TotalCostUSD, CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
+		}
+	}
+	return conversationListResponse{Conversations: out, Total: total, Limit: limit, Offset: offset}
+}
+
+type tokenUsageDTO struct {
+	InputTokens    int `json:"inputTokens"`
+	OutputTokens   int `json:"outputTokens"`
+	CacheHitTokens int `json:"cacheHitTokens"`
+}
+
+type conversationMessageDetailDTO struct {
+	ID            string         `json:"id"`
+	Role          string         `json:"role"`
+	Content       string         `json:"content"`
+	BlockedReason *string        `json:"blockedReason,omitempty"`
+	Incomplete    bool           `json:"incomplete,omitempty"`
+	ProviderID    *string        `json:"providerId,omitempty"`
+	ModelID       *string        `json:"modelId,omitempty"`
+	Usage         *tokenUsageDTO `json:"usage,omitempty"`
+	CostUSD       *float64       `json:"costUsd,omitempty"`
+	ProductsShown []string       `json:"productsShown,omitempty"`
+	CreatedAt     time.Time      `json:"createdAt"`
+}
+
+func toConversationMessageDetailList(messages []*domain.ConversationMessage) []conversationMessageDetailDTO {
+	out := make([]conversationMessageDetailDTO, len(messages))
+	for i, m := range messages {
+		dto := conversationMessageDetailDTO{
+			ID: m.ID, Role: string(m.Role), Content: m.Content, BlockedReason: m.BlockedReason,
+			Incomplete: m.Incomplete, ProviderID: m.ProviderID, ModelID: m.ModelID,
+			CostUSD: m.CostUSD, ProductsShown: m.ProductsShown, CreatedAt: m.CreatedAt,
+		}
+		if m.Usage != nil {
+			dto.Usage = &tokenUsageDTO{InputTokens: m.Usage.InputTokens, OutputTokens: m.Usage.OutputTokens, CacheHitTokens: m.Usage.CacheHitTokens}
+		}
+		out[i] = dto
+	}
+	return out
+}

@@ -15,11 +15,12 @@ import (
 // logged-in visitor's user_id gets attached to their conversation without
 // requiring login. The chatLimiter inside AIHandler is the abuse defense.
 //
-// /ai/providers and /ai/models are the admin CRUD surface — gated behind
-// CanManageSettings, the same predicate internal/settings already uses for
-// site-wide config, rather than a new narrower permission (mirrors that
-// module's own reasoning: nothing today needs the two to diverge).
-func RegisterRoutes(r chi.Router, chatHandler *AIHandler, providerHandler *ProviderHandler, modelHandler *ModelHandler, verifier httpserver.TokenVerifier, secureCookies bool) {
+// /ai/providers, /ai/models, /ai/usage, /ai/conversations are the admin
+// surface — gated behind CanManageSettings, the same predicate
+// internal/settings already uses for site-wide config, rather than a new
+// narrower permission (mirrors that module's own reasoning: nothing today
+// needs the two to diverge).
+func RegisterRoutes(r chi.Router, chatHandler *AIHandler, providerHandler *ProviderHandler, modelHandler *ModelHandler, reportHandler *ReportHandler, verifier httpserver.TokenVerifier, secureCookies bool) {
 	r.Route("/ai", func(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(httpserver.EnsureVisitorID(secureCookies))
@@ -42,6 +43,11 @@ func RegisterRoutes(r chi.Router, chatHandler *AIHandler, providerHandler *Provi
 				r.Post("/", modelHandler.Create)
 				r.Put("/{id}", modelHandler.Update)
 				r.Delete("/{id}", modelHandler.Delete)
+			})
+			r.Get("/usage", reportHandler.Usage)
+			r.Route("/conversations", func(r chi.Router) {
+				r.Get("/", reportHandler.ListConversations)
+				r.Get("/{id}/messages", reportHandler.ConversationMessages)
 			})
 		})
 	})

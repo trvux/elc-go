@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // ProviderRepository is admin CRUD for configured LLM vendors. Create/
 // Update take/return plaintext-in-memory Provider (see Provider's doc
@@ -59,4 +62,18 @@ type ConversationRepository interface {
 	// role="tool" rows: tool calls aren't persisted as their own messages
 	// (see AppendMessage's callers), only the user/assistant turns are.
 	ListRecentMessages(ctx context.Context, conversationID string, limit int) ([]*ConversationMessage, error)
+
+	// ListConversations is the admin-facing paginated list (Phase 3) —
+	// unlike ListRecentMessages, this is for a human reviewing history, not
+	// for feeding a model, so it applies no role/blocked/incomplete filter.
+	// Returns the total match count (ignoring Limit/Offset) for pagination.
+	ListConversations(ctx context.Context, filter ConversationFilter) ([]*ConversationSummary, int, error)
+	// GetMessages returns every message of one conversation, oldest first —
+	// including blocked and incomplete ones, so an admin sees exactly what
+	// happened, not the trimmed view ListRecentMessages feeds back to the
+	// model.
+	GetMessages(ctx context.Context, conversationID string) ([]*ConversationMessage, error)
+	// GetUsageReport aggregates ai_messages (role=assistant only — user
+	// turns carry no cost/tokens) between from and to, bucketed by groupBy.
+	GetUsageReport(ctx context.Context, from, to time.Time, groupBy UsageGroupBy) ([]UsageReportRow, error)
 }
