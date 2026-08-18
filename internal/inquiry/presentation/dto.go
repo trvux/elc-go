@@ -64,21 +64,3 @@ type updateInquiryStatusRequest struct {
 	Status       string  `json:"status"`
 	InternalNote *string `json:"internal_note"`
 }
-
-// zaloWebhookEvent covers the fields shared by every Zalo OA webhook payload
-// this handler cares about (follow/unfollow + any user-sends-a-message
-// event) — confirmed against current developers.zalo.me docs. Other event
-// types (e.g. reactions, image/file messages) decode fine too since Go
-// ignores unknown-to-us optional fields; the handler only acts on the
-// event_name values it recognizes.
-type zaloWebhookEvent struct {
-	AppID     string `json:"app_id"`
-	EventName string `json:"event_name"`
-	Timestamp string `json:"timestamp"`
-	Follower  *struct {
-		ID string `json:"id"`
-	} `json:"follower"`
-	Sender *struct {
-		ID string `json:"id"`
-	} `json:"sender"`
-}
