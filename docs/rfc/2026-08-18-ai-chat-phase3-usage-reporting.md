@@ -39,11 +39,16 @@ Response:
 
 ### 2.2. `GET /ai/conversations` — danh sách hội thoại
 
-Query params: `from`, `to`, `limit`, `offset` (mặc định 20/0, giống pattern `inquiry`).
+Query params: `from`, `to`, `limit`, `offset` (mặc định 20/0 — tự chọn, không phải copy từ module nào: kiểm tra lại `internal/inquiry` sau khi review thì module đó thực ra không tự implement limit/offset, `GetAll` không áp LIMIT/OFFSET ở tầng SQL, nên "giống inquiry" ở bản RFC đầu là trích dẫn sai).
 
-Response: mảng
+Response — bọc trong object có `total`/`limit`/`offset` để FE phân trang được, không phải mảng trần như bản nháp đầu:
 ```json
-{ "id": "...", "visitorId": "...", "userId": "...", "messageCount": 6, "totalCostUsd": 0.0012, "createdAt": "...", "updatedAt": "..." }
+{
+  "conversations": [
+    { "id": "...", "visitorId": "...", "userId": "...", "messageCount": 6, "totalCostUsd": 0.0012, "createdAt": "...", "updatedAt": "..." }
+  ],
+  "total": 128, "limit": 20, "offset": 0
+}
 ```
 
 ### 2.3. `GET /ai/conversations/{id}/messages` — chi tiết 1 hội thoại

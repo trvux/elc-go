@@ -297,7 +297,7 @@ func scanFullConversationMessage(row pgx.Row) (*domain.ConversationMessage, erro
 // SQL (application.GetUsageReport rejects it before this is ever called).
 var usageReportQueries = map[domain.UsageGroupBy]string{
 	domain.UsageGroupByDay: `
-		SELECT to_char(created_at, 'YYYY-MM-DD') AS key,
+		SELECT to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS key,
 		       COUNT(*), COUNT(*) FILTER (WHERE blocked_reason IS NOT NULL),
 		       COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0), COALESCE(SUM(cost_usd), 0)
 		FROM ai_messages

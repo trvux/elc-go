@@ -75,11 +75,19 @@ func (h *ReportHandler) ListConversations(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	limit := parseIntParam(r.URL.Query().Get("limit"), defaultConversationListLimit)
+	limit, err := parseIntParam(r.URL.Query().Get("limit"), defaultConversationListLimit)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
 	if limit <= 0 || limit > maxConversationListLimit {
 		limit = defaultConversationListLimit
 	}
-	offset := parseIntParam(r.URL.Query().Get("offset"), 0)
+	offset, err := parseIntParam(r.URL.Query().Get("offset"), 0)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
 	if offset < 0 {
 		offset = 0
 	}
@@ -116,13 +124,17 @@ func parseTimeParam(v string) (*time.Time, error) {
 	return &t, nil
 }
 
-func parseIntParam(v string, fallback int) int {
+// parseIntParam mirrors parseTimeParam: empty means "use the caller's
+// default", but a present, malformed value is a validation error, not a
+// silent fallback — an admin who mistypes ?limit=abc should see that,
+// not get a quietly-different page size.
+func parseIntParam(v string, fallback int) (int, error) {
 	if v == "" {
-		return fallback
+		return fallback, nil
 	}
 	n, err := strconv.Atoi(v)
 	if err != nil {
-		return fallback
+		return 0, apperr.NewValidationError("invalid integer", nil)
 	}
-	return n
+	return n, nil
 }
