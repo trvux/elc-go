@@ -205,8 +205,11 @@ func main() {
 			log.Warn("REDIS_URL is set but invalid — AI chat falls back to in-memory rate limiting, no caching", zap.Error(err))
 		} else {
 			redisClient := redis.NewClient(opt)
-			if err := redisClient.Ping(ctx).Err(); err != nil {
-				log.Warn("could not reach Redis — AI chat falls back to in-memory rate limiting, no caching", zap.Error(err))
+			pingCtx, cancelPing := context.WithTimeout(ctx, 5*time.Second)
+			pingErr := redisClient.Ping(pingCtx).Err()
+			cancelPing()
+			if pingErr != nil {
+				log.Warn("could not reach Redis — AI chat falls back to in-memory rate limiting, no caching", zap.Error(pingErr))
 			} else {
 				aiCache = aiInfra.NewRedisCache(redisClient, "ai:cache")
 				aiChatLimiter = ratelimit.NewRedisLimiter(redisClient, "ai:ratelimit:chat", aiPresentation.ChatRateLimit, aiPresentation.ChatRateLimitWindow)
