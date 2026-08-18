@@ -71,7 +71,11 @@ func (h *UploadHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filename := generateFilename(contentType)
+	filename, err := generateFilename(contentType)
+	if err != nil {
+		httpserver.WriteError(w, apperr.NewInternalError(err))
+		return
+	}
 
 	var cropVariants map[string]string
 	if folder == cropVariantsFolder {
@@ -124,14 +128,16 @@ func (h *UploadHandler) uploadCropVariants(ctx context.Context, file multipart.F
 
 // generateFilename mirrors the old Supabase client's `${Date.now()}-${random}.ext`
 // naming so object keys stay readable/sortable in the bucket browser.
-func generateFilename(contentType string) string {
+func generateFilename(contentType string) (string, error) {
 	ext := "webp"
 	if parts := strings.SplitN(contentType, "/", 2); len(parts) == 2 && parts[1] != "" {
 		ext = parts[1]
 	}
 
 	randBytes := make([]byte, 8)
-	_, _ = rand.Read(randBytes)
+	if _, err := rand.Read(randBytes); err != nil {
+		return "", fmt.Errorf("generate filename: %w", err)
+	}
 
-	return time.Now().UTC().Format("20060102150405") + "-" + hex.EncodeToString(randBytes) + "." + ext
+	return time.Now().UTC().Format("20060102150405") + "-" + hex.EncodeToString(randBytes) + "." + ext, nil
 }
