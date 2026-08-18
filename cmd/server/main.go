@@ -12,6 +12,9 @@ import (
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 
+	aiApplication "github.com/trvux/elc-go/internal/ai/application"
+	aiInfra "github.com/trvux/elc-go/internal/ai/infrastructure"
+	aiPresentation "github.com/trvux/elc-go/internal/ai/presentation"
 	attributeinfra "github.com/trvux/elc-go/internal/attribute/infrastructure"
 	attributepresentation "github.com/trvux/elc-go/internal/attribute/presentation"
 	authdomain "github.com/trvux/elc-go/internal/auth/domain"
@@ -169,6 +172,23 @@ func main() {
 	productRepo := productInfra.NewPostgresProductRepository(pool)
 	productHandler := productPresentation.NewProductHandler(productRepo, attributeDefinitionRepo)
 	productPresentation.RegisterRoutes(router, productHandler, tokenIssuer)
+
+	// AI chat is optional: if no provider is configured (e.g. local dev
+	// without a DeepSeek key), skip mounting it instead of failing the
+	// whole server to start, same as SMTP above.
+	if aiBaseURL := os.Getenv("AI_PROVIDER_BASE_URL"); aiBaseURL != "" {
+		aiClient := aiInfra.NewOpenAICompatibleClient(
+			aiBaseURL, os.Getenv("AI_PROVIDER_API_KEY"), os.Getenv("AI_PROVIDER_MODEL"),
+			30*time.Second,
+		)
+		searchProductsDef, searchProductsExec := aiInfra.NewProductSearchTool(productRepo)
+		aiHandler := aiPresentation.NewAIHandler(aiClient, []aiApplication.Tool{
+			{Definition: searchProductsDef, Execute: searchProductsExec},
+		})
+		aiPresentation.RegisterRoutes(router, aiHandler)
+	} else {
+		log.Warn("AI_PROVIDER_BASE_URL not set — /ai/chat is disabled")
+	}
 
 	productLineRepo := productInfra.NewPostgresProductLineRepository(pool)
 	productLineHandler := productPresentation.NewProductLineHandler(productLineRepo)
