@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 
 	attributedomain "github.com/trvux/elc-go/internal/attribute/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
@@ -24,6 +25,9 @@ func CreateProduct(ctx context.Context, repo domain.ProductRepository, attribute
 
 	variants, err := resolveDefaultVariant(input.Variants)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateVariantPrices(variants); err != nil {
 		return nil, err
 	}
 
@@ -67,4 +71,26 @@ func resolveDefaultVariant(variants []domain.ProductVariantInput) ([]domain.Prod
 		variants[defaultIdx].IsDefault = true
 	}
 	return variants, nil
+}
+
+// validateVariantPrices rejects a price no real retail product can have —
+// previously unenforced anywhere (see
+// docs/rfc/2026-08-18-product-data-anomaly-detection.md §2.1): a customer-
+// facing price of 0 or less always means bad data entry, never a genuine
+// price, so this AI chat grounds answers in. Doesn't check SalePrice
+// against OriginalPrice or anything else — out of this RFC's scope.
+func validateVariantPrices(variants []domain.ProductVariantInput) error {
+	for i, v := range variants {
+		if v.OriginalPrice <= 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{
+				"variants": {fmt.Sprintf("variant %d: original price must be greater than 0", i)},
+			})
+		}
+		if v.SalePrice != nil && *v.SalePrice <= 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{
+				"variants": {fmt.Sprintf("variant %d: sale price must be greater than 0", i)},
+			})
+		}
+	}
+	return nil
 }

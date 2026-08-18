@@ -76,6 +76,9 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, attribute
 		if err != nil {
 			return nil, err
 		}
+		if err := validateVariantPrices(resolved); err != nil {
+			return nil, err
+		}
 		variants = &resolved
 	}
 

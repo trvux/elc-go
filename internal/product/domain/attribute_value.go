@@ -36,6 +36,15 @@ type AttributeValueRef struct {
 	ValueNumber           *float64
 	ValueBoolean          *bool
 	ValueOptions          []string
+	// FlaggedAnomaly is set by cmd/detect-attribute-anomalies (a periodic
+	// IQR-based statistical check across the whole catalog, not a manually
+	// admin-defined per-attribute range — see
+	// docs/rfc/2026-08-18-product-data-anomaly-detection.md) when this
+	// value is a strong outlier vs. every other product's value for the
+	// same attribute. Callers that ground external answers in specs (e.g.
+	// internal/ai's search_products tool) should skip a flagged value
+	// rather than assert it as fact.
+	FlaggedAnomaly bool
 }
 
 // CapacitySibling is one other published product that's the same model as
