@@ -556,8 +556,8 @@ type ProductFilter struct {
 	// cross-module read pattern already used for CategoryRef (see its doc
 	// comment) — combined with CategoryID/CategoryIDs via AND if more than
 	// one of these is set (not expected in practice, but harmless).
-	CategorySlugs []string
-	BrandID       *string
+	CategorySlugs  []string
+	BrandID        *string
 	BrandIDs       []string
 	ProductLineID  *string
 	IsFeatured     *bool

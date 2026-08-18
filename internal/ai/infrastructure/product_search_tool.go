@@ -113,7 +113,7 @@ func NewProductSearchTool(repo productdomain.ProductRepository) (domain.ToolDefi
 		summaries := make([]productSummary, 0, len(result.Products))
 		for _, p := range result.Products {
 			s := productSummary{
-				Name: p.Name(), Slug: p.Slug(), PriceFrom: p.PriceMin(), PriceTo: p.PriceMax(),
+				Name: p.Name(), Slug: p.Slug(), PriceFrom: sanePrice(p.PriceMin()), PriceTo: sanePrice(p.PriceMax()),
 				Highlights: p.Highlights(), Specs: renderSpecs(specsByID[p.ID()]),
 			}
 			if p.Brand != nil {
@@ -136,6 +136,20 @@ func NewProductSearchTool(repo productdomain.ProductRepository) (domain.ToolDefi
 	}
 
 	return def, execute
+}
+
+// sanePrice hides a price no real retail product can have — a customer-
+// facing 0 or negative price is always bad data (see
+// docs/rfc/2026-08-18-product-data-anomaly-detection.md §2.1: this is now
+// also rejected at product create/update, but existing rows written before
+// that validation existed can still carry one). Omitting it (nil ->
+// JSON omitempty) lets the model's existing "not found, don't guess"
+// instruction handle it honestly, instead of quoting "0đ" as if real.
+func sanePrice(price *int64) *int64 {
+	if price == nil || *price <= 0 {
+		return nil
+	}
+	return price
 }
 
 func fetchSpecsByID(ctx context.Context, repo productdomain.ProductRepository, products []*productdomain.ProductWithRelations) (map[string][]productdomain.AttributeValueRef, error) {
@@ -168,6 +182,14 @@ func renderSpecs(values []productdomain.AttributeValueRef) []specEntry {
 	}
 	specs := make([]specEntry, 0, len(values))
 	for _, v := range values {
+		// A value cmd/detect-attribute-anomalies flagged as a statistical
+		// outlier vs. every other product's value for this attribute never
+		// reaches the model — it's excluded, not annotated, so there's
+		// nothing for the model to quote (see the doc comment on
+		// domain.AttributeValueRef.FlaggedAnomaly).
+		if v.FlaggedAnomaly {
+			continue
+		}
 		value := renderAttributeValue(v)
 		if value == "" {
 			continue

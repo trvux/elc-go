@@ -16,7 +16,7 @@ func baseCreateInput() domain.CreateProductInput {
 		BrandID:    "brand-1",
 		Name:       "Máy lạnh Daikin 1.5HP Inverter",
 		Slug:       "may-lanh-daikin-15hp-inverter",
-		Variants:   []domain.ProductVariantInput{{MPN: "SKU-1"}},
+		Variants:   []domain.ProductVariantInput{{MPN: "SKU-1", OriginalPrice: 12_000_000}},
 	}
 }
 
