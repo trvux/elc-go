@@ -1,6 +1,6 @@
 # RFC: Backend code cleanup (dead code, DB race, error handling)
 
-- **Status**: Draft
+- **Status**: Completed — toàn bộ 3a-3d đã triển khai; `RehydrateEvent` (mục cuối 3a) cố tình giữ lại cho fake test repo như ghi chú ban đầu.
 - **Date**: 2026-08-18
 - **Tác giả**: Trần Vũ (với hỗ trợ Claude Code)
 
