@@ -22,7 +22,7 @@ func TestCreateBranch(t *testing.T) {
 		Phone:       "0901234567",
 		Email:       "q1@elc.vn",
 		MapsURL:     "https://maps.google.com/q1",
-		MapsEmbed:   "<iframe></iframe>",
+		MapsEmbed:   "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 		Description: desc,
 	})
 	if err != nil {
@@ -70,7 +70,7 @@ func TestUpdateBranch_PartialUpdate(t *testing.T) {
 		Phone:       "0901234567",
 		Email:       "q1@elc.vn",
 		MapsURL:     "https://maps.google.com/q1",
-		MapsEmbed:   "<iframe></iframe>",
+		MapsEmbed:   "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 		Description: desc,
 		OrderIndex:  5,
 	})
@@ -104,7 +104,7 @@ func TestDeleteBranch(t *testing.T) {
 		Phone:       "0901234567",
 		Email:       "q1@elc.vn",
 		MapsURL:     "https://maps.google.com/q1",
-		MapsEmbed:   "<iframe></iframe>",
+		MapsEmbed:   "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 		Description: desc,
 	})
 
@@ -128,7 +128,7 @@ func TestUpdateBranchOrder(t *testing.T) {
 		Phone:       "0901234567",
 		Email:       "q1@elc.vn",
 		MapsURL:     "https://maps.google.com/q1",
-		MapsEmbed:   "<iframe></iframe>",
+		MapsEmbed:   "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 		Description: desc,
 		OrderIndex:  1,
 	})

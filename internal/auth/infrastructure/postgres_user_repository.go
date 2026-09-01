@@ -2,13 +2,16 @@ package infrastructure
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/trvux/elc-go/internal/auth/domain"
+	"github.com/trvux/elc-go/internal/platform/apperr"
 )
 
 type PostgresUserRepository struct {
@@ -35,6 +38,16 @@ func (r *PostgresUserRepository) Create(ctx context.Context, user *domain.User) 
 	)
 	created, err := scanUser(row)
 	if err != nil {
+		// A rare concurrent AcceptInvite for the same username/email (both
+		// requests pass the application layer's ExistsByUsernameOrEmail
+		// check before either commits) hits this table's unique constraint —
+		// map it to a clean 409 instead of leaking a raw 500, same "map a
+		// known DB condition to an apperr here" convention as page's Update
+		// TOCTOU fix.
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, apperr.NewConflictError("username or email already in use")
+		}
 		return nil, fmt.Errorf("user repository create: %w", err)
 	}
 	return created, nil

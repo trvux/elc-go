@@ -42,10 +42,13 @@ func CreateProduct(ctx context.Context, repo domain.ProductRepository, attribute
 // before persistence: a product with zero variants is rejected — every
 // product must have at least one real variant (Product itself carries no
 // sku/mpn/price, see the domain.Product doc comment). A single-variant
-// product is auto-defaulted regardless of what the caller sent; multiple
-// variants with none marked default default the first one; multiple
-// variants explicitly marked default is a validation error the DB's partial
-// unique index would otherwise surface as an opaque constraint violation.
+// product is auto-defaulted regardless of what the caller sent (rejected
+// afterward if that one variant is component-only — see below); multiple
+// variants with none marked default auto-default the first STANDALONE one
+// (skipping component-only variants, which can't stand in for a product's
+// display price — see below), not blindly index 0; multiple variants
+// explicitly marked default is a validation error the DB's partial unique
+// index would otherwise surface as an opaque constraint violation.
 func resolveDefaultVariant(variants []domain.ProductVariantInput) ([]domain.ProductVariantInput, error) {
 	if len(variants) == 0 {
 		return nil, apperr.NewValidationError("validation failed", map[string][]string{
@@ -66,9 +69,38 @@ func resolveDefaultVariant(variants []domain.ProductVariantInput) ([]domain.Prod
 		})
 	}
 	if defaultCount == 0 {
-		variants[0].IsDefault = true
+		// Auto-default the first variant that CAN legally be default (see
+		// the IsComponentOnly check below) rather than blindly variants[0]
+		// — a request like [componentOnly, standalone, standalone] with
+		// none marked default has a perfectly good standalone candidate;
+		// picking index 0 unconditionally would reject it for no reason.
+		defaultIdx = 0
+		for i, v := range variants {
+			if !v.IsComponentOnly {
+				defaultIdx = i
+				break
+			}
+		}
+		variants[defaultIdx].IsDefault = true
 	} else if len(variants) == 1 {
 		variants[defaultIdx].IsDefault = true
+	}
+	// A component-only variant (IsComponentOnly, i.e. is_standalone=false)
+	// only exists as part of a bundle and is excluded from
+	// RecomputeDisplayCache's default-variant lookup (see
+	// infrastructure/variant_repository.go's dv CTE, which filters
+	// is_standalone = true) — marking one default would leave the whole
+	// product's display_price/default_variant_id/display_stock_status
+	// silently NULL despite having other active variants. This only ever
+	// fires now for an explicit caller-supplied default (defaultCount==1)
+	// or a single-variant product whose only variant is component-only
+	// (genuinely unresolvable — nothing else to pick) — the defaultCount==0
+	// multi-variant path above already avoids ever landing here when a
+	// standalone alternative exists.
+	if variants[defaultIdx].IsComponentOnly {
+		return nil, apperr.NewValidationError("validation failed", map[string][]string{
+			"variants": {"a component-only variant (is_component_only) cannot be marked as default"},
+		})
 	}
 	return variants, nil
 }

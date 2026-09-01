@@ -88,9 +88,11 @@ func syncProviderPricing(ctx context.Context, client domain.LLMClient, modelRepo
 		return fmt.Errorf("list models: %w", err)
 	}
 	var modelNames []string
+	existingByName := map[string]domain.Pricing{}
 	for _, m := range allModels {
 		if m.ProviderID() == provider.ID() {
 			modelNames = append(modelNames, m.ModelName())
+			existingByName[m.ModelName()] = m.Pricing()
 		}
 	}
 	if len(modelNames) == 0 {
@@ -113,6 +115,10 @@ func syncProviderPricing(ctx context.Context, client domain.LLMClient, modelRepo
 			fmt.Printf("sync-ai-pricing: %s: no pricing found for model %q in doc, skipping\n", provider.Name(), modelName)
 			continue
 		}
+		if err := validateExtractedPricing(existingByName[modelName], pricing); err != nil {
+			fmt.Fprintf(os.Stderr, "sync-ai-pricing: %s: %q: rejecting extracted pricing: %v\n", provider.Name(), modelName, err)
+			continue
+		}
 		if _, err := modelRepo.UpdatePricing(ctx, provider.ID(), modelName, pricing); err != nil {
 			return fmt.Errorf("update pricing for %q: %w", modelName, err)
 		}
@@ -125,6 +131,51 @@ func syncProviderPricing(ctx context.Context, client domain.LLMClient, modelRepo
 		}
 	}
 	return nil
+}
+
+// maxPricingChangeRatio bounds how far a newly-extracted price may move from
+// whatever is already stored, once a real (non-zero) price is already on
+// file. The extraction pipeline (fetch an untrusted web page, hand it to an
+// LLM, parse whatever JSON comes back, see extractPricing) has no
+// independent way to confirm the number is actually right — a jump this
+// large is far more likely a bad extraction (page layout changed, LLM
+// misread the table, ...) than a real same-day price change, so it's logged
+// and rejected rather than silently written into ai_models.pricing, which
+// internal/ai's Cost() feeds directly into usage/cost reporting. See
+// docs/rfc/2026-09-02-backend-code-review-round2.md §3.11.
+const maxPricingChangeRatio = 5.0
+
+// validateExtractedPricing rejects a newly-extracted Pricing that can't be a
+// real price (negative, or zero when a genuine provider pricing page always
+// lists a non-zero rate) or that swings implausibly far from what's already
+// stored for this model. old is the zero Pricing{} on a model's first ever
+// sync, in which case the change-ratio check is skipped (nothing on file yet
+// to compare against).
+func validateExtractedPricing(old, extracted domain.Pricing) error {
+	if extracted.InputCacheMissPeak < 0 || extracted.OutputPeak < 0 {
+		return fmt.Errorf("negative price (input=%v, output=%v)", extracted.InputCacheMissPeak, extracted.OutputPeak)
+	}
+	if extracted.InputCacheHitPeak != nil && *extracted.InputCacheHitPeak < 0 {
+		return fmt.Errorf("negative cache-hit price (%v)", *extracted.InputCacheHitPeak)
+	}
+	if extracted.InputCacheMissPeak == 0 || extracted.OutputPeak == 0 {
+		return fmt.Errorf("zero price extracted (input=%v, output=%v)", extracted.InputCacheMissPeak, extracted.OutputPeak)
+	}
+	if pricingChangedTooMuch(old.InputCacheMissPeak, extracted.InputCacheMissPeak) {
+		return fmt.Errorf("input price moved more than %vx vs. stored (%v -> %v)", maxPricingChangeRatio, old.InputCacheMissPeak, extracted.InputCacheMissPeak)
+	}
+	if pricingChangedTooMuch(old.OutputPeak, extracted.OutputPeak) {
+		return fmt.Errorf("output price moved more than %vx vs. stored (%v -> %v)", maxPricingChangeRatio, old.OutputPeak, extracted.OutputPeak)
+	}
+	return nil
+}
+
+func pricingChangedTooMuch(old, extracted float64) bool {
+	if old <= 0 {
+		return false
+	}
+	ratio := extracted / old
+	return ratio > maxPricingChangeRatio || ratio < 1/maxPricingChangeRatio
 }
 
 func fetchDocText(url string) (string, error) {

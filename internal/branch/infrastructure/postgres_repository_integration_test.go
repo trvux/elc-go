@@ -32,7 +32,7 @@ func TestPostgresBranchRepository_CRUD(t *testing.T) {
 
 	b, err := domain.NewBranch(
 		"ELC Integration Q12", "elc-integration-q12-xyz", "123 Le Loi, Q12", "0901122334",
-		"q12@elc.vn", "https://maps.google.com/q12", "<iframe></iframe>",
+		"q12@elc.vn", "https://maps.google.com/q12", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 		desc, images, true, 999, nil, nil,
 	)
 	if err != nil {

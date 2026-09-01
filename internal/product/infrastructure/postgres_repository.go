@@ -164,9 +164,22 @@ type facetExclude struct {
 // attribute-facet dimensions, rebuilt on the structured attribute system —
 // see domain.ProductFilter's doc comment.
 func buildFilterConditions(filter domain.ProductFilter, exclude facetExclude) ([]string, []any) {
+	conditions, args, _ := buildFilterConditionsFrom(filter, exclude, 1)
+	return conditions, args
+}
+
+// buildFilterConditionsFrom is buildFilterConditions with a caller-supplied
+// starting $N index, returning the next unused index — lets multiple calls
+// be concatenated into one combined query (each call's placeholders
+// continuing where the last left off) instead of each always restarting at
+// $1. Used by computeAttributeRangeFacetsBatch/computeAttributeTokenFacetsBatch
+// (facet_repository.go) to fold what used to be one round trip per
+// attribute definition into a single UNION ALL query. See
+// docs/rfc/2026-09-02-backend-code-review-round2.md §3.10.
+func buildFilterConditionsFrom(filter domain.ProductFilter, exclude facetExclude, startArgN int) ([]string, []any, int) {
 	conditions := []string{}
 	args := []any{}
-	argN := 1
+	argN := startArgN
 	next := func() int {
 		n := argN
 		argN++
@@ -316,7 +329,7 @@ func buildFilterConditions(filter domain.ProductFilter, exclude facetExclude) ([
 		}
 	}
 
-	return conditions, args
+	return conditions, args, argN
 }
 
 // sortClause maps ProductFilter.SortBy to an ORDER BY clause — "" keeps the

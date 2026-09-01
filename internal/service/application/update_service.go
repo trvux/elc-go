@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
-	"github.com/trvux/elc-go/internal/platform/seo"
 	"github.com/trvux/elc-go/internal/service/domain"
 )
 
@@ -18,73 +17,8 @@ func UpdateService(ctx context.Context, repo domain.ServiceRepository, input dom
 	}
 	service := existing.Service
 
-	if input.Title != nil {
-		if err := service.UpdateTitle(*input.Title); err != nil {
-			return nil, err
-		}
-	}
-	if input.Slug != nil {
-		if err := service.UpdateSlug(*input.Slug); err != nil {
-			return nil, err
-		}
-	}
-	if input.GroupID != nil {
-		service.UpdateGroupID(input.GroupID)
-	}
-	if input.CategoryID != nil {
-		service.UpdateCategoryID(input.CategoryID)
-	}
-
-	// OriginalPrice and DiscountPercent must be resolved together — whichever
-	// one isn't part of this update keeps its CURRENT value from `service`,
-	// so SalePrice() is always computed from a consistent pair. This is the
-	// fix for the old bug where changing only discountPercent left sale_price
-	// stale (see docs/service.md).
-	if input.OriginalPrice != nil || input.DiscountPercent != nil {
-		originalPrice := service.OriginalPrice()
-		if input.OriginalPrice != nil {
-			originalPrice = input.OriginalPrice
-		}
-		discountPercent := service.DiscountPercent()
-		if input.DiscountPercent != nil {
-			discountPercent = input.DiscountPercent
-		}
-		service.UpdatePricing(originalPrice, discountPercent)
-	}
-
-	if input.PriceDisplayText != nil {
-		service.UpdatePriceDisplayText(input.PriceDisplayText)
-	}
-	if input.Labels != nil {
-		service.SetLabels(input.Labels)
-	}
-	if input.Description != nil {
-		service.UpdateDescription(input.Description)
-	}
-	if input.Content != nil {
-		service.UpdateContent(input.Content)
-	}
-	if input.Images != nil {
-		service.UpdateImages(input.Images)
-	}
-	if input.MetaTitle != nil && !seo.Unchanged(service.MetaTitle(), input.MetaTitle) {
-		if err := service.UpdateMetaTitle(input.MetaTitle); err != nil {
-			return nil, err
-		}
-	}
-	if input.MetaDescription != nil && !seo.Unchanged(service.MetaDescription(), input.MetaDescription) {
-		if err := service.UpdateMetaDescription(input.MetaDescription); err != nil {
-			return nil, err
-		}
-	}
-	if input.IsFeatured != nil {
-		service.SetFeatured(*input.IsFeatured)
-	}
-	if input.IsPublished != nil {
-		service.SetPublished(*input.IsPublished)
-	}
-	if input.OrderIndex != nil {
-		service.Reorder(*input.OrderIndex)
+	if err := service.Update(input); err != nil {
+		return nil, err
 	}
 
 	return repo.Update(ctx, service)

@@ -3,7 +3,6 @@ package presentation
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -21,7 +20,7 @@ func NewNewsHandler(repo domain.NewsRepository) *NewsHandler {
 	return &NewsHandler{repo: repo}
 }
 
-func parseNewsFilter(r *http.Request) domain.NewsFilter {
+func parseNewsFilter(r *http.Request) (domain.NewsFilter, error) {
 	q := r.URL.Query()
 	filter := domain.NewsFilter{
 		Search:         q.Get("search"),
@@ -39,21 +38,22 @@ func parseNewsFilter(r *http.Request) domain.NewsFilter {
 		b := v == "true"
 		filter.IsPublished = &b
 	}
-	if v := q.Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			filter.Limit = n
-		}
+
+	limit, offset, err := httpserver.ParsePagination(r)
+	if err != nil {
+		return filter, err
 	}
-	if v := q.Get("offset"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			filter.Offset = n
-		}
-	}
-	return filter
+	filter.Limit = limit
+	filter.Offset = offset
+	return filter, nil
 }
 
 func (h *NewsHandler) List(w http.ResponseWriter, r *http.Request) {
-	filter := parseNewsFilter(r)
+	filter, err := parseNewsFilter(r)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
 
 	items, err := application.GetNews(r.Context(), h.repo, filter)
 	if err != nil {
@@ -65,7 +65,11 @@ func (h *NewsHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *NewsHandler) Count(w http.ResponseWriter, r *http.Request) {
-	filter := parseNewsFilter(r)
+	filter, err := parseNewsFilter(r)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
 
 	count, err := application.CountNews(r.Context(), h.repo, filter)
 	if err != nil {

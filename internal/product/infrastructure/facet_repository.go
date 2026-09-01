@@ -203,27 +203,53 @@ func (r *PostgresProductRepository) computeAttributeFacets(ctx context.Context, 
 		return nil, fmt.Errorf("product repository computeAttributeFacets (definitions) rows: %w", err)
 	}
 
+	var numberCodes, tokenCodes []string
+	for _, def := range defs {
+		if def.dataType == "number" {
+			numberCodes = append(numberCodes, def.code)
+		} else {
+			tokenCodes = append(tokenCodes, def.code)
+		}
+	}
+
+	// Batched into at most 2 additional round trips total (one UNION ALL for
+	// every number-type definition, one for every select/multiselect/
+	// boolean-type definition) instead of one query per definition — a
+	// category with N applicable attributes used to mean N sequential round
+	// trips here. See docs/rfc/2026-09-02-backend-code-review-round2.md §3.10.
+	numberValues, err := r.computeAttributeRangeFacetsBatch(ctx, filter, numberCodes)
+	if err != nil {
+		return nil, err
+	}
+	tokenOptions, err := r.computeAttributeTokenFacetsBatch(ctx, filter, tokenCodes)
+	if err != nil {
+		return nil, err
+	}
+
 	facets := make([]domain.AttributeFacet, 0, len(defs))
 	for _, def := range defs {
 		facet := domain.AttributeFacet{Code: def.code, Name: def.name, GroupLabel: def.groupLabel, DataType: def.dataType, Unit: def.unit}
 
 		if def.dataType == "number" {
-			min, max, buckets, err := r.computeAttributeRangeFacet(ctx, filter, def.code)
-			if err != nil {
-				return nil, err
-			}
-			if min == nil {
+			values := numberValues[def.code]
+			if len(values) == 0 {
 				continue
 			}
-			facet.Min, facet.Max, facet.Buckets = min, max, buckets
+			minV, maxV := values[0], values[0]
+			for _, v := range values {
+				if v < minV {
+					minV = v
+				}
+				if v > maxV {
+					maxV = v
+				}
+			}
+			facet.Min, facet.Max, facet.Buckets = &minV, &maxV, domain.BuildNumberBuckets(values)
 			facets = append(facets, facet)
 			continue
 		}
 
-		options, err := r.computeAttributeTokenFacet(ctx, filter, def.code)
-		if err != nil {
-			return nil, err
-		}
+		options := tokenOptions[def.code]
 		if len(options) == 0 {
 			continue
 		}
@@ -233,82 +259,104 @@ func (r *PostgresProductRepository) computeAttributeFacets(ctx context.Context, 
 	return facets, nil
 }
 
-func (r *PostgresProductRepository) computeAttributeTokenFacet(ctx context.Context, filter domain.ProductFilter, code string) ([]domain.AttributeFacetOption, error) {
-	conditions, args := buildFilterConditions(filter, facetExclude{Attribute: code})
-	query := "SELECT unnest(p.facet_tokens) AS token, COUNT(*) FROM products p"
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
+// computeAttributeTokenFacetsBatch computes the select/multiselect/boolean
+// facet options for every code in one round trip: a UNION ALL of one branch
+// per code, each branch keeping that attribute's own "exclude own
+// dimension" WHERE clause (facetExclude{Attribute: code}) exactly as the
+// old per-attribute query did — behavior is unchanged, only the number of
+// round trips drops from len(codes) to 1. $N placeholders are numbered
+// continuously across every branch via buildFilterConditionsFrom, since
+// Postgres placeholders are global to the whole combined statement.
+func (r *PostgresProductRepository) computeAttributeTokenFacetsBatch(ctx context.Context, filter domain.ProductFilter, codes []string) (map[string][]domain.AttributeFacetOption, error) {
+	result := make(map[string][]domain.AttributeFacetOption, len(codes))
+	if len(codes) == 0 {
+		return result, nil
 	}
-	query += " GROUP BY token"
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	branches := make([]string, 0, len(codes))
+	var args []any
+	argN := 1
+	for _, code := range codes {
+		codeArgN := argN
+		conditions, condArgs, next := buildFilterConditionsFrom(filter, facetExclude{Attribute: code}, argN+1)
+		args = append(args, code)
+		args = append(args, condArgs...)
+		argN = next
+
+		where := ""
+		if len(conditions) > 0 {
+			where = " WHERE " + strings.Join(conditions, " AND ")
+		}
+		branches = append(branches, fmt.Sprintf(
+			"SELECT $%d::text AS def_code, unnest(p.facet_tokens) AS token, COUNT(*) AS cnt FROM products p%s GROUP BY token",
+			codeArgN, where,
+		))
+	}
+
+	rows, err := r.pool.Query(ctx, strings.Join(branches, " UNION ALL "), args...)
 	if err != nil {
-		return nil, fmt.Errorf("product repository computeAttributeTokenFacet: %w", err)
+		return nil, fmt.Errorf("product repository computeAttributeTokenFacetsBatch: %w", err)
 	}
 	defer rows.Close()
 
-	prefix := code + ":"
-	var options []domain.AttributeFacetOption
 	for rows.Next() {
-		var token string
+		var code, token string
 		var count int
-		if err := rows.Scan(&token, &count); err != nil {
-			return nil, fmt.Errorf("product repository computeAttributeTokenFacet scan: %w", err)
+		if err := rows.Scan(&code, &token, &count); err != nil {
+			return nil, fmt.Errorf("product repository computeAttributeTokenFacetsBatch scan: %w", err)
 		}
-		if value, ok := strings.CutPrefix(token, prefix); ok {
-			options = append(options, domain.AttributeFacetOption{Value: value, Count: count})
+		if value, ok := strings.CutPrefix(token, code+":"); ok {
+			result[code] = append(result[code], domain.AttributeFacetOption{Value: value, Count: count})
 		}
 	}
-	return options, rows.Err()
+	return result, rows.Err()
 }
 
-// computeAttributeRangeFacet fetches every matching value for a number-type
-// attribute (excluding the attribute's own filter dimension) and returns
-// both the overall min/max and ready-to-click bucket suggestions built from
-// the real data — see domain.BuildNumberBuckets.
-func (r *PostgresProductRepository) computeAttributeRangeFacet(ctx context.Context, filter domain.ProductFilter, code string) (min, max *float64, buckets []domain.NumberBucket, err error) {
-	conditions, args := buildFilterConditions(filter, facetExclude{Attribute: code})
-	argN := len(args) + 1
-	query := fmt.Sprintf(`
-		SELECT pav.value_number
-		FROM product_attribute_values pav
-		JOIN attribute_definitions ad2 ON ad2.id = pav.attribute_definition_id
-		JOIN products p ON p.id = pav.product_id
-		WHERE pav.deleted_at IS NULL AND pav.value_number IS NOT NULL AND ad2.code = $%d`, argN)
-	args = append(args, code)
-	if len(conditions) > 0 {
-		query += " AND " + strings.Join(conditions, " AND ")
+// computeAttributeRangeFacetsBatch fetches every matching value for every
+// number-type code in one round trip (UNION ALL, same "exclude own
+// dimension" semantics per branch as the old per-attribute query — see
+// computeAttributeTokenFacetsBatch's doc comment for the same reasoning).
+// Returns the raw matching values per code; the caller computes min/max and
+// calls domain.BuildNumberBuckets, same as before.
+func (r *PostgresProductRepository) computeAttributeRangeFacetsBatch(ctx context.Context, filter domain.ProductFilter, codes []string) (map[string][]float64, error) {
+	result := make(map[string][]float64, len(codes))
+	if len(codes) == 0 {
+		return result, nil
 	}
 
-	rows, queryErr := r.pool.Query(ctx, query, args...)
-	if queryErr != nil {
-		return nil, nil, nil, fmt.Errorf("product repository computeAttributeRangeFacet: %w", queryErr)
+	branches := make([]string, 0, len(codes))
+	var args []any
+	argN := 1
+	for _, code := range codes {
+		codeArgN := argN
+		conditions, condArgs, next := buildFilterConditionsFrom(filter, facetExclude{Attribute: code}, argN+1)
+		args = append(args, code)
+		args = append(args, condArgs...)
+		argN = next
+
+		where := strings.Join(append([]string{
+			"pav.deleted_at IS NULL", "pav.value_number IS NOT NULL", fmt.Sprintf("ad2.code = $%d", codeArgN),
+		}, conditions...), " AND ")
+		branches = append(branches, fmt.Sprintf(`SELECT ad2.code AS def_code, pav.value_number AS val
+			FROM product_attribute_values pav
+			JOIN attribute_definitions ad2 ON ad2.id = pav.attribute_definition_id
+			JOIN products p ON p.id = pav.product_id
+			WHERE %s`, where))
+	}
+
+	rows, err := r.pool.Query(ctx, strings.Join(branches, " UNION ALL "), args...)
+	if err != nil {
+		return nil, fmt.Errorf("product repository computeAttributeRangeFacetsBatch: %w", err)
 	}
 	defer rows.Close()
 
-	var values []float64
 	for rows.Next() {
-		var v float64
-		if scanErr := rows.Scan(&v); scanErr != nil {
-			return nil, nil, nil, fmt.Errorf("product repository computeAttributeRangeFacet scan: %w", scanErr)
+		var code string
+		var val float64
+		if err := rows.Scan(&code, &val); err != nil {
+			return nil, fmt.Errorf("product repository computeAttributeRangeFacetsBatch scan: %w", err)
 		}
-		values = append(values, v)
+		result[code] = append(result[code], val)
 	}
-	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, nil, nil, fmt.Errorf("product repository computeAttributeRangeFacet rows: %w", rowsErr)
-	}
-	if len(values) == 0 {
-		return nil, nil, nil, nil
-	}
-
-	minV, maxV := values[0], values[0]
-	for _, v := range values {
-		if v < minV {
-			minV = v
-		}
-		if v > maxV {
-			maxV = v
-		}
-	}
-	return &minV, &maxV, domain.BuildNumberBuckets(values), nil
+	return result, rows.Err()
 }

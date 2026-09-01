@@ -67,20 +67,12 @@ func parseProductFilter(r *http.Request) (domain.ProductFilter, error) {
 		filter.Status = &status
 	}
 
-	if v := q.Get("limit"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil {
-			return filter, err
-		}
-		filter.Limit = n
+	limit, offset, err := httpserver.ParsePagination(r)
+	if err != nil {
+		return filter, err
 	}
-	if v := q.Get("offset"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil {
-			return filter, err
-		}
-		filter.Offset = n
-	}
+	filter.Limit = limit
+	filter.Offset = offset
 
 	filter.Search = strings.TrimSpace(q.Get("search"))
 

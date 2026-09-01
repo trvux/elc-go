@@ -95,18 +95,31 @@ func (r *PostgresServiceGroupRepository) GetBySlug(ctx context.Context, slug str
 
 // Create resurrects a soft-deleted row with the same slug instead of
 // inserting, because slug is globally unique even for deleted rows — see
-// docs/service-group.md.
+// docs/service-group.md. The whole check-then-act runs inside one
+// transaction with FOR UPDATE locking the soft-deleted row (if any) so a
+// second concurrent Create for the same slug blocks here instead of racing
+// this check against the UPDATE/INSERT below — same fix as
+// internal/project/infrastructure/postgres_repository.go's Create, which
+// docs/rfc/2026-08-18-backend-code-cleanup.md §3b originally applied to
+// category/group/news/project-type/project but missed this domain (see
+// docs/rfc/2026-09-02-backend-code-review-round2.md §3.1).
 func (r *PostgresServiceGroupRepository) Create(ctx context.Context, serviceGroup *domain.ServiceGroup) (*domain.ServiceGroup, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("service group repository create (begin tx): %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	var existingID string
-	err := r.pool.QueryRow(ctx,
-		"SELECT id FROM service_groups WHERE slug = $1 AND deleted_at IS NOT NULL",
+	err = tx.QueryRow(ctx,
+		"SELECT id FROM service_groups WHERE slug = $1 AND deleted_at IS NOT NULL FOR UPDATE",
 		serviceGroup.Slug(),
 	).Scan(&existingID)
-
 	if err != nil && err != pgx.ErrNoRows {
 		return nil, fmt.Errorf("service group repository create (check existing): %w", err)
 	}
 
+	var row pgx.Row
 	if err == nil {
 		query := `
 			UPDATE service_groups
@@ -116,30 +129,30 @@ func (r *PostgresServiceGroupRepository) Create(ctx context.Context, serviceGrou
 			WHERE id = $9
 			RETURNING ` + serviceGroupColumns
 
-		row := r.pool.QueryRow(ctx, query,
+		row = tx.QueryRow(ctx, query,
 			serviceGroup.Name(), serviceGroup.ImageURL(), serviceGroup.MetaTitle(), serviceGroup.MetaDescription(),
 			serviceGroup.IsFeatured(), serviceGroup.OrderIndex(), serviceGroup.CategoryIDs(),
 			time.Now(), existingID,
 		)
-		resurrected, err := scanServiceGroup(row)
-		if err != nil {
-			return nil, fmt.Errorf("service group repository create (resurrect): %w", err)
-		}
-		return resurrected, nil
+	} else {
+		query := `
+			INSERT INTO service_groups (name, slug, image_url, meta_title, meta_description, is_featured, order_index, category_ids)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			RETURNING ` + serviceGroupColumns
+
+		row = tx.QueryRow(ctx, query,
+			serviceGroup.Name(), serviceGroup.Slug(), serviceGroup.ImageURL(), serviceGroup.MetaTitle(), serviceGroup.MetaDescription(),
+			serviceGroup.IsFeatured(), serviceGroup.OrderIndex(), serviceGroup.CategoryIDs(),
+		)
 	}
 
-	query := `
-		INSERT INTO service_groups (name, slug, image_url, meta_title, meta_description, is_featured, order_index, category_ids)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING ` + serviceGroupColumns
-
-	row := r.pool.QueryRow(ctx, query,
-		serviceGroup.Name(), serviceGroup.Slug(), serviceGroup.ImageURL(), serviceGroup.MetaTitle(), serviceGroup.MetaDescription(),
-		serviceGroup.IsFeatured(), serviceGroup.OrderIndex(), serviceGroup.CategoryIDs(),
-	)
 	created, err := scanServiceGroup(row)
 	if err != nil {
 		return nil, fmt.Errorf("service group repository create: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("service group repository create (commit tx): %w", err)
 	}
 	return created, nil
 }

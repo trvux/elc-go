@@ -3,7 +3,6 @@ package presentation
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -22,7 +21,7 @@ func NewProjectHandler(repo domain.ProjectRepository) *ProjectHandler {
 	return &ProjectHandler{repo: repo}
 }
 
-func parseProjectFilter(r *http.Request) domain.ProjectFilter {
+func parseProjectFilter(r *http.Request) (domain.ProjectFilter, error) {
 	q := r.URL.Query()
 	filter := domain.ProjectFilter{
 		Search:         q.Get("search"),
@@ -56,21 +55,21 @@ func parseProjectFilter(r *http.Request) domain.ProjectFilter {
 		b := v == "true"
 		filter.IsFeatured = &b
 	}
-	if v := q.Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			filter.Limit = n
-		}
+	limit, offset, err := httpserver.ParsePagination(r)
+	if err != nil {
+		return filter, err
 	}
-	if v := q.Get("offset"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			filter.Offset = n
-		}
-	}
-	return filter
+	filter.Limit = limit
+	filter.Offset = offset
+	return filter, nil
 }
 
 func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
-	filter := parseProjectFilter(r)
+	filter, err := parseProjectFilter(r)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
 
 	projects, err := application.GetProjects(r.Context(), h.repo, filter)
 	if err != nil {
@@ -82,7 +81,11 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProjectHandler) Count(w http.ResponseWriter, r *http.Request) {
-	filter := parseProjectFilter(r)
+	filter, err := parseProjectFilter(r)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
 
 	count, err := application.CountProjects(r.Context(), h.repo, filter)
 	if err != nil {

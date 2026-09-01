@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 
 	"github.com/trvux/elc-go/internal/auth/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
@@ -60,6 +61,15 @@ func AcceptInvite(
 
 	created, err := userRepo.Create(ctx, user)
 	if err != nil {
+		// A rare concurrent AcceptInvite for the same username/email can
+		// lose the ExistsByUsernameOrEmail race above and hit the table's
+		// unique constraint instead — the repository already maps that to a
+		// clean apperr.NewConflictError, so pass it through as-is rather
+		// than flattening it into a generic 500.
+		var appErr *apperr.AppError
+		if errors.As(err, &appErr) {
+			return nil, appErr
+		}
 		return nil, apperr.NewInternalError(err)
 	}
 

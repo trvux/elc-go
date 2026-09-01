@@ -2,7 +2,9 @@ package infrastructure
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net"
 	"net/smtp"
 	"time"
 
@@ -67,28 +69,92 @@ func (s *SMTPEmailSender) SendPasswordReset(ctx context.Context, to string, rawT
 	return s.send(ctx, to, subject, body)
 }
 
-// send bounds smtp.SendMail (which has no deadline of its own) to
-// smtpSendTimeout, so a hung SMTP provider fails the request instead of
-// blocking it indefinitely.
+// send is a context-aware reimplementation of smtp.SendMail's steps
+// (dial -> optional STARTTLS -> auth -> mail/rcpt/data -> quit), because
+// smtp.SendMail itself accepts no context and has no way to bound how long
+// it blocks. The previous version wrapped smtp.SendMail in a goroutine +
+// select on ctx.Done(), but that only made the *caller* stop waiting — the
+// goroutine (and its underlying TCP connection) kept running in the
+// background until the OS eventually timed it out on its own, sometimes
+// minutes later. Here, DialContext bounds the connection step directly, and
+// conn.SetDeadline bounds every read/write of the SMTP conversation that
+// follows: once the deadline passes, whatever blocking call is in flight on
+// this same goroutine fails immediately with an i/o timeout — no separate
+// goroutine ever exists to leak. See
+// docs/rfc/2026-09-02-backend-code-review-round2.md §3.5.
 func (s *SMTPEmailSender) send(ctx context.Context, to, subject, body string) error {
 	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
 		s.from, to, subject, body)
 	addr := s.host + ":" + s.port
 
-	ctx, cancel := context.WithTimeout(ctx, smtpSendTimeout)
-	defer cancel()
+	deadline := time.Now().Add(smtpSendTimeout)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
+	}
 
-	done := make(chan error, 1)
+	dialCtx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
+	conn, err := (&net.Dialer{}).DialContext(dialCtx, "tcp", addr)
+	if err != nil {
+		return fmt.Errorf("smtp dial %s: %w", addr, err)
+	}
+	defer conn.Close()
+
+	if err := conn.SetDeadline(deadline); err != nil {
+		return fmt.Errorf("smtp set deadline: %w", err)
+	}
+
+	// conn.SetDeadline above bounds the conversation by wall-clock time, but
+	// an explicit ctx cancellation (as opposed to ctx merely reaching its
+	// deadline — e.g. the caller's own request context canceled because the
+	// client disconnected) needs its own watch: it can fire earlier than
+	// `deadline` and nothing else here re-checks ctx once the TCP connection
+	// is open. This goroutine's lifetime is bounded by construction — it
+	// always exits via whichever of ctx.Done()/done fires first, and done is
+	// guaranteed to close (via the defer below) by the time this function
+	// returns — so, unlike the old goroutine+select design this function
+	// itself replaced, it can never outlive the call and cannot leak.
+	done := make(chan struct{})
+	defer close(done)
 	go func() {
-		done <- smtp.SendMail(addr, s.auth, s.from, []string{to}, []byte(msg))
+		select {
+		case <-ctx.Done():
+			_ = conn.SetDeadline(time.Now())
+		case <-done:
+		}
 	}()
 
-	select {
-	case err := <-done:
-		return err
-	case <-ctx.Done():
-		return fmt.Errorf("smtp send to %s: %w", to, ctx.Err())
+	client, err := smtp.NewClient(conn, s.host)
+	if err != nil {
+		return fmt.Errorf("smtp new client: %w", err)
 	}
+	defer client.Close()
+
+	if ok, _ := client.Extension("STARTTLS"); ok {
+		if err := client.StartTLS(&tls.Config{ServerName: s.host}); err != nil {
+			return fmt.Errorf("smtp starttls: %w", err)
+		}
+	}
+	if err := client.Auth(s.auth); err != nil {
+		return fmt.Errorf("smtp auth: %w", err)
+	}
+	if err := client.Mail(s.from); err != nil {
+		return fmt.Errorf("smtp mail from: %w", err)
+	}
+	if err := client.Rcpt(to); err != nil {
+		return fmt.Errorf("smtp rcpt to: %w", err)
+	}
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("smtp data: %w", err)
+	}
+	if _, err := w.Write([]byte(msg)); err != nil {
+		return fmt.Errorf("smtp write body: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("smtp close body: %w", err)
+	}
+	return client.Quit()
 }
 
 // LogEmailSender is the fallback used when SMTP isn't configured (local dev

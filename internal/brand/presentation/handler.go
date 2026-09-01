@@ -3,7 +3,6 @@ package presentation
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -26,22 +25,13 @@ func (h *BrandHandler) List(w http.ResponseWriter, r *http.Request) {
 		Search:         r.URL.Query().Get("search"),
 		IncludeDeleted: r.URL.Query().Get("include_deleted") == "true",
 	}
-	if raw := r.URL.Query().Get("limit"); raw != "" {
-		limit, err := strconv.Atoi(raw)
-		if err != nil {
-			httpserver.WriteError(w, apperr.NewValidationError("invalid limit query param", nil))
-			return
-		}
-		filter.Limit = limit
+	limit, offset, err := httpserver.ParsePagination(r)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
 	}
-	if raw := r.URL.Query().Get("offset"); raw != "" {
-		offset, err := strconv.Atoi(raw)
-		if err != nil {
-			httpserver.WriteError(w, apperr.NewValidationError("invalid offset query param", nil))
-			return
-		}
-		filter.Offset = offset
-	}
+	filter.Limit = limit
+	filter.Offset = offset
 
 	brands, err := application.GetBrands(r.Context(), h.repo, filter)
 	if err != nil {

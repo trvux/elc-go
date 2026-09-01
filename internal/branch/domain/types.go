@@ -2,6 +2,7 @@ package domain
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
@@ -368,9 +369,85 @@ func validateMapsURL(mapsURL string) []string {
 	return nil
 }
 
+// mapsEmbedTagRe matches the ENTIRE trimmed input against exactly one bare
+// <iframe ...></iframe> (or self-closed) tag — attributes may not contain
+// '<'/'>' themselves, which rules out smuggling a second tag (e.g. <script>)
+// inside what looks like an attribute value. Google's own "Share > Embed a
+// map" snippet is always this shape; this field should never hold anything
+// richer (surrounding text, multiple tags).
+var mapsEmbedTagRe = regexp.MustCompile(`(?is)^<iframe\s+([^<>]*?)\s*/?>(?:\s*</iframe>)?$`)
+
+// mapsEmbedAttrRe pulls out one name="value" (or bare name) pair at a time
+// from the tag's attribute string.
+var mapsEmbedAttrRe = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9-]*)(?:\s*=\s*"([^"]*)")?`)
+
+// mapsEmbedAllowedAttrs is every attribute Google's own embed snippet
+// actually emits — a whitelist, not a blacklist, so an attribute this list
+// doesn't recognize (onload, onerror, style with a javascript: url, ...) is
+// rejected by default instead of needing its own explicit block rule.
+var mapsEmbedAllowedAttrs = map[string]bool{
+	"src": true, "width": true, "height": true,
+	"frameborder": true, "allowfullscreen": true, "loading": true,
+	"referrerpolicy": true, "title": true, "style": true,
+}
+
+// mapsEmbedAllowedSrcHosts restricts src to Google's own embed domain — this
+// field is only ever meant to carry a Google Maps iframe, never arbitrary
+// third-party markup.
+var mapsEmbedAllowedSrcHosts = map[string]bool{
+	"www.google.com": true, "google.com": true, "maps.google.com": true,
+}
+
+// mapsEmbedStyleRe is the ONLY style value Google's own embed snippet ever
+// emits ("border:0;" or "border:0"). Whitelisting the attribute NAME alone
+// isn't enough for `style` — its VALUE is free-form CSS and was still an
+// injection vector even with src/other attributes locked down (e.g.
+// background:url(...) pointing at an attacker's domain for tracking/
+// exfiltration, or position:fixed to overlay/deface the page) — caught in
+// code review on the first version of this fix. Every other allowed
+// attribute's value is already independently constrained (src by
+// mapsEmbedAllowedSrcHosts; width/height/frameborder/allowfullscreen/
+// loading/referrerpolicy/title are inert w.r.t. injection), so only style
+// needs its own value-level allowlist.
+var mapsEmbedStyleRe = regexp.MustCompile(`^border:\s*0;?$`)
+
+// validateMapsEmbed is a best-effort backend guard against stored XSS via
+// this field (a raw HTML snippet an admin pastes from Google Maps): it
+// rejects anything that isn't a single <iframe> tag with a whitelisted
+// attribute set and a src pointing at Google's own domain, rather than
+// attempting to sanitize arbitrary HTML. See docs/rfc/2026-09-02-backend-
+// code-review-round2.md §3.9 for why this exists — whether the frontend
+// renders this field as raw HTML at all wasn't confirmed at review time.
 func validateMapsEmbed(mapsEmbed string) []string {
-	if mapsEmbed == "" {
+	trimmed := strings.TrimSpace(mapsEmbed)
+	if trimmed == "" {
 		return []string{"Mã nhúng bản đồ không được để trống"}
+	}
+
+	m := mapsEmbedTagRe.FindStringSubmatch(trimmed)
+	if m == nil {
+		return []string{"Mã nhúng bản đồ phải là đúng 1 thẻ <iframe> lấy từ Google Maps (Chia sẻ > Nhúng bản đồ), không chứa nội dung nào khác"}
+	}
+
+	hasSrc := false
+	for _, attr := range mapsEmbedAttrRe.FindAllStringSubmatch(m[1], -1) {
+		name, value := strings.ToLower(attr[1]), attr[2]
+		if !mapsEmbedAllowedAttrs[name] {
+			return []string{fmt.Sprintf("Mã nhúng bản đồ chứa thuộc tính không được phép: %s", name)}
+		}
+		if name == "src" {
+			hasSrc = true
+			u, err := url.Parse(value)
+			if err != nil || u.Scheme != "https" || !mapsEmbedAllowedSrcHosts[u.Hostname()] {
+				return []string{"Mã nhúng bản đồ phải trỏ tới google.com (Google Maps)"}
+			}
+		}
+		if name == "style" && !mapsEmbedStyleRe.MatchString(strings.TrimSpace(value)) {
+			return []string{"Mã nhúng bản đồ chứa giá trị style không được phép"}
+		}
+	}
+	if !hasSrc {
+		return []string{"Mã nhúng bản đồ phải có thuộc tính src trỏ tới Google Maps"}
 	}
 	return nil
 }

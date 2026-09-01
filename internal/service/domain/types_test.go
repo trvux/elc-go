@@ -51,12 +51,45 @@ func TestService_UpdatePricing_NeverGoesStale(t *testing.T) {
 	}
 
 	// Simulate an update that only touches discountPercent — the exact case
-	// that went stale in the old TS code. UpdatePricing forces both fields
-	// to be passed together, so this can't happen here.
-	s.UpdatePricing(s.OriginalPrice(), ptrInt(50))
+	// that went stale in the old TS code. Update() resolves OriginalPrice/
+	// DiscountPercent together internally (see its doc comment), so a
+	// request that only sets DiscountPercent still can't go stale.
+	if err := s.Update(UpdateServiceInput{DiscountPercent: ptrInt(50)}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if *s.SalePrice() != 50000 {
 		t.Errorf("expected recomputed sale price 50000, got %d", *s.SalePrice())
+	}
+}
+
+func TestService_Update_RejectsInvalidDiscountPercent(t *testing.T) {
+	s := RehydrateService(
+		"id-1", "Title", "slug", nil, nil,
+		ptrInt64(100000), ptrInt(10), nil, nil, nil, nil,
+		nil, nil, nil, false, true, 0,
+		time.Now(), time.Now(), nil,
+	)
+
+	if err := s.Update(UpdateServiceInput{DiscountPercent: ptrInt(150)}); err == nil {
+		t.Fatal("expected a validation error for discountPercent > 100")
+	}
+}
+
+func TestService_Update_NoOpLeavesUpdatedAtUnchanged(t *testing.T) {
+	createdAt := time.Now().Add(-time.Hour)
+	s := RehydrateService(
+		"id-1", "Title", "slug", nil, nil,
+		nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, false, true, 0,
+		createdAt, createdAt, nil,
+	)
+
+	if err := s.Update(UpdateServiceInput{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !s.UpdatedAt().Equal(createdAt) {
+		t.Errorf("expected updatedAt unchanged on a no-op Update, got %v (was %v)", s.UpdatedAt(), createdAt)
 	}
 }
 

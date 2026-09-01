@@ -40,8 +40,31 @@ func scanConversation(row pgx.Row) (*domain.Conversation, error) {
 // anything older starts a fresh conversation — otherwise one long-idle
 // return visitor would accumulate every question ever asked into one
 // endless thread.
+//
+// The whole check-then-act runs inside one transaction, serialized by a
+// Postgres advisory lock keyed by visitor_id (pg_advisory_xact_lock) —
+// there's no existing row to SELECT ... FOR UPDATE when this is a brand-new
+// visitor's first message (nothing exists yet to lock), so a row-level lock
+// can't close this race the way it does for the resurrect-soft-deleted-slug
+// pattern elsewhere in this codebase (category/project/service-group).
+// Without this, two concurrent calls for the same visitor (a double-click
+// send, or two tabs open at once) would both see no recent conversation and
+// both INSERT, splitting the visitor's history across two rows. The lock is
+// transaction-scoped, so it releases automatically on commit or rollback —
+// no separate unlock call needed. See
+// docs/rfc/2026-09-02-backend-code-review-round2.md §3.2.
 func (r *PostgresConversationRepository) GetOrCreateByVisitor(ctx context.Context, visitorID string, userID *string) (*domain.Conversation, error) {
-	row := r.pool.QueryRow(ctx, `
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("ai conversation repository getOrCreateByVisitor (begin tx): %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext($1))", visitorID); err != nil {
+		return nil, fmt.Errorf("ai conversation repository getOrCreateByVisitor (advisory lock): %w", err)
+	}
+
+	row := tx.QueryRow(ctx, `
 		SELECT id, visitor_id, user_id, created_at, updated_at
 		FROM ai_conversations
 		WHERE visitor_id = $1 AND updated_at > now() - interval '24 hours'
@@ -55,10 +78,13 @@ func (r *PostgresConversationRepository) GetOrCreateByVisitor(ctx context.Contex
 		// (the visitor logged in mid-conversation) — never clear one
 		// that's already set.
 		if userID != nil && conv.UserID == nil {
-			if _, updErr := r.pool.Exec(ctx, `UPDATE ai_conversations SET user_id = $1 WHERE id = $2`, *userID, conv.ID); updErr != nil {
+			if _, updErr := tx.Exec(ctx, `UPDATE ai_conversations SET user_id = $1 WHERE id = $2`, *userID, conv.ID); updErr != nil {
 				return nil, fmt.Errorf("ai conversation repository getOrCreateByVisitor (attach user): %w", updErr)
 			}
 			conv.UserID = userID
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return nil, fmt.Errorf("ai conversation repository getOrCreateByVisitor (commit tx): %w", err)
 		}
 		return conv, nil
 	}
@@ -66,7 +92,7 @@ func (r *PostgresConversationRepository) GetOrCreateByVisitor(ctx context.Contex
 		return nil, fmt.Errorf("ai conversation repository getOrCreateByVisitor (query): %w", err)
 	}
 
-	row = r.pool.QueryRow(ctx, `
+	row = tx.QueryRow(ctx, `
 		INSERT INTO ai_conversations (visitor_id, user_id)
 		VALUES ($1, $2)
 		RETURNING id, visitor_id, user_id, created_at, updated_at`,
@@ -75,6 +101,9 @@ func (r *PostgresConversationRepository) GetOrCreateByVisitor(ctx context.Contex
 	conv, err = scanConversation(row)
 	if err != nil {
 		return nil, fmt.Errorf("ai conversation repository getOrCreateByVisitor (insert): %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("ai conversation repository getOrCreateByVisitor (commit tx): %w", err)
 	}
 	return conv, nil
 }

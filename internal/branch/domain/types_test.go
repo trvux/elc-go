@@ -15,7 +15,7 @@ func TestNewBranch(t *testing.T) {
 	t.Run("valid input creates a branch", func(t *testing.T) {
 		b, err := NewBranch(
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
-			"q1@elc.vn", "https://maps.google.com/q1", "<iframe></iframe>",
+			"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 			nil, nil, nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
@@ -33,7 +33,7 @@ func TestNewBranch(t *testing.T) {
 	t.Run("empty name fails validation", func(t *testing.T) {
 		_, err := NewBranch(
 			"", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
-			"q1@elc.vn", "https://maps.google.com/q1", "<iframe></iframe>",
+			"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 			nil, nil, nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
@@ -52,7 +52,7 @@ func TestNewBranch(t *testing.T) {
 	t.Run("invalid email fails validation", func(t *testing.T) {
 		_, err := NewBranch(
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
-			"invalid-email", "https://maps.google.com/q1", "<iframe></iframe>",
+			"invalid-email", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 			nil, nil, nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
@@ -71,7 +71,7 @@ func TestNewBranch(t *testing.T) {
 	t.Run("invalid mapsUrl fails validation", func(t *testing.T) {
 		_, err := NewBranch(
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
-			"q1@elc.vn", "not-a-valid-url", "<iframe></iframe>",
+			"q1@elc.vn", "not-a-valid-url", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 			nil, nil, nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
@@ -88,11 +88,46 @@ func TestNewBranch(t *testing.T) {
 	})
 }
 
+func TestValidateMapsEmbed(t *testing.T) {
+	cases := []struct {
+		name    string
+		embed   string
+		wantErr bool
+	}{
+		{
+			name:    "valid Google Maps embed snippet",
+			embed:   `<iframe src="https://www.google.com/maps/embed?pb=abc123" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`,
+			wantErr: false,
+		},
+		{name: "empty", embed: "", wantErr: true},
+		{name: "no iframe at all", embed: "<div>not an iframe</div>", wantErr: true},
+		{name: "iframe with no src", embed: `<iframe width="600"></iframe>`, wantErr: true},
+		{name: "src not pointing at google.com", embed: `<iframe src="https://evil.example.com/embed"></iframe>`, wantErr: true},
+		{name: "javascript: src", embed: `<iframe src="javascript:alert(1)"></iframe>`, wantErr: true},
+		{name: "event handler attribute", embed: `<iframe src="https://www.google.com/maps/embed?pb=x" onload="alert(document.cookie)"></iframe>`, wantErr: true},
+		{name: "css injection via style attribute value", embed: `<iframe src="https://www.google.com/maps/embed?pb=x" style="background:url('https://evil.example.com/exfil')"></iframe>`, wantErr: true},
+		{name: "google's own style value is allowed", embed: `<iframe src="https://www.google.com/maps/embed?pb=x" style="border:0;"></iframe>`, wantErr: false},
+		{name: "second tag smuggled in", embed: `<iframe src="https://www.google.com/maps/embed?pb=x"></iframe><script>alert(1)</script>`, wantErr: true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			errs := validateMapsEmbed(c.embed)
+			if c.wantErr && len(errs) == 0 {
+				t.Errorf("expected validation error, got none")
+			}
+			if !c.wantErr && len(errs) > 0 {
+				t.Errorf("expected no validation error, got: %v", errs)
+			}
+		})
+	}
+}
+
 func TestBranch_UpdateFields(t *testing.T) {
 	desc := json.RawMessage(`{"text": "Chi nhánh"}`)
 	b, _ := NewBranch(
 		"ELC Q1", "elc-q1", "123 Le Loi", "0901234567",
-		"q1@elc.vn", "https://maps.google.com/q1", "<iframe></iframe>",
+		"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 		nil, nil, nil, nil, nil,
 		desc, nil, true, 1, nil, nil,
 	)
