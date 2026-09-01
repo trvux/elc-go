@@ -66,10 +66,13 @@ docker exec elc-postgres pg_restore -U elc -d <target> \
 #    app's DATABASE_URL at it, if this was a real recovery).
 ```
 
-## Gotcha: `immutable_unaccent` needed schema-qualifying
+## Gotcha: `immutable_unaccent` needed full schema-qualifying
 
 Found 2026-09-01 by actually restore-testing a backup into a scratch
-database — the exact kind of check this system had never had before.
+database — the exact kind of check this system had never had before. Took
+two migrations to fully fix; both left in place as separate history rather
+than amended, matching this repo's convention of not rewriting shipped
+migrations.
 
 `internal/product/migrations/000001_baseline_products.up.sql` originally
 defined:
@@ -80,22 +83,34 @@ CREATE OR REPLACE FUNCTION immutable_unaccent(text) RETURNS text AS $$
 $$ LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT;
 ```
 
-The inner `unaccent(...)` call is unqualified, relying on the caller's
-`search_path` to resolve it. This worked fine in normal production use
-because of the `ALTER DATABASE elc SET search_path = public, extensions`
-above — but a fresh restore target doesn't have that set (step 2 exists
-because of this), and even with it set, `pg_restore`'s own session doesn't
-reliably inherit a database's configured default the same way an app
-connection does. Either way, `CREATE TABLE products` failed immediately
-(the `search_vector` generated column calls `immutable_unaccent`, which
-Postgres validates at table-creation time).
+Two things here are unqualified and depend on the caller's `search_path`:
+the `unaccent(...)` function call itself, and the `'unaccent'` argument —
+a string literal that gets implicitly cast to `regdictionary`, referring to
+the text search dictionary object created by `CREATE EXTENSION unaccent`.
+This worked fine in normal production use because of
+`ALTER DATABASE elc SET search_path = public, extensions` above. A fresh
+restore target doesn't have that (step 2 above exists because of this) —
+but even after setting it, `pg_restore`'s own session still failed on the
+dictionary lookup specifically, despite a plain `psql` connection to the
+exact same database correctly showing `search_path = public, extensions`
+via `SHOW search_path`. `pg_restore` apparently doesn't resolve unqualified
+regdictionary literals the same way a normal connection does, independent
+of the database's configured default.
 
-Fixed in `internal/product/migrations/000020_fix_immutable_unaccent_schema_qualify.up.sql`
-by schema-qualifying the inner call (`public.unaccent(...)`), which makes
-it correct regardless of caller search_path — general best practice for
-anything referenced inside a function body. Step 2 above is still worth
-doing regardless (belt and suspenders, and other future functions may not
-be as careful).
+- `000020_fix_immutable_unaccent_schema_qualify` — schema-qualified the
+  function call: `public.unaccent(...)`. Fixed the "function does not
+  exist" error, but restore then failed one step further in with
+  `text search dictionary "unaccent" does not exist`.
+- `000021_fully_qualify_immutable_unaccent_dictionary` — schema-qualified
+  the dictionary argument too: `'public.unaccent'::regdictionary`. Verified
+  working even with `search_path` forced down to just `pg_catalog` (i.e.
+  with zero help from search_path at all) before trusting it.
+
+Net effect: `immutable_unaccent` no longer depends on search_path in any
+way, for either the function or the dictionary it calls — general best
+practice for anything referenced inside a function body. Step 2 above is
+still worth doing regardless (belt and suspenders, and other functions
+added later may not be as careful).
 
 ## Verifying a backup is actually restorable
 
