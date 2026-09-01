@@ -1,6 +1,6 @@
 # RFC: Phát hiện data khả nghi (giá ≤ 0, spec lệch bất thường) — tự động, không nhập tay
 
-- **Status**: Draft
+- **Status**: Completed — merged `42bc9f3` (price ≤0 + statistical spec-outlier detection).
 - **Date**: 2026-08-18
 - **Tác giả**: Trần Vũ (với hỗ trợ Claude Code)
 - **Scope**: `internal/product` (validate giá + cột đánh dấu spec bất thường), `cmd/detect-attribute-anomalies` (mới), `internal/ai/infrastructure/product_search_tool.go` (dùng kết quả để không trích dẫn data khả nghi cho khách)

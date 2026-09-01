@@ -1,6 +1,6 @@
 # RFC: AI chat — bổ sung specs/highlights thật vào tool search_products
 
-- **Status**: Draft
+- **Status**: Completed — merged `bf8c717` (ground search_products in real specs).
 - **Date**: 2026-08-18
 - **Tác giả**: Trần Vũ (với hỗ trợ Claude Code)
 - **Scope**: Chỉ `internal/ai/infrastructure/product_search_tool.go` — không đụng `/ai/chat`, streaming, fallback, guardrail, report

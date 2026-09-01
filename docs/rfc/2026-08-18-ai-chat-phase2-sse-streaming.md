@@ -1,6 +1,6 @@
 # RFC: AI chat Phase 2 — SSE streaming trên POST /ai/chat
 
-- **Status**: Draft
+- **Status**: Completed — merged `89892a9` (Phase 2: SSE streaming on POST /ai/chat).
 - **Date**: 2026-08-18
 - **Tác giả**: Trần Vũ (với hỗ trợ Claude Code)
 - **Scope**: Chỉ streaming — không đụng report chi phí/đọc lịch sử (Phase 3, RFC riêng)

@@ -1,6 +1,6 @@
 # RFC: AI chat Phase 3 — báo cáo chi phí/usage + đọc lịch sử hội thoại
 
-- **Status**: Draft
+- **Status**: Completed — merged `c76af16` (Phase 3: usage/cost report + conversation history read API).
 - **Date**: 2026-08-18
 - **Tác giả**: Trần Vũ (với hỗ trợ Claude Code)
 - **Scope**: Chỉ 2 nhóm API đọc (report + lịch sử) — không đụng `/ai/chat`, `/ai/providers`, `/ai/models`

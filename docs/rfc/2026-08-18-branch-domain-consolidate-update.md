@@ -1,6 +1,6 @@
 # RFC: Gộp per-field UpdateX() của Branch domain thành 1 hàm Update
 
-- **Status**: Draft
+- **Status**: Completed — landed in `bfcd4b6` (branch domain refactored to single Update(input) method; see CLAUDE.md for the lazy-rollout note on other modules).
 - **Date**: 2026-08-18
 - **Tác giả**: Trần Vũ (với hỗ trợ Claude Code)
 - **Scope**: Pilot — chỉ `internal/branch`, chưa áp dụng module khác

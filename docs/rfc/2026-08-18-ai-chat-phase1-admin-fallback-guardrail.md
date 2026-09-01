@@ -1,6 +1,6 @@
 # RFC: AI customer chat Phase 1 — provider/model quản lý qua admin, fallback, guardrail, lưu hội thoại
 
-- **Status**: Draft
+- **Status**: Completed — merged `af7d4cf` (AI customer chat v1 + Phase 1: admin-managed providers/models, fallback, guardrail, persistence).
 - **Date**: 2026-08-18
 - **Tác giả**: Trần Vũ (với hỗ trợ Claude Code)
 - **Scope**: `internal/ai` — build tiếp trên v1 (đã merge nhánh này ở commit trước), chưa đụng streaming/report
