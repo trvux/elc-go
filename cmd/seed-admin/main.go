@@ -1,17 +1,16 @@
-// Command seed-admin creates or resets the password of a single admin
-// account, taking every value from the environment so a real person's
-// name/email/phone/password is never written into a committed migration or
-// any other file that ends up in git history.
+// Command seed-admin ensures a super_admin account exists for a given email.
+// Ordinary accounts are created automatically (as RoleMember) the first time
+// someone signs in via Google or magic link — this is the only way to
+// bootstrap the very first account above that, since nothing else can grant
+// super_admin. Safe to re-run: if the account already exists, it only
+// (re)promotes its role, and is also the break-glass path if every admin
+// account somehow got demoted or disabled.
 //
 // Usage:
 //
-//	ADMIN_USERNAME=tranvux ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='...' \
-//	ADMIN_NAME='Bảo Huy' ADMIN_PHONE=0909411633 ADMIN_ROLE=super_admin \
-//	  go run ./cmd/seed-admin
+//	ADMIN_EMAIL=you@example.com ADMIN_NAME='Bảo Huy' go run ./cmd/seed-admin
 //
-// or `make seed-admin` with the same variables exported first. If the email
-// already exists, only its password is reset — this is also the intended
-// break-glass path if the bootstrap account is ever locked out.
+// or `make seed-admin` with the same variables exported first.
 package main
 
 import (
@@ -29,12 +28,8 @@ import (
 func main() {
 	_ = godotenv.Load()
 
-	username := requireEnv("ADMIN_USERNAME")
 	email := requireEnv("ADMIN_EMAIL")
-	password := requireEnv("ADMIN_PASSWORD")
 	name := os.Getenv("ADMIN_NAME")
-	phone := os.Getenv("ADMIN_PHONE")
-	role := authdomain.Role(envOr("ADMIN_ROLE", string(authdomain.RoleSuperAdmin)))
 
 	ctx := context.Background()
 	pool, err := db.New(ctx, os.Getenv("DATABASE_URL"))
@@ -42,12 +37,6 @@ func main() {
 		fatalf("connect to database: %v", err)
 	}
 	defer pool.Close()
-
-	hasher := authinfra.NewBcryptPasswordHasher()
-	passwordHash, err := hasher.Hash(password)
-	if err != nil {
-		fatalf("hash password: %v", err)
-	}
 
 	repo := authinfra.NewPostgresUserRepository(pool)
 
@@ -57,7 +46,7 @@ func main() {
 	}
 
 	if existing == nil {
-		user, err := authdomain.NewUser(username, email, passwordHash, name, phone, role)
+		user, err := authdomain.NewOAuthUser(email, name, "", nil, authdomain.RoleSuperAdmin)
 		if err != nil {
 			fatalf("build user: %v", err)
 		}
@@ -65,18 +54,16 @@ func main() {
 		if err != nil {
 			fatalf("create user: %v", err)
 		}
-		fmt.Printf("created admin %q (%s), role=%s\n", created.Username(), created.ID(), created.Role())
+		fmt.Printf("created super_admin %q (%s)\n", created.Email(), created.ID())
 		return
 	}
 
-	// Only resets the password on an existing account — deliberately narrow,
-	// this tool is for bootstrap/break-glass, not general profile editing.
-	existing.SetPasswordHash(passwordHash)
+	existing.SetRole(authdomain.RoleSuperAdmin)
 	updated, err := repo.Update(ctx, existing)
 	if err != nil {
 		fatalf("update user: %v", err)
 	}
-	fmt.Printf("reset password for existing admin %q (%s)\n", updated.Username(), updated.ID())
+	fmt.Printf("promoted existing account %q (%s) to super_admin\n", updated.Email(), updated.ID())
 }
 
 func requireEnv(key string) string {
@@ -85,13 +72,6 @@ func requireEnv(key string) string {
 		fatalf("%s is required", key)
 	}
 	return v
-}
-
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }
 
 func fatalf(format string, args ...any) {

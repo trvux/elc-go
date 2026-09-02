@@ -1,6 +1,9 @@
 package domain
 
 import (
+	"crypto/rand"
+	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -9,90 +12,69 @@ import (
 
 type TokenPurpose string
 
-const (
-	TokenPurposeInvite        TokenPurpose = "invite"
-	TokenPurposePasswordReset TokenPurpose = "password_reset"
-)
+const TokenPurposeMagicLink TokenPurpose = "magic_link"
 
-// VerificationToken backs both the admin-invite flow and the forgot-password
-// flow: a single-use, short-lived, high-entropy token whose hash (never the
-// raw value) is stored in the DB. Purpose discriminates which fields apply —
-// Role/InvitedBy are only meaningful for TokenPurposeInvite, UserID only for
-// TokenPurposePasswordReset.
+// VerificationToken backs the magic-link login flow: a single-use, short-
+// lived link+code pair. The raw token (from the emailed link) and Code (the
+// 6-digit number emailed alongside it, for manual entry) are two independent
+// ways to redeem the same row — either satisfies it. Only the token's hash is
+// ever stored, never the raw value; Code is stored as-is since knowing it is
+// exactly what redeeming-by-code proves. Attempts counts wrong code guesses,
+// so VerifyMagicLink can lock the row out before its TTL naturally expires.
 type VerificationToken struct {
 	id         string
 	purpose    TokenPurpose
 	tokenHash  string
 	email      string
-	role       Role
-	invitedBy  string
-	userID     string
+	code       string
+	attempts   int
 	expiresAt  time.Time
 	consumedAt *time.Time
 	createdAt  time.Time
 }
 
-// NewInviteToken creates an invite token for the given email/role. Returns
-// the raw token (to be emailed, never stored) alongside the entity.
-func NewInviteToken(email string, role Role, invitedBy string, ttl time.Duration) (*VerificationToken, string, error) {
-	fields := map[string][]string{}
-
+// NewMagicLinkToken creates a magic-link token for the given email. Returns
+// the entity, the raw token (for the emailed link, never stored), and the
+// 6-digit code (emailed alongside it, for manual entry).
+func NewMagicLinkToken(email string, ttl time.Duration) (token *VerificationToken, rawToken string, code string, err error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if errs := validateEmail(email); len(errs) > 0 {
-		fields["email"] = errs
-	}
-	if !role.IsValid() {
-		fields["role"] = []string{"invalid role"}
-	}
-	if invitedBy == "" {
-		fields["invited_by"] = []string{"invited_by is required"}
-	}
-	if len(fields) > 0 {
-		return nil, "", apperr.NewValidationError("validation failed", fields)
+		return nil, "", "", apperr.NewValidationError("validation failed", map[string][]string{"email": errs})
 	}
 
-	raw, hash, err := GenerateSecureToken()
+	rawToken, hash, err := GenerateSecureToken()
 	if err != nil {
-		return nil, "", apperr.NewInternalError(err)
+		return nil, "", "", apperr.NewInternalError(err)
+	}
+	code, err = generateCode()
+	if err != nil {
+		return nil, "", "", apperr.NewInternalError(err)
 	}
 
 	return &VerificationToken{
-		purpose:   TokenPurposeInvite,
+		purpose:   TokenPurposeMagicLink,
 		tokenHash: hash,
 		email:     email,
-		role:      role,
-		invitedBy: invitedBy,
+		code:      code,
 		expiresAt: time.Now().Add(ttl),
-	}, raw, nil
+	}, rawToken, code, nil
 }
 
-// NewPasswordResetToken creates a password-reset token for an existing user.
-func NewPasswordResetToken(userID, email string, ttl time.Duration) (*VerificationToken, string, error) {
-	if userID == "" {
-		return nil, "", apperr.NewValidationError("validation failed", map[string][]string{"user_id": {"user_id is required"}})
-	}
-
-	raw, hash, err := GenerateSecureToken()
+// generateCode returns a random 6-digit code, zero-padded (e.g. "004213").
+func generateCode() (string, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
 	if err != nil {
-		return nil, "", apperr.NewInternalError(err)
+		return "", err
 	}
-
-	return &VerificationToken{
-		purpose:   TokenPurposePasswordReset,
-		tokenHash: hash,
-		email:     strings.ToLower(strings.TrimSpace(email)),
-		userID:    userID,
-		expiresAt: time.Now().Add(ttl),
-	}, raw, nil
+	return fmt.Sprintf("%06d", n.Int64()), nil
 }
 
 // RehydrateVerificationToken reconstructs a token from a trusted DB row.
 func RehydrateVerificationToken(
 	id string,
 	purpose TokenPurpose,
-	tokenHash, email string,
-	role Role,
-	invitedBy, userID string,
+	tokenHash, email, code string,
+	attempts int,
 	expiresAt time.Time,
 	consumedAt *time.Time,
 	createdAt time.Time,
@@ -102,9 +84,8 @@ func RehydrateVerificationToken(
 		purpose:    purpose,
 		tokenHash:  tokenHash,
 		email:      email,
-		role:       role,
-		invitedBy:  invitedBy,
-		userID:     userID,
+		code:       code,
+		attempts:   attempts,
 		expiresAt:  expiresAt,
 		consumedAt: consumedAt,
 		createdAt:  createdAt,
@@ -115,9 +96,8 @@ func (t *VerificationToken) ID() string            { return t.id }
 func (t *VerificationToken) Purpose() TokenPurpose { return t.purpose }
 func (t *VerificationToken) TokenHash() string     { return t.tokenHash }
 func (t *VerificationToken) Email() string         { return t.email }
-func (t *VerificationToken) Role() Role            { return t.role }
-func (t *VerificationToken) InvitedBy() string     { return t.invitedBy }
-func (t *VerificationToken) UserID() string        { return t.userID }
+func (t *VerificationToken) Code() string          { return t.code }
+func (t *VerificationToken) Attempts() int         { return t.attempts }
 func (t *VerificationToken) ExpiresAt() time.Time  { return t.expiresAt }
 func (t *VerificationToken) CreatedAt() time.Time  { return t.createdAt }
 

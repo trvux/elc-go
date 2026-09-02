@@ -11,7 +11,7 @@ func TestUpdateProfile_ChangeNameAndAvatar(t *testing.T) {
 	userRepo := newFakeUserRepository()
 	ctx := context.Background()
 
-	user := seedActiveUser(t, userRepo, "tranvux", "tranvux@example.com", "Vlu15112002@", domain.RoleUser)
+	user := seedActiveUser(t, userRepo, "tranvux", "tranvux@example.com", domain.RoleUser)
 
 	name := "Trần Vũ"
 	avatar := "https://cdn.example.com/avatars/tranvux.webp"
@@ -35,7 +35,7 @@ func TestUpdateProfile_ChangeEmail(t *testing.T) {
 	userRepo := newFakeUserRepository()
 	ctx := context.Background()
 
-	user := seedActiveUser(t, userRepo, "tranvux", "old@example.com", "Vlu15112002@", domain.RoleUser)
+	user := seedActiveUser(t, userRepo, "tranvux", "old@example.com", domain.RoleUser)
 
 	newEmail := "new@example.com"
 	updated, err := UpdateProfile(ctx, userRepo, user, UpdateProfileInput{Email: &newEmail})
@@ -51,8 +51,8 @@ func TestUpdateProfile_EmailAlreadyTakenByAnotherUser(t *testing.T) {
 	userRepo := newFakeUserRepository()
 	ctx := context.Background()
 
-	user := seedActiveUser(t, userRepo, "tranvux", "tranvux@example.com", "Vlu15112002@", domain.RoleUser)
-	seedActiveUser(t, userRepo, "other", "taken@example.com", "Vlu15112002@", domain.RoleUser)
+	user := seedActiveUser(t, userRepo, "tranvux", "tranvux@example.com", domain.RoleUser)
+	seedActiveUser(t, userRepo, "other", "taken@example.com", domain.RoleUser)
 
 	taken := "taken@example.com"
 	if _, err := UpdateProfile(ctx, userRepo, user, UpdateProfileInput{Email: &taken}); err == nil {
@@ -64,7 +64,7 @@ func TestUpdateProfile_InvalidEmailRejected(t *testing.T) {
 	userRepo := newFakeUserRepository()
 	ctx := context.Background()
 
-	user := seedActiveUser(t, userRepo, "tranvux", "tranvux@example.com", "Vlu15112002@", domain.RoleUser)
+	user := seedActiveUser(t, userRepo, "tranvux", "tranvux@example.com", domain.RoleUser)
 
 	bad := "not-an-email"
 	if _, err := UpdateProfile(ctx, userRepo, user, UpdateProfileInput{Email: &bad}); err == nil {

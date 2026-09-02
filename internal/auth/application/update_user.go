@@ -41,7 +41,7 @@ func UpdateUser(
 	}
 
 	if input.Role != nil {
-		if !actor.CanInvite(*input.Role) {
+		if !actor.CanGrantRole(*input.Role) {
 			return nil, apperr.NewForbiddenError("cannot assign a role higher than your own")
 		}
 		target.SetRole(*input.Role)

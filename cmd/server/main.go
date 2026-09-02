@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -109,7 +110,6 @@ func main() {
 	authUserRepo := authinfra.NewPostgresUserRepository(pool)
 	authTokenRepo := authinfra.NewPostgresVerificationTokenRepository(pool)
 	authSessionRepo := authinfra.NewPostgresSessionRepository(pool)
-	authHasher := authinfra.NewBcryptPasswordHasher()
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
@@ -118,20 +118,42 @@ func main() {
 	accessTokenTTL := 15 * time.Minute
 	tokenIssuer := authinfra.NewJWTTokenIssuer(jwtSecret, accessTokenTTL)
 
-	adminBaseURL := os.Getenv("ADMIN_BASE_URL")
+	// Google OAuth is optional at startup, same graceful-degrade rule as
+	// SMTP below — an empty client ID/secret just makes every
+	// /auth/google/login request fail at call time, magic-link sign-in still
+	// works fully without it.
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	if googleClientID == "" || googleClientSecret == "" {
+		log.Warn("GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET not set — Google sign-in will fail, magic-link sign-in still works")
+	}
+	googleAuth := authinfra.NewGoogleOAuthClient(googleClientID, googleClientSecret)
+
+	// adminEmails is the only way a brand-new account is ever created above
+	// RoleMember — checked once, at account-creation time, by
+	// application.resolveOAuthUser. Promoting anyone else afterward is a
+	// deliberate admin action via PATCH /admin/users/{id}, not config.
+	var adminEmails []string
+	for _, e := range strings.Split(os.Getenv("ADMIN_EMAILS"), ",") {
+		if e = strings.ToLower(strings.TrimSpace(e)); e != "" {
+			adminEmails = append(adminEmails, e)
+		}
+	}
+
+	appBaseURL := os.Getenv("APP_BASE_URL")
 	var emailSender authdomain.EmailSender
 	if smtpHost := os.Getenv("SMTP_HOST"); smtpHost != "" {
 		emailSender = authinfra.NewSMTPEmailSender(
 			smtpHost, os.Getenv("SMTP_PORT"), os.Getenv("SMTP_USERNAME"), os.Getenv("SMTP_PASSWORD"),
-			os.Getenv("SMTP_FROM"), adminBaseURL,
+			os.Getenv("SMTP_FROM"), appBaseURL,
 		)
 	} else {
-		log.Warn("SMTP_HOST not set — invite/reset emails will be logged instead of sent")
-		emailSender = authinfra.NewLogEmailSender(log, adminBaseURL)
+		log.Warn("SMTP_HOST not set — magic-link emails will be logged instead of sent")
+		emailSender = authinfra.NewLogEmailSender(log, appBaseURL)
 	}
 
 	authHandler := authpresentation.NewAuthHandler(
-		authUserRepo, authTokenRepo, authSessionRepo, authHasher, tokenIssuer, emailSender,
+		authUserRepo, authTokenRepo, authSessionRepo, googleAuth, tokenIssuer, emailSender, adminEmails,
 		accessTokenTTL, env == "production",
 	)
 	authpresentation.RegisterRoutes(router, authHandler, tokenIssuer)

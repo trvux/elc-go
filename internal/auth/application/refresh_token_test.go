@@ -13,7 +13,7 @@ func TestRefreshToken_Rotates(t *testing.T) {
 	issuer := fakeTokenIssuer{}
 	ctx := context.Background()
 
-	user := seedActiveUser(t, userRepo, "tranvux", "tranvux@example.com", "Vlu15112002@", domain.RoleSuperAdmin)
+	user := seedActiveUser(t, userRepo, "tranvux", "tranvux@example.com", domain.RoleSuperAdmin)
 	session, raw, err := domain.NewSession(user.ID(), "", "", RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -41,7 +41,7 @@ func TestRefreshToken_RejectsRevokedSession(t *testing.T) {
 	issuer := fakeTokenIssuer{}
 	ctx := context.Background()
 
-	user := seedActiveUser(t, userRepo, "tranvux", "tranvux@example.com", "Vlu15112002@", domain.RoleSuperAdmin)
+	user := seedActiveUser(t, userRepo, "tranvux", "tranvux@example.com", domain.RoleSuperAdmin)
 	session, raw, err := domain.NewSession(user.ID(), "", "", RefreshTokenTTL)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)

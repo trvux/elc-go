@@ -3,10 +3,10 @@ package application
 import "time"
 
 // Token lifetimes. Kept short for access tokens (stateless, can't be revoked
-// before expiry) and generous enough for invite/reset links that a real
-// human needs to receive an email and click it.
+// before expiry); MagicLinkTTL is short deliberately (see VerifyMagicLink's
+// attempt-lockout — a longer window just gives a code-guessing attacker more
+// time within the same rate-limit budget).
 const (
-	InviteTokenTTL        = 72 * time.Hour
-	PasswordResetTokenTTL = 30 * time.Minute
-	RefreshTokenTTL       = 30 * 24 * time.Hour
+	MagicLinkTTL    = 10 * time.Minute
+	RefreshTokenTTL = 30 * 24 * time.Hour
 )

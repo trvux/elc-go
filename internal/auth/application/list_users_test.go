@@ -11,8 +11,8 @@ func TestListUsers(t *testing.T) {
 	userRepo := newFakeUserRepository()
 	ctx := context.Background()
 
-	seedActiveUser(t, userRepo, "root", "root@example.com", "Vlu15112002@", domain.RoleSuperAdmin)
-	seedActiveUser(t, userRepo, "admin1", "admin1@example.com", "Vlu15112002@", domain.RoleAdmin)
+	seedActiveUser(t, userRepo, "root", "root@example.com", domain.RoleSuperAdmin)
+	seedActiveUser(t, userRepo, "admin1", "admin1@example.com", domain.RoleAdmin)
 
 	users, err := ListUsers(ctx, userRepo)
 	if err != nil {

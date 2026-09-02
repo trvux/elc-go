@@ -15,25 +15,22 @@ import (
 	"github.com/trvux/elc-go/internal/platform/db"
 )
 
-func TestPostgresVerificationTokenRepository_InviteRoundTrip(t *testing.T) {
+func TestPostgresVerificationTokenRepository_MagicLinkRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	pool, err := db.New(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
 		t.Fatalf("failed to connect: %v", err)
 	}
-	// t.Cleanup, not defer: mustSeedUserID below also registers a t.Cleanup
-	// to delete its row, and all t.Cleanup funcs run (LIFO) only after every
-	// defer in this function has already run — a deferred pool.Close() here
-	// would close the pool before that delete ever executes.
-	t.Cleanup(pool.Close)
+	defer pool.Close()
 
 	repo := NewPostgresVerificationTokenRepository(pool)
 
 	unique := fmt.Sprintf("%d", time.Now().UnixNano())
-	token, _, err := domain.NewInviteToken("itest_"+unique+"@example.com", domain.RoleAdmin, mustSeedUserID(ctx, t, pool), time.Hour)
+	email := "itest_" + unique + "@example.com"
+	token, _, code, err := domain.NewMagicLinkToken(email, time.Hour)
 	if err != nil {
-		t.Fatalf("NewInviteToken failed: %v", err)
+		t.Fatalf("NewMagicLinkToken failed: %v", err)
 	}
 
 	created, err := repo.Create(ctx, token)
@@ -46,31 +43,57 @@ func TestPostgresVerificationTokenRepository_InviteRoundTrip(t *testing.T) {
 		}
 	}()
 
-	fetched, err := repo.GetByHash(ctx, domain.TokenPurposeInvite, created.TokenHash())
+	fetched, err := repo.GetByHash(ctx, domain.TokenPurposeMagicLink, created.TokenHash())
 	if err != nil {
 		t.Fatalf("GetByHash failed: %v", err)
 	}
-	if fetched == nil || fetched.Email() != created.Email() || fetched.Role() != domain.RoleAdmin {
+	if fetched == nil || fetched.Email() != email || fetched.Code() != code {
 		t.Errorf("expected fetched token to match created one, got %+v", fetched)
 	}
 	if !fetched.IsUsable() {
 		t.Error("expected freshly created token to be usable")
 	}
 
+	byEmail, err := repo.GetLatestActiveByEmail(ctx, domain.TokenPurposeMagicLink, email)
+	if err != nil {
+		t.Fatalf("GetLatestActiveByEmail failed: %v", err)
+	}
+	if byEmail == nil || byEmail.ID() != created.ID() {
+		t.Error("expected GetLatestActiveByEmail to resolve the created token")
+	}
+
+	attempts, err := repo.IncrementAttempts(ctx, created.ID())
+	if err != nil {
+		t.Fatalf("IncrementAttempts failed: %v", err)
+	}
+	if attempts != 1 {
+		t.Errorf("expected attempts to be 1 after first increment, got %d", attempts)
+	}
+
 	if err := repo.MarkConsumed(ctx, created.ID()); err != nil {
 		t.Fatalf("MarkConsumed failed: %v", err)
 	}
-	afterConsume, err := repo.GetByHash(ctx, domain.TokenPurposeInvite, created.TokenHash())
+	afterConsume, err := repo.GetByHash(ctx, domain.TokenPurposeMagicLink, created.TokenHash())
 	if err != nil {
 		t.Fatalf("GetByHash after consume failed: %v", err)
 	}
 	if afterConsume.IsUsable() {
 		t.Error("expected token to be unusable after MarkConsumed")
 	}
+
+	stillActive, err := repo.GetLatestActiveByEmail(ctx, domain.TokenPurposeMagicLink, email)
+	if err != nil {
+		t.Fatalf("GetLatestActiveByEmail after consume failed: %v", err)
+	}
+	if stillActive != nil {
+		t.Error("expected no active token for this email after consuming the only one")
+	}
 }
 
-// mustSeedUserID creates a throwaway user row so invited_by's FK constraint
-// is satisfied, and registers its cleanup.
+// mustSeedUserID creates a throwaway user row so FK constraints referencing
+// users(id) are satisfied (also used by
+// postgres_session_repository_integration_test.go), and registers its
+// cleanup.
 func mustSeedUserID(ctx context.Context, t *testing.T, pool *pgxpool.Pool) string {
 	t.Helper()
 	unique := fmt.Sprintf("%d", time.Now().UnixNano())

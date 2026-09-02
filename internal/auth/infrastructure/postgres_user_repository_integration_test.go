@@ -28,9 +28,10 @@ func TestPostgresUserRepository_CRUD(t *testing.T) {
 	repo := NewPostgresUserRepository(pool)
 
 	unique := fmt.Sprintf("%d", time.Now().UnixNano())
-	user, err := domain.NewUser("itest_"+unique, "itest_"+unique+"@example.com", "hashed-value", "Test User", "0900000000", domain.RoleAdmin)
+	sub := "itest-sub-" + unique
+	user, err := domain.NewOAuthUser("itest_"+unique+"@example.com", "Test User", "", &sub, domain.RoleMember)
 	if err != nil {
-		t.Fatalf("NewUser failed: %v", err)
+		t.Fatalf("NewOAuthUser failed: %v", err)
 	}
 
 	created, err := repo.Create(ctx, user)
@@ -51,35 +52,27 @@ func TestPostgresUserRepository_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetByID failed: %v", err)
 	}
-	if byID == nil || byID.Username() != created.Username() {
-		t.Errorf("expected fetched user to match created one, got %+v", byID)
+	if byID == nil || byID.Username() != "" {
+		t.Errorf("expected fetched user to have no username, got %+v", byID)
 	}
-	if byID.Name() != "Test User" || byID.Phone() != "0900000000" {
-		t.Errorf("expected name/phone to round-trip, got name=%q phone=%q", byID.Name(), byID.Phone())
-	}
-
-	byIdentifier, err := repo.GetByIdentifier(ctx, created.Email())
-	if err != nil {
-		t.Fatalf("GetByIdentifier(email) failed: %v", err)
-	}
-	if byIdentifier == nil || byIdentifier.ID() != created.ID() {
-		t.Error("expected GetByIdentifier to resolve by email")
+	if byID.Name() != "Test User" {
+		t.Errorf("expected name to round-trip, got name=%q", byID.Name())
 	}
 
-	byIdentifier, err = repo.GetByIdentifier(ctx, created.Username())
+	byEmail, err := repo.GetByEmail(ctx, created.Email())
 	if err != nil {
-		t.Fatalf("GetByIdentifier(username) failed: %v", err)
+		t.Fatalf("GetByEmail failed: %v", err)
 	}
-	if byIdentifier == nil || byIdentifier.ID() != created.ID() {
-		t.Error("expected GetByIdentifier to resolve by username")
+	if byEmail == nil || byEmail.ID() != created.ID() {
+		t.Error("expected GetByEmail to resolve the created user")
 	}
 
-	exists, err := repo.ExistsByUsernameOrEmail(ctx, created.Username(), "someone-else@example.com")
+	byGoogleSub, err := repo.GetByGoogleSub(ctx, *user.GoogleSub())
 	if err != nil {
-		t.Fatalf("ExistsByUsernameOrEmail failed: %v", err)
+		t.Fatalf("GetByGoogleSub failed: %v", err)
 	}
-	if !exists {
-		t.Error("expected ExistsByUsernameOrEmail to find the existing username")
+	if byGoogleSub == nil || byGoogleSub.ID() != created.ID() {
+		t.Error("expected GetByGoogleSub to resolve the created user")
 	}
 
 	created.RecordLogin(time.Now())

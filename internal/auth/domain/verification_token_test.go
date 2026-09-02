@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-func TestNewInviteToken(t *testing.T) {
-	token, raw, err := NewInviteToken("New.Admin@Example.com", RoleAdmin, "inviter-id", time.Hour)
+func TestNewMagicLinkToken(t *testing.T) {
+	token, raw, code, err := NewMagicLinkToken("New.Member@Example.com", time.Hour)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -16,28 +16,31 @@ func TestNewInviteToken(t *testing.T) {
 	if token.TokenHash() != HashToken(raw) {
 		t.Error("stored hash must match hash of the raw token")
 	}
-	if token.Email() != "new.admin@example.com" {
+	if token.Email() != "new.member@example.com" {
 		t.Errorf("expected lowercase email, got %s", token.Email())
+	}
+	if len(code) != 6 {
+		t.Errorf("expected a 6-digit code, got %q", code)
+	}
+	if token.Code() != code {
+		t.Error("stored code must match the returned raw code")
+	}
+	if token.Purpose() != TokenPurposeMagicLink {
+		t.Errorf("expected purpose magic_link, got %s", token.Purpose())
 	}
 	if !token.IsUsable() {
 		t.Error("freshly created token should be usable")
 	}
 }
 
-func TestNewInviteToken_ValidationError(t *testing.T) {
-	if _, _, err := NewInviteToken("not-an-email", RoleAdmin, "inviter-id", time.Hour); err == nil {
+func TestNewMagicLinkToken_ValidationError(t *testing.T) {
+	if _, _, _, err := NewMagicLinkToken("not-an-email", time.Hour); err == nil {
 		t.Error("expected validation error for bad email")
-	}
-	if _, _, err := NewInviteToken("a@b.com", Role("owner"), "inviter-id", time.Hour); err == nil {
-		t.Error("expected validation error for bad role")
-	}
-	if _, _, err := NewInviteToken("a@b.com", RoleAdmin, "", time.Hour); err == nil {
-		t.Error("expected validation error for missing invited_by")
 	}
 }
 
 func TestVerificationToken_IsUsable(t *testing.T) {
-	token, _, err := NewInviteToken("a@b.com", RoleAdmin, "inviter-id", -time.Hour)
+	token, _, _, err := NewMagicLinkToken("a@b.com", -time.Hour)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -45,14 +48,14 @@ func TestVerificationToken_IsUsable(t *testing.T) {
 		t.Error("expired token should not be usable")
 	}
 
-	fresh, _, err := NewInviteToken("a@b.com", RoleAdmin, "inviter-id", time.Hour)
+	fresh, _, _, err := NewMagicLinkToken("a@b.com", time.Hour)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 	// simulate consumption via rehydration, since domain has no public setter
 	consumed := RehydrateVerificationToken(
-		fresh.ID(), fresh.Purpose(), fresh.TokenHash(), fresh.Email(), fresh.Role(),
-		fresh.InvitedBy(), fresh.UserID(), fresh.ExpiresAt(), ptrTime(time.Now()), fresh.CreatedAt(),
+		fresh.ID(), fresh.Purpose(), fresh.TokenHash(), fresh.Email(), fresh.Code(),
+		fresh.Attempts(), fresh.ExpiresAt(), ptrTime(time.Now()), fresh.CreatedAt(),
 	)
 	if consumed.IsUsable() {
 		t.Error("consumed token should not be usable")

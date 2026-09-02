@@ -1,0 +1,3 @@
+-- Postgres has no DROP VALUE for enums (would require rebuilding the type
+-- and every column/index that uses it). Left as a no-op; rolling back would
+-- need a manual migration if this is ever actually reverted.

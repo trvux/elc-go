@@ -12,8 +12,8 @@ func TestUpdateUser_ChangeRole(t *testing.T) {
 	sessionRepo := newFakeSessionRepository()
 	ctx := context.Background()
 
-	superAdmin := seedActiveUser(t, userRepo, "root", "root@example.com", "Vlu15112002@", domain.RoleSuperAdmin)
-	target := seedActiveUser(t, userRepo, "user1", "user1@example.com", "Vlu15112002@", domain.RoleUser)
+	superAdmin := seedActiveUser(t, userRepo, "root", "root@example.com", domain.RoleSuperAdmin)
+	target := seedActiveUser(t, userRepo, "user1", "user1@example.com", domain.RoleUser)
 
 	newRole := domain.RoleAdmin
 	updated, err := UpdateUser(ctx, userRepo, sessionRepo, superAdmin, target.ID(), UpdateUserInput{Role: &newRole})
@@ -30,8 +30,8 @@ func TestUpdateUser_CannotEscalateAboveOwnRank(t *testing.T) {
 	sessionRepo := newFakeSessionRepository()
 	ctx := context.Background()
 
-	admin := seedActiveUser(t, userRepo, "admin1", "admin1@example.com", "Vlu15112002@", domain.RoleAdmin)
-	target := seedActiveUser(t, userRepo, "user1", "user1@example.com", "Vlu15112002@", domain.RoleUser)
+	admin := seedActiveUser(t, userRepo, "admin1", "admin1@example.com", domain.RoleAdmin)
+	target := seedActiveUser(t, userRepo, "user1", "user1@example.com", domain.RoleUser)
 
 	newRole := domain.RoleSuperAdmin
 	if _, err := UpdateUser(ctx, userRepo, sessionRepo, admin, target.ID(), UpdateUserInput{Role: &newRole}); err == nil {
@@ -44,8 +44,8 @@ func TestUpdateUser_CannotManageHigherRankedUser(t *testing.T) {
 	sessionRepo := newFakeSessionRepository()
 	ctx := context.Background()
 
-	admin := seedActiveUser(t, userRepo, "admin1", "admin1@example.com", "Vlu15112002@", domain.RoleAdmin)
-	superAdmin := seedActiveUser(t, userRepo, "root", "root@example.com", "Vlu15112002@", domain.RoleSuperAdmin)
+	admin := seedActiveUser(t, userRepo, "admin1", "admin1@example.com", domain.RoleAdmin)
+	superAdmin := seedActiveUser(t, userRepo, "root", "root@example.com", domain.RoleSuperAdmin)
 
 	status := domain.UserStatusDisabled
 	if _, err := UpdateUser(ctx, userRepo, sessionRepo, admin, superAdmin.ID(), UpdateUserInput{Status: &status}); err == nil {
@@ -58,7 +58,7 @@ func TestUpdateUser_CannotActOnSelf(t *testing.T) {
 	sessionRepo := newFakeSessionRepository()
 	ctx := context.Background()
 
-	superAdmin := seedActiveUser(t, userRepo, "root", "root@example.com", "Vlu15112002@", domain.RoleSuperAdmin)
+	superAdmin := seedActiveUser(t, userRepo, "root", "root@example.com", domain.RoleSuperAdmin)
 
 	status := domain.UserStatusDisabled
 	if _, err := UpdateUser(ctx, userRepo, sessionRepo, superAdmin, superAdmin.ID(), UpdateUserInput{Status: &status}); err == nil {
@@ -71,8 +71,8 @@ func TestUpdateUser_DisableRevokesAllSessions(t *testing.T) {
 	sessionRepo := newFakeSessionRepository()
 	ctx := context.Background()
 
-	superAdmin := seedActiveUser(t, userRepo, "root", "root@example.com", "Vlu15112002@", domain.RoleSuperAdmin)
-	target := seedActiveUser(t, userRepo, "user1", "user1@example.com", "Vlu15112002@", domain.RoleUser)
+	superAdmin := seedActiveUser(t, userRepo, "root", "root@example.com", domain.RoleSuperAdmin)
+	target := seedActiveUser(t, userRepo, "user1", "user1@example.com", domain.RoleUser)
 
 	session, _, err := domain.NewSession(target.ID(), "", "", RefreshTokenTTL)
 	if err != nil {
@@ -98,8 +98,8 @@ func TestUpdateUser_Reactivate(t *testing.T) {
 	sessionRepo := newFakeSessionRepository()
 	ctx := context.Background()
 
-	superAdmin := seedActiveUser(t, userRepo, "root", "root@example.com", "Vlu15112002@", domain.RoleSuperAdmin)
-	target := seedActiveUser(t, userRepo, "user1", "user1@example.com", "Vlu15112002@", domain.RoleUser)
+	superAdmin := seedActiveUser(t, userRepo, "root", "root@example.com", domain.RoleSuperAdmin)
+	target := seedActiveUser(t, userRepo, "user1", "user1@example.com", domain.RoleUser)
 	target.Disable()
 	if _, err := userRepo.Update(ctx, target); err != nil {
 		t.Fatalf("expected no error, got %v", err)

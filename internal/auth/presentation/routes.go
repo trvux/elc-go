@@ -15,27 +15,19 @@ func RegisterRoutes(r chi.Router, h *AuthHandler, verifier httpserver.TokenVerif
 	r.Route("/auth", func(r chi.Router) {
 		// Public — reachable by anyone, including a stranger with no
 		// account. Each of these either does nothing without a valid
-		// possession-proof (invite/reset token, correct password) or
-		// deliberately reveals nothing about account existence.
-		r.Post("/login", h.Login)
+		// possession-proof (Google's own auth, or a magic-link token/code)
+		// or deliberately reveals nothing about account existence.
+		r.Post("/google/login", h.HandleGoogleLogin)
+		r.Post("/magic-link", h.HandleRequestMagicLink)
+		r.Post("/verify", h.HandleVerifyMagicLink)
 		r.Post("/logout", h.Logout)
 		r.Post("/refresh", h.Refresh)
-		r.Post("/forgot-password", h.ForgotPassword)
-		r.Post("/reset-password", h.ResetPassword)
-		r.Post("/accept-invite", h.AcceptInvite)
 
 		r.Group(func(r chi.Router) {
 			r.Use(httpserver.RequireAuth(verifier))
 			r.Get("/me", h.Me)
 			r.Patch("/me", h.UpdateProfile)
-			r.Post("/me/change-password", h.ChangePassword)
 		})
-	})
-
-	r.Route("/admin/invites", func(r chi.Router) {
-		r.Use(httpserver.RequireAuth(verifier))
-		r.Use(httpserver.RequirePermission(domain.CanManageAccounts))
-		r.Post("/", h.CreateInvite)
 	})
 
 	r.Route("/admin/users", func(r chi.Router) {

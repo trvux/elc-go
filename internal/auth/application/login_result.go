@@ -8,39 +8,28 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
 
-type LoginInput struct {
-	// Identifier is a username or an email — the caller doesn't say which.
-	Identifier string
-	Password   string
-	UserAgent  string
-	IPAddress  string
-}
-
+// LoginResult is what every login path (Google, magic link, refresh) hands
+// back to the presentation layer.
 type LoginResult struct {
 	User         *domain.User
 	AccessToken  string
 	RefreshToken string
 }
 
-func Login(
+// finishLogin issues a fresh session + access token for an already-resolved
+// user — the shared tail of every login path, so session/JWT issuance and
+// the last-login timestamp update live in one place instead of being
+// duplicated per login method.
+func finishLogin(
 	ctx context.Context,
 	userRepo domain.UserRepository,
 	sessionRepo domain.SessionRepository,
-	hasher domain.PasswordHasher,
 	issuer domain.TokenIssuer,
-	input LoginInput,
+	user *domain.User,
+	userAgent, ipAddress string,
 ) (*LoginResult, error) {
-	user, err := userRepo.GetByIdentifier(ctx, input.Identifier)
-	if err != nil {
-		return nil, apperr.NewInternalError(err)
-	}
-	// Same generic error whether the identifier doesn't exist or the password
-	// is wrong — never tell an attacker which half of the guess was right.
-	if user == nil || !user.IsActive() {
-		return nil, apperr.NewUnauthorizedError("invalid username/email or password")
-	}
-	if err := hasher.Compare(user.PasswordHash(), input.Password); err != nil {
-		return nil, apperr.NewUnauthorizedError("invalid username/email or password")
+	if !user.IsActive() {
+		return nil, apperr.NewUnauthorizedError("account is disabled")
 	}
 
 	accessToken, err := issuer.IssueAccessToken(user.ID(), user.Role())
@@ -48,7 +37,7 @@ func Login(
 		return nil, apperr.NewInternalError(err)
 	}
 
-	session, rawRefresh, err := domain.NewSession(user.ID(), input.UserAgent, input.IPAddress, RefreshTokenTTL)
+	session, rawRefresh, err := domain.NewSession(user.ID(), userAgent, ipAddress, RefreshTokenTTL)
 	if err != nil {
 		return nil, err
 	}

@@ -23,28 +23,29 @@ type AuthHandler struct {
 	userRepo    domain.UserRepository
 	tokenRepo   domain.VerificationTokenRepository
 	sessionRepo domain.SessionRepository
-	hasher      domain.PasswordHasher
+	googleAuth  domain.GoogleAuthenticator
 	issuer      domain.TokenIssuer
 	emailSender domain.EmailSender
+	adminEmails []string
 
 	accessTokenTTL time.Duration
 	// secureCookies must be true in production (HTTPS) — the Secure flag
 	// makes browsers refuse to ever send the cookie over plain HTTP.
 	secureCookies bool
 
-	loginLimiter          *ratelimit.Limiter
-	forgotPasswordLimiter *ratelimit.Limiter
-	resetPasswordLimiter  *ratelimit.Limiter
-	acceptInviteLimiter   *ratelimit.Limiter
+	googleLoginLimiter     *ratelimit.Limiter
+	magicLinkLimiter       *ratelimit.Limiter
+	verifyMagicLinkLimiter *ratelimit.Limiter
 }
 
 func NewAuthHandler(
 	userRepo domain.UserRepository,
 	tokenRepo domain.VerificationTokenRepository,
 	sessionRepo domain.SessionRepository,
-	hasher domain.PasswordHasher,
+	googleAuth domain.GoogleAuthenticator,
 	issuer domain.TokenIssuer,
 	emailSender domain.EmailSender,
+	adminEmails []string,
 	accessTokenTTL time.Duration,
 	secureCookies bool,
 ) *AuthHandler {
@@ -52,38 +53,124 @@ func NewAuthHandler(
 		userRepo:       userRepo,
 		tokenRepo:      tokenRepo,
 		sessionRepo:    sessionRepo,
-		hasher:         hasher,
+		googleAuth:     googleAuth,
 		issuer:         issuer,
 		emailSender:    emailSender,
+		adminEmails:    adminEmails,
 		accessTokenTTL: accessTokenTTL,
 		secureCookies:  secureCookies,
 		// Limits are deliberately generous, not anti-abuse-grade — the goal
 		// is to blunt naive brute force, not replace a WAF.
-		loginLimiter:          ratelimit.New(10, 15*time.Minute),
-		forgotPasswordLimiter: ratelimit.New(5, 15*time.Minute),
-		resetPasswordLimiter:  ratelimit.New(10, 15*time.Minute),
-		acceptInviteLimiter:   ratelimit.New(10, 15*time.Minute),
+		googleLoginLimiter: ratelimit.New(20, 15*time.Minute),
+		magicLinkLimiter:   ratelimit.New(5, 15*time.Minute),
+		// verifyMagicLinkLimiter is the real defense against brute-forcing
+		// the 6-digit code (10^6 combinations, MagicLinkTTL-minute window) —
+		// keyed by email in HandleVerifyMagicLink, so it caps guesses against
+		// one target regardless of how many different tokens/IPs an attacker
+		// cycles through. See also application.magicLinkMaxAttempts, which
+		// locks the token itself out server-side after too many wrong
+		// guesses, independent of this in-memory limiter.
+		verifyMagicLinkLimiter: ratelimit.New(5, application.MagicLinkTTL),
 	}
 }
 
-func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var req loginRequest
+// HandleGoogleLogin exchanges the authorization code from
+// google.accounts.oauth2.initCodeClient's popup flow (see
+// domain.GoogleAuthenticator) for a verified identity and issues a session.
+func (h *AuthHandler) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) {
+	var req googleLoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" || req.RedirectURI == "" {
+		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
+		return
+	}
+
+	if !h.googleLoginLimiter.Allow(httpserver.ClientIP(r)) {
+		httpserver.WriteError(w, apperr.NewTooManyRequestsError("too many attempts, try again later"))
+		return
+	}
+
+	result, err := application.GoogleLogin(r.Context(), h.userRepo, h.sessionRepo, h.issuer, h.googleAuth, h.adminEmails, application.GoogleLoginInput{
+		Code:        req.Code,
+		RedirectURI: req.RedirectURI,
+		UserAgent:   r.UserAgent(),
+		IPAddress:   httpserver.ClientIP(r),
+	})
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	h.setRefreshCookie(w, result.RefreshToken)
+	httpserver.WriteJSON(w, http.StatusOK, accessTokenResponse{
+		User:         toUserResponse(result.User),
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+		ExpiresIn:    int(h.accessTokenTTL.Seconds()),
+	})
+}
+
+// HandleRequestMagicLink emails a sign-in link + 6-digit code for the given
+// address — never reveals whether an account already exists for it (see
+// application.RequestMagicLink's doc comment), always 204 unless rate
+// limited or a real infrastructure error occurs.
+func (h *AuthHandler) HandleRequestMagicLink(w http.ResponseWriter, r *http.Request) {
+	var req requestMagicLinkRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
+		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
+		return
+	}
+
+	if !h.magicLinkLimiter.Allow(req.Email + "|" + httpserver.ClientIP(r)) {
+		httpserver.WriteError(w, apperr.NewTooManyRequestsError("too many requests, try again later"))
+		return
+	}
+
+	if err := application.RequestMagicLink(r.Context(), h.tokenRepo, h.emailSender, req.Email); err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// HandleVerifyMagicLink redeems either the link token or the email+code pair
+// (see verifyMagicLinkRequest) and issues a session.
+func (h *AuthHandler) HandleVerifyMagicLink(w http.ResponseWriter, r *http.Request) {
+	var req verifyMagicLinkRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
 		return
 	}
 
-	if !h.loginLimiter.Allow(req.Identifier + "|" + httpserver.ClientIP(r)) {
-		httpserver.WriteError(w, apperr.NewTooManyRequestsError("too many login attempts, try again later"))
+	userAgent, ip := r.UserAgent(), httpserver.ClientIP(r)
+
+	var (
+		result *application.LoginResult
+		err    error
+	)
+	switch {
+	case req.Token != "":
+		// Rate-limited by the token itself: it's 32 random bytes, not
+		// guessable, so this only blunts a misbehaving client retrying in a
+		// loop — not a brute-force target like the code path below.
+		if !h.verifyMagicLinkLimiter.Allow(req.Token) {
+			httpserver.WriteError(w, apperr.NewTooManyRequestsError("too many attempts, try again later"))
+			return
+		}
+		result, err = application.VerifyMagicLinkByToken(r.Context(), h.userRepo, h.sessionRepo, h.tokenRepo, h.issuer, h.adminEmails, req.Token, userAgent, ip)
+	case req.Email != "" && req.Code != "":
+		// Rate-limited by email — the actual defense against brute-forcing
+		// the 6-digit code, independent of how many tokens/IPs an attacker
+		// cycles through (see verifyMagicLinkLimiter's doc comment above).
+		if !h.verifyMagicLinkLimiter.Allow(req.Email) {
+			httpserver.WriteError(w, apperr.NewTooManyRequestsError("too many attempts, try again later"))
+			return
+		}
+		result, err = application.VerifyMagicLinkByCode(r.Context(), h.userRepo, h.sessionRepo, h.tokenRepo, h.issuer, h.adminEmails, req.Email, req.Code, userAgent, ip)
+	default:
+		httpserver.WriteError(w, apperr.NewValidationError("token or (email, code) required", nil))
 		return
 	}
-
-	result, err := application.Login(r.Context(), h.userRepo, h.sessionRepo, h.hasher, h.issuer, application.LoginInput{
-		Identifier: req.Identifier,
-		Password:   req.Password,
-		UserAgent:  r.UserAgent(),
-		IPAddress:  httpserver.ClientIP(r),
-	})
 	if err != nil {
 		httpserver.WriteError(w, err)
 		return
@@ -136,75 +223,6 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-const genericForgotPasswordMessage = "Nếu email tồn tại trong hệ thống, một liên kết đặt lại mật khẩu đã được gửi."
-
-func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
-	var req forgotPasswordRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
-		return
-	}
-
-	// Rate-limited silently: still returns the generic message, never a 429,
-	// so a caller hammering this endpoint can't distinguish "rate limited"
-	// from "email doesn't exist" from "email sent".
-	if h.forgotPasswordLimiter.Allow(req.Email + "|" + httpserver.ClientIP(r)) {
-		if err := application.ForgotPassword(r.Context(), h.userRepo, h.tokenRepo, h.emailSender, req.Email); err != nil {
-			httpserver.WriteError(w, err)
-			return
-		}
-	}
-
-	httpserver.WriteJSON(w, http.StatusOK, messageResponse{Message: genericForgotPasswordMessage})
-}
-
-func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
-	if !h.resetPasswordLimiter.Allow(httpserver.ClientIP(r)) {
-		httpserver.WriteError(w, apperr.NewTooManyRequestsError("too many attempts, try again later"))
-		return
-	}
-
-	var req resetPasswordRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
-		return
-	}
-
-	if err := application.ResetPassword(r.Context(), h.userRepo, h.tokenRepo, h.sessionRepo, h.hasher, req.Token, req.Password); err != nil {
-		httpserver.WriteError(w, err)
-		return
-	}
-
-	httpserver.WriteJSON(w, http.StatusOK, messageResponse{Message: "password has been reset"})
-}
-
-func (h *AuthHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
-	if !h.acceptInviteLimiter.Allow(httpserver.ClientIP(r)) {
-		httpserver.WriteError(w, apperr.NewTooManyRequestsError("too many attempts, try again later"))
-		return
-	}
-
-	var req acceptInviteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
-		return
-	}
-
-	user, err := application.AcceptInvite(r.Context(), h.userRepo, h.tokenRepo, h.hasher, application.AcceptInviteInput{
-		Token:    req.Token,
-		Username: req.Username,
-		Password: req.Password,
-		Name:     req.Name,
-		Phone:    req.Phone,
-	})
-	if err != nil {
-		httpserver.WriteError(w, err)
-		return
-	}
-
-	httpserver.WriteJSON(w, http.StatusCreated, toUserResponse(user))
-}
-
 // Me requires RequireAuth to have already run (see routes.go), so the user
 // ID in context has already been through JWT verification.
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
@@ -255,71 +273,6 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpserver.WriteJSON(w, http.StatusOK, toUserResponse(updated))
-}
-
-// ChangePassword requires RequireAuth only — proving the current password is
-// the authorization check, same as any other self-service credential change.
-func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
-	actorID, _ := httpserver.UserIDFromContext(r.Context())
-	actor, err := application.GetCurrentUser(r.Context(), h.userRepo, actorID)
-	if err != nil {
-		httpserver.WriteError(w, err)
-		return
-	}
-	if actor == nil {
-		httpserver.WriteError(w, apperr.NewUnauthorizedError("user not found"))
-		return
-	}
-
-	var req changePasswordRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
-		return
-	}
-
-	if err := application.ChangePassword(r.Context(), h.userRepo, h.sessionRepo, h.hasher, actor, req.CurrentPassword, req.NewPassword); err != nil {
-		httpserver.WriteError(w, err)
-		return
-	}
-
-	// Every session (including this request's) was just revoked — clear the
-	// refresh cookie on this response too, so this browser tab doesn't hold
-	// a stale/dead refresh token after the fact.
-	h.clearRefreshCookie(w)
-	httpserver.WriteJSON(w, http.StatusOK, messageResponse{Message: "password changed, please log in again"})
-}
-
-// CreateInvite requires RequireAuth + RequireRole(admin, super_admin) to
-// have already run — this is the only way a new admin account can ever come
-// into existence, so it must never be reachable anonymously.
-func (h *AuthHandler) CreateInvite(w http.ResponseWriter, r *http.Request) {
-	userID, _ := httpserver.UserIDFromContext(r.Context())
-	inviter, err := application.GetCurrentUser(r.Context(), h.userRepo, userID)
-	if err != nil {
-		httpserver.WriteError(w, err)
-		return
-	}
-	if inviter == nil {
-		httpserver.WriteError(w, apperr.NewUnauthorizedError("user not found"))
-		return
-	}
-
-	var req createInviteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
-		return
-	}
-
-	token, err := application.CreateInvite(r.Context(), h.userRepo, h.tokenRepo, h.emailSender, inviter, application.CreateInviteInput{
-		Email: req.Email,
-		Role:  domain.Role(req.Role),
-	})
-	if err != nil {
-		httpserver.WriteError(w, err)
-		return
-	}
-
-	httpserver.WriteJSON(w, http.StatusCreated, toInviteResponse(token))
 }
 
 // ListUsers requires RequireAuth + RequirePermission(users:manage) — see

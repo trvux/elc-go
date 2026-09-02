@@ -42,9 +42,13 @@ func toUserResponseList(users []*domain.User) []userResponse {
 	return result
 }
 
-type loginRequest struct {
-	Identifier string `json:"identifier"`
-	Password   string `json:"password"`
+// googleLoginRequest carries the authorization code from
+// google.accounts.oauth2.initCodeClient's popup flow, plus the origin that
+// requested it — see domain.GoogleAuthenticator's doc comment for why the
+// frontend must supply redirectUri rather than the server assuming one.
+type googleLoginRequest struct {
+	Code        string `json:"code"`
+	RedirectURI string `json:"redirect_uri"`
 }
 
 // accessTokenResponse also carries the raw refresh token in the body, not
@@ -62,26 +66,18 @@ type accessTokenResponse struct {
 	ExpiresIn    int          `json:"expires_in"`
 }
 
-type forgotPasswordRequest struct {
+type requestMagicLinkRequest struct {
 	Email string `json:"email"`
 }
 
-type resetPasswordRequest struct {
-	Token    string `json:"token"`
-	Password string `json:"password"`
-}
-
-type acceptInviteRequest struct {
-	Token    string `json:"token"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
-	Phone    string `json:"phone"`
-}
-
-type createInviteRequest struct {
+// verifyMagicLinkRequest redeems a magic link via exactly one of two paths:
+// Token (from the clicked link, read from the URL fragment client-side and
+// posted here — never a URL query param, so it never reaches a server
+// access log) or Email+Code (typed in manually).
+type verifyMagicLinkRequest struct {
+	Token string `json:"token"`
 	Email string `json:"email"`
-	Role  string `json:"role"`
+	Code  string `json:"code"`
 }
 
 // updateUserRequest fields are pointers so the handler can tell "not
@@ -99,27 +95,6 @@ type updateProfileRequest struct {
 	Name      *string `json:"name"`
 	Email     *string `json:"email"`
 	AvatarURL *string `json:"avatar_url"`
-}
-
-type changePasswordRequest struct {
-	CurrentPassword string `json:"current_password"`
-	NewPassword     string `json:"new_password"`
-}
-
-type inviteResponse struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	Role      string    `json:"role"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
-
-func toInviteResponse(t *domain.VerificationToken) inviteResponse {
-	return inviteResponse{
-		ID:        t.ID(),
-		Email:     t.Email(),
-		Role:      string(t.Role()),
-		ExpiresAt: t.ExpiresAt(),
-	}
 }
 
 type messageResponse struct {

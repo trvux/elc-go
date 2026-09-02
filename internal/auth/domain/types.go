@@ -8,13 +8,7 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 )
 
-var (
-	usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9._]+$`)
-	upperPattern    = regexp.MustCompile(`[A-Z]`)
-	lowerPattern    = regexp.MustCompile(`[a-z]`)
-	digitPattern    = regexp.MustCompile(`[0-9]`)
-	specialPattern  = regexp.MustCompile(`[^a-zA-Z0-9]`)
-)
+var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9._]+$`)
 
 type User struct {
 	id           string
@@ -24,6 +18,7 @@ type User struct {
 	name         string
 	phone        string
 	avatarURL    string
+	googleSub    *string
 	role         Role
 	status       UserStatus
 	lastLoginAt  *time.Time
@@ -73,10 +68,41 @@ func NewUser(username, email, passwordHash, name, phone string, role Role) (*Use
 	}, nil
 }
 
+// NewOAuthUser creates a user authenticated via Google or magic link —
+// proven by owning the email inbox (or a verified Google account) instead of
+// a password, so there is no passwordHash and no username to choose (see the
+// migration dropping users.username's NOT NULL). googleSub is nil for a
+// magic-link-only account. Unlike NewUser (only ever reachable via an
+// existing admin's invite), this is the automatic account-creation path any
+// email can trigger — role must therefore never be decided by the caller
+// blindly; see application.resolveOAuthUser for the RoleMember-by-default,
+// ADMIN_EMAILS-allowlist-exception logic that picks it.
+func NewOAuthUser(email, name, avatarURL string, googleSub *string, role Role) (*User, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	name = strings.TrimSpace(name)
+
+	if errs := validateEmail(email); len(errs) > 0 {
+		return nil, apperr.NewValidationError("validation failed", map[string][]string{"email": errs})
+	}
+	if !role.IsValid() {
+		return nil, apperr.NewValidationError("validation failed", map[string][]string{"role": {"invalid role"}})
+	}
+
+	return &User{
+		email:     email,
+		name:      name,
+		avatarURL: avatarURL,
+		googleSub: googleSub,
+		role:      role,
+		status:    UserStatusActive,
+	}, nil
+}
+
 // RehydrateUser reconstructs a User from a trusted DB row. No validation —
 // only the infrastructure layer should call this.
 func RehydrateUser(
 	id, username, email, passwordHash, name, phone, avatarURL string,
+	googleSub *string,
 	role Role,
 	status UserStatus,
 	lastLoginAt *time.Time,
@@ -90,6 +116,7 @@ func RehydrateUser(
 		name:         name,
 		phone:        phone,
 		avatarURL:    avatarURL,
+		googleSub:    googleSub,
 		role:         role,
 		status:       status,
 		lastLoginAt:  lastLoginAt,
@@ -105,6 +132,7 @@ func (u *User) PasswordHash() string    { return u.passwordHash }
 func (u *User) Name() string            { return u.name }
 func (u *User) Phone() string           { return u.phone }
 func (u *User) AvatarURL() string       { return u.avatarURL }
+func (u *User) GoogleSub() *string      { return u.googleSub }
 func (u *User) Role() Role              { return u.role }
 func (u *User) Status() UserStatus      { return u.status }
 func (u *User) LastLoginAt() *time.Time { return u.lastLoginAt }
@@ -112,20 +140,21 @@ func (u *User) CreatedAt() time.Time    { return u.createdAt }
 func (u *User) UpdatedAt() time.Time    { return u.updatedAt }
 func (u *User) IsActive() bool          { return u.status == UserStatusActive }
 
-// CanInvite enforces the privilege-escalation guard: nobody can grant a role
-// ranked higher than their own (see roleRank), and the lowest role (user)
-// cannot invite anyone at all — inviting is account management, not content
-// work.
-func (u *User) CanInvite(targetRole Role) bool {
-	if !targetRole.IsValid() || u.role == RoleUser {
+// CanGrantRole enforces the privilege-escalation guard: nobody can grant a
+// role ranked higher than their own (see roleRank), and RoleUser/RoleMember
+// cannot grant any role at all — granting admin-panel access is account
+// management, not content work, and members have no admin-panel standing to
+// begin with.
+func (u *User) CanGrantRole(targetRole Role) bool {
+	if !targetRole.IsValid() || u.role == RoleUser || u.role == RoleMember {
 		return false
 	}
 	return roleRank[u.role] >= roleRank[targetRole]
 }
 
-// CanManageUser enforces the same privilege boundary as CanInvite but for an
-// *existing* account: nobody can change the role/status of a user who
-// currently outranks them. Combine with CanInvite(newRole) when the action
+// CanManageUser enforces the same privilege boundary as CanGrantRole but for
+// an *existing* account: nobody can change the role/status of a user who
+// currently outranks them. Combine with CanGrantRole(newRole) when the action
 // is specifically a role change, so neither the target's current rank nor
 // the requested new rank can exceed the actor's own.
 func (u *User) CanManageUser(target *User) bool {
@@ -145,6 +174,17 @@ func (u *User) SetRole(role Role) {
 
 func (u *User) SetAvatarURL(url string) {
 	u.avatarURL = url
+}
+
+func (u *User) SetName(name string) {
+	u.name = name
+}
+
+// SetGoogleSub links an existing account (created via magic link, or an
+// invited admin) to a Google identity the first time they sign in with
+// Google using the same email — see application.resolveOAuthUser.
+func (u *User) SetGoogleSub(sub string) {
+	u.googleSub = &sub
 }
 
 // UpdateProfile applies a self-service edit of display name and email.
@@ -194,27 +234,4 @@ func validateEmail(email string) []string {
 		return []string{"invalid email"}
 	}
 	return nil
-}
-
-// ValidatePassword enforces the password policy shared by accept-invite and
-// reset-password: more than 8 characters, at least one uppercase, one
-// lowercase, one digit, and one special character.
-func ValidatePassword(password string) []string {
-	var errs []string
-	if len(password) <= 8 {
-		errs = append(errs, "password must be more than 8 characters")
-	}
-	if !upperPattern.MatchString(password) {
-		errs = append(errs, "password must contain at least one uppercase letter")
-	}
-	if !lowerPattern.MatchString(password) {
-		errs = append(errs, "password must contain at least one lowercase letter")
-	}
-	if !digitPattern.MatchString(password) {
-		errs = append(errs, "password must contain at least one digit")
-	}
-	if !specialPattern.MatchString(password) {
-		errs = append(errs, "password must contain at least one special character")
-	}
-	return errs
 }

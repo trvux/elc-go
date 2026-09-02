@@ -54,28 +54,32 @@ func TestNewUser_ValidationError(t *testing.T) {
 	}
 }
 
-func TestUser_CanInvite(t *testing.T) {
+func TestUser_CanGrantRole(t *testing.T) {
+	member, _ := NewUser("member1", "member1@example.com", "hash", "", "", RoleMember)
 	user, _ := NewUser("user1", "user1@example.com", "hash", "", "", RoleUser)
 	admin, _ := NewUser("admin1", "admin1@example.com", "hash", "", "", RoleAdmin)
 	superAdmin, _ := NewUser("root", "root@example.com", "hash", "", "", RoleSuperAdmin)
 
-	if user.CanInvite(RoleUser) {
-		t.Error("plain user role must not be able to invite anyone")
+	if member.CanGrantRole(RoleMember) {
+		t.Error("member role must not be able to grant anyone a role")
 	}
-	if !admin.CanInvite(RoleAdmin) {
-		t.Error("admin should be able to invite another admin")
+	if user.CanGrantRole(RoleUser) {
+		t.Error("plain user role must not be able to grant anyone a role")
 	}
-	if !admin.CanInvite(RoleUser) {
-		t.Error("admin should be able to invite a user")
+	if !admin.CanGrantRole(RoleAdmin) {
+		t.Error("admin should be able to grant another admin")
 	}
-	if admin.CanInvite(RoleSuperAdmin) {
-		t.Error("admin must not be able to invite a super_admin")
+	if !admin.CanGrantRole(RoleUser) {
+		t.Error("admin should be able to grant a user")
 	}
-	if !superAdmin.CanInvite(RoleSuperAdmin) {
-		t.Error("super_admin should be able to invite another super_admin")
+	if admin.CanGrantRole(RoleSuperAdmin) {
+		t.Error("admin must not be able to grant a super_admin")
 	}
-	if !superAdmin.CanInvite(RoleAdmin) {
-		t.Error("super_admin should be able to invite an admin")
+	if !superAdmin.CanGrantRole(RoleSuperAdmin) {
+		t.Error("super_admin should be able to grant another super_admin")
+	}
+	if !superAdmin.CanGrantRole(RoleAdmin) {
+		t.Error("super_admin should be able to grant an admin")
 	}
 }
 
@@ -142,24 +146,47 @@ func TestRole_HasPermission(t *testing.T) {
 	}
 }
 
-func TestValidatePassword(t *testing.T) {
-	valid := []string{"Vlu15112002@", "Str0ng!Passw0rd"}
-	for _, p := range valid {
-		if errs := ValidatePassword(p); len(errs) > 0 {
-			t.Errorf("expected %q to be valid, got errors: %v", p, errs)
-		}
+func TestNewOAuthUser(t *testing.T) {
+	sub := "google-sub-123"
+	user, err := NewOAuthUser("New.Member@Example.com", "Bảo Huy", "https://example.com/avatar.png", &sub, RoleMember)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
+	if user.Email() != "new.member@example.com" {
+		t.Errorf("expected lowercase email, got %s", user.Email())
+	}
+	if user.Username() != "" {
+		t.Errorf("expected no username for an OAuth user, got %q", user.Username())
+	}
+	if user.PasswordHash() != "" {
+		t.Errorf("expected no password hash for an OAuth user, got %q", user.PasswordHash())
+	}
+	if user.GoogleSub() == nil || *user.GoogleSub() != sub {
+		t.Errorf("expected google sub to be preserved, got %v", user.GoogleSub())
+	}
+	if user.Role() != RoleMember {
+		t.Errorf("expected role to be preserved, got %s", user.Role())
+	}
+	if !user.IsActive() {
+		t.Error("expected new OAuth user to be active")
+	}
+}
 
-	invalid := map[string]string{
-		"short1A!":       "too short (8 chars, needs more than 8)",
-		"alllowercase1!": "missing uppercase",
-		"ALLUPPERCASE1!": "missing lowercase",
-		"NoDigitsHere!":  "missing digit",
-		"NoSpecial1234":  "missing special character",
+func TestNewOAuthUser_MagicLinkOnlyHasNoGoogleSub(t *testing.T) {
+	user, err := NewOAuthUser("member@example.com", "", "", nil, RoleMember)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
-	for p, reason := range invalid {
-		if errs := ValidatePassword(p); len(errs) == 0 {
-			t.Errorf("expected %q to be invalid (%s)", p, reason)
-		}
+	if user.GoogleSub() != nil {
+		t.Errorf("expected no google sub for a magic-link-only user, got %v", user.GoogleSub())
+	}
+}
+
+func TestNewOAuthUser_ValidationError(t *testing.T) {
+	if _, err := NewOAuthUser("not-an-email", "", "", nil, RoleMember); err == nil {
+		t.Error("expected validation error for bad email")
+	}
+	if _, err := NewOAuthUser("a@b.com", "", "", nil, Role("owner")); err == nil {
+		t.Error("expected validation error for bad role")
 	}
 }
