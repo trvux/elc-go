@@ -33,14 +33,14 @@ type googleUserInfoResponse struct {
 }
 
 // Exchange trades an authorization code for an access token, then calls
-// Google's userinfo endpoint to get the verified identity behind it.
-// redirectURI must match the origin of the page that requested the code (see
-// domain.GoogleAuthenticator's doc comment).
-func (c *GoogleOAuthClient) Exchange(ctx context.Context, code string, redirectURI string) (*domain.GoogleUserInfo, error) {
+// Google's userinfo endpoint to get the verified identity behind it. See
+// domain.GoogleAuthenticator's doc comment for why RedirectURL is the fixed
+// "postmessage" sentinel rather than an actual URI.
+func (c *GoogleOAuthClient) Exchange(ctx context.Context, code string) (*domain.GoogleUserInfo, error) {
 	config := &oauth2.Config{
 		ClientID:     c.clientID,
 		ClientSecret: c.clientSecret,
-		RedirectURL:  redirectURI,
+		RedirectURL:  "postmessage",
 		Endpoint:     oauth2.Endpoint{TokenURL: "https://oauth2.googleapis.com/token"},
 	}
 

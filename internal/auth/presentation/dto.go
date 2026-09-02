@@ -43,12 +43,11 @@ func toUserResponseList(users []*domain.User) []userResponse {
 }
 
 // googleLoginRequest carries the authorization code from
-// google.accounts.oauth2.initCodeClient's popup flow, plus the origin that
-// requested it — see domain.GoogleAuthenticator's doc comment for why the
-// frontend must supply redirectUri rather than the server assuming one.
+// google.accounts.oauth2.initCodeClient's popup flow. No redirect_uri field
+// — see domain.GoogleAuthenticator's doc comment for why the exchange
+// always redeems against the fixed "postmessage" value instead.
 type googleLoginRequest struct {
-	Code        string `json:"code"`
-	RedirectURI string `json:"redirect_uri"`
+	Code string `json:"code"`
 }
 
 // accessTokenResponse also carries the raw refresh token in the body, not

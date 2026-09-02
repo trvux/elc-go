@@ -8,10 +8,9 @@ import (
 )
 
 type GoogleLoginInput struct {
-	Code        string
-	RedirectURI string
-	UserAgent   string
-	IPAddress   string
+	Code      string
+	UserAgent string
+	IPAddress string
 }
 
 // GoogleLogin exchanges a Google authorization code for a verified identity,
@@ -27,7 +26,7 @@ func GoogleLogin(
 	adminRoles map[string]domain.Role,
 	input GoogleLoginInput,
 ) (*LoginResult, error) {
-	info, err := googleAuth.Exchange(ctx, input.Code, input.RedirectURI)
+	info, err := googleAuth.Exchange(ctx, input.Code)
 	if err != nil {
 		return nil, apperr.NewUnauthorizedError("could not verify google account")
 	}

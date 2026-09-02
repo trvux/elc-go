@@ -79,7 +79,7 @@ func NewAuthHandler(
 // domain.GoogleAuthenticator) for a verified identity and issues a session.
 func (h *AuthHandler) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 	var req googleLoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" || req.RedirectURI == "" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
 		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
 		return
 	}
@@ -90,10 +90,9 @@ func (h *AuthHandler) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) 
 	}
 
 	result, err := application.GoogleLogin(r.Context(), h.userRepo, h.sessionRepo, h.issuer, h.googleAuth, h.adminRoles, application.GoogleLoginInput{
-		Code:        req.Code,
-		RedirectURI: req.RedirectURI,
-		UserAgent:   r.UserAgent(),
-		IPAddress:   httpserver.ClientIP(r),
+		Code:      req.Code,
+		UserAgent: r.UserAgent(),
+		IPAddress: httpserver.ClientIP(r),
 	})
 	if err != nil {
 		httpserver.WriteError(w, err)
