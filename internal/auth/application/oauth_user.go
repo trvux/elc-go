@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"slices"
 	"strings"
 
 	"github.com/trvux/elc-go/internal/auth/domain"
@@ -22,7 +21,7 @@ func resolveOAuthUser(
 	email string,
 	googleSub *string,
 	name, avatarURL string,
-	adminEmails []string,
+	adminRoles map[string]domain.Role,
 ) (*domain.User, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 
@@ -55,8 +54,8 @@ func resolveOAuthUser(
 	}
 
 	role := domain.RoleMember
-	if slices.ContainsFunc(adminEmails, func(e string) bool { return strings.EqualFold(e, email) }) {
-		role = domain.RoleSuperAdmin
+	if r, ok := adminRoles[email]; ok {
+		role = r
 	}
 
 	newUser, err := domain.NewOAuthUser(email, name, avatarURL, googleSub, role)

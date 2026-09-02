@@ -129,15 +129,35 @@ func main() {
 	}
 	googleAuth := authinfra.NewGoogleOAuthClient(googleClientID, googleClientSecret)
 
-	// adminEmails is the only way a brand-new account is ever created above
+	// adminRoles is the only way a brand-new account is ever created above
 	// RoleMember — checked once, at account-creation time, by
 	// application.resolveOAuthUser. Promoting anyone else afterward is a
 	// deliberate admin action via PATCH /admin/users/{id}, not config.
-	var adminEmails []string
-	for _, e := range strings.Split(os.Getenv("ADMIN_EMAILS"), ",") {
-		if e = strings.ToLower(strings.TrimSpace(e)); e != "" {
-			adminEmails = append(adminEmails, e)
+	//
+	// Format: comma-separated "email:role" pairs, e.g.
+	// "a@x.com:super_admin,b@x.com:admin,c@x.com:user". A bare email with no
+	// ":role" defaults to admin. Unknown role names are logged and skipped
+	// rather than silently granting the wrong access level.
+	adminRoles := make(map[string]authdomain.Role)
+	for _, entry := range strings.Split(os.Getenv("ADMIN_EMAILS"), ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
 		}
+		email, roleStr, hasRole := strings.Cut(entry, ":")
+		email = strings.ToLower(strings.TrimSpace(email))
+		if email == "" {
+			continue
+		}
+		role := authdomain.RoleAdmin
+		if hasRole {
+			role = authdomain.Role(strings.ToLower(strings.TrimSpace(roleStr)))
+			if !role.IsValid() || role == authdomain.RoleMember {
+				log.Warn("ADMIN_EMAILS: skipping entry with unknown role", zap.String("email", email), zap.String("role", roleStr))
+				continue
+			}
+		}
+		adminRoles[email] = role
 	}
 
 	appBaseURL := os.Getenv("APP_BASE_URL")
@@ -153,7 +173,7 @@ func main() {
 	}
 
 	authHandler := authpresentation.NewAuthHandler(
-		authUserRepo, authTokenRepo, authSessionRepo, googleAuth, tokenIssuer, emailSender, adminEmails,
+		authUserRepo, authTokenRepo, authSessionRepo, googleAuth, tokenIssuer, emailSender, adminRoles,
 		accessTokenTTL, env == "production",
 	)
 	authpresentation.RegisterRoutes(router, authHandler, tokenIssuer)

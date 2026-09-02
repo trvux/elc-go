@@ -23,7 +23,7 @@ func VerifyMagicLinkByToken(
 	sessionRepo domain.SessionRepository,
 	tokenRepo domain.VerificationTokenRepository,
 	issuer domain.TokenIssuer,
-	adminEmails []string,
+	adminRoles map[string]domain.Role,
 	rawToken, userAgent, ipAddress string,
 ) (*LoginResult, error) {
 	token, err := tokenRepo.GetByHash(ctx, domain.TokenPurposeMagicLink, domain.HashToken(rawToken))
@@ -33,7 +33,7 @@ func VerifyMagicLinkByToken(
 	if token == nil || !token.IsUsable() {
 		return nil, apperr.NewUnauthorizedError("magic link is invalid or has expired")
 	}
-	return completeMagicLinkLogin(ctx, userRepo, sessionRepo, tokenRepo, issuer, adminEmails, token, userAgent, ipAddress)
+	return completeMagicLinkLogin(ctx, userRepo, sessionRepo, tokenRepo, issuer, adminRoles, token, userAgent, ipAddress)
 }
 
 // VerifyMagicLinkByCode redeems the 6-digit code emailed alongside the link,
@@ -47,7 +47,7 @@ func VerifyMagicLinkByCode(
 	sessionRepo domain.SessionRepository,
 	tokenRepo domain.VerificationTokenRepository,
 	issuer domain.TokenIssuer,
-	adminEmails []string,
+	adminRoles map[string]domain.Role,
 	email, code, userAgent, ipAddress string,
 ) (*LoginResult, error) {
 	token, err := tokenRepo.GetLatestActiveByEmail(ctx, domain.TokenPurposeMagicLink, email)
@@ -71,7 +71,7 @@ func VerifyMagicLinkByCode(
 		return nil, apperr.NewUnauthorizedError("invalid or expired code")
 	}
 
-	return completeMagicLinkLogin(ctx, userRepo, sessionRepo, tokenRepo, issuer, adminEmails, token, userAgent, ipAddress)
+	return completeMagicLinkLogin(ctx, userRepo, sessionRepo, tokenRepo, issuer, adminRoles, token, userAgent, ipAddress)
 }
 
 func completeMagicLinkLogin(
@@ -80,7 +80,7 @@ func completeMagicLinkLogin(
 	sessionRepo domain.SessionRepository,
 	tokenRepo domain.VerificationTokenRepository,
 	issuer domain.TokenIssuer,
-	adminEmails []string,
+	adminRoles map[string]domain.Role,
 	token *domain.VerificationToken,
 	userAgent, ipAddress string,
 ) (*LoginResult, error) {
@@ -88,7 +88,7 @@ func completeMagicLinkLogin(
 		return nil, apperr.NewInternalError(err)
 	}
 
-	user, err := resolveOAuthUser(ctx, userRepo, token.Email(), nil, "", "", adminEmails)
+	user, err := resolveOAuthUser(ctx, userRepo, token.Email(), nil, "", "", adminRoles)
 	if err != nil {
 		return nil, err
 	}

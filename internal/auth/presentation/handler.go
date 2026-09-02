@@ -26,7 +26,7 @@ type AuthHandler struct {
 	googleAuth  domain.GoogleAuthenticator
 	issuer      domain.TokenIssuer
 	emailSender domain.EmailSender
-	adminEmails []string
+	adminRoles map[string]domain.Role
 
 	accessTokenTTL time.Duration
 	// secureCookies must be true in production (HTTPS) — the Secure flag
@@ -45,7 +45,7 @@ func NewAuthHandler(
 	googleAuth domain.GoogleAuthenticator,
 	issuer domain.TokenIssuer,
 	emailSender domain.EmailSender,
-	adminEmails []string,
+	adminRoles map[string]domain.Role,
 	accessTokenTTL time.Duration,
 	secureCookies bool,
 ) *AuthHandler {
@@ -56,7 +56,7 @@ func NewAuthHandler(
 		googleAuth:     googleAuth,
 		issuer:         issuer,
 		emailSender:    emailSender,
-		adminEmails:    adminEmails,
+		adminRoles:     adminRoles,
 		accessTokenTTL: accessTokenTTL,
 		secureCookies:  secureCookies,
 		// Limits are deliberately generous, not anti-abuse-grade — the goal
@@ -89,7 +89,7 @@ func (h *AuthHandler) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	result, err := application.GoogleLogin(r.Context(), h.userRepo, h.sessionRepo, h.issuer, h.googleAuth, h.adminEmails, application.GoogleLoginInput{
+	result, err := application.GoogleLogin(r.Context(), h.userRepo, h.sessionRepo, h.issuer, h.googleAuth, h.adminRoles, application.GoogleLoginInput{
 		Code:        req.Code,
 		RedirectURI: req.RedirectURI,
 		UserAgent:   r.UserAgent(),
@@ -157,7 +157,7 @@ func (h *AuthHandler) HandleVerifyMagicLink(w http.ResponseWriter, r *http.Reque
 			httpserver.WriteError(w, apperr.NewTooManyRequestsError("too many attempts, try again later"))
 			return
 		}
-		result, err = application.VerifyMagicLinkByToken(r.Context(), h.userRepo, h.sessionRepo, h.tokenRepo, h.issuer, h.adminEmails, req.Token, userAgent, ip)
+		result, err = application.VerifyMagicLinkByToken(r.Context(), h.userRepo, h.sessionRepo, h.tokenRepo, h.issuer, h.adminRoles, req.Token, userAgent, ip)
 	case req.Email != "" && req.Code != "":
 		// Rate-limited by email — the actual defense against brute-forcing
 		// the 6-digit code, independent of how many tokens/IPs an attacker
@@ -166,7 +166,7 @@ func (h *AuthHandler) HandleVerifyMagicLink(w http.ResponseWriter, r *http.Reque
 			httpserver.WriteError(w, apperr.NewTooManyRequestsError("too many attempts, try again later"))
 			return
 		}
-		result, err = application.VerifyMagicLinkByCode(r.Context(), h.userRepo, h.sessionRepo, h.tokenRepo, h.issuer, h.adminEmails, req.Email, req.Code, userAgent, ip)
+		result, err = application.VerifyMagicLinkByCode(r.Context(), h.userRepo, h.sessionRepo, h.tokenRepo, h.issuer, h.adminRoles, req.Email, req.Code, userAgent, ip)
 	default:
 		httpserver.WriteError(w, apperr.NewValidationError("token or (email, code) required", nil))
 		return

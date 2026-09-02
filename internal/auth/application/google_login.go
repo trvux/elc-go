@@ -24,7 +24,7 @@ func GoogleLogin(
 	sessionRepo domain.SessionRepository,
 	issuer domain.TokenIssuer,
 	googleAuth domain.GoogleAuthenticator,
-	adminEmails []string,
+	adminRoles map[string]domain.Role,
 	input GoogleLoginInput,
 ) (*LoginResult, error) {
 	info, err := googleAuth.Exchange(ctx, input.Code, input.RedirectURI)
@@ -32,7 +32,7 @@ func GoogleLogin(
 		return nil, apperr.NewUnauthorizedError("could not verify google account")
 	}
 
-	user, err := resolveOAuthUser(ctx, userRepo, info.Email, &info.Sub, info.Name, info.Picture, adminEmails)
+	user, err := resolveOAuthUser(ctx, userRepo, info.Email, &info.Sub, info.Name, info.Picture, adminRoles)
 	if err != nil {
 		return nil, err
 	}
