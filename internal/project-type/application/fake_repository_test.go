@@ -66,7 +66,7 @@ func (r *fakeProjectTypeRepository) Create(ctx context.Context, pt *domain.Proje
 	now := time.Now()
 	created := domain.RehydrateProjectType(
 		id, pt.Name(), pt.Slug(), pt.Image(), pt.MetaTitle(), pt.MetaDescription(),
-		pt.IsFeatured(), pt.OrderIndex(), now, now, nil,
+		pt.IsFeatured(), pt.OrderIndex(), pt.Content(), now, now, nil,
 	)
 	r.items[id] = created
 	r.categories[id] = categoryIDs

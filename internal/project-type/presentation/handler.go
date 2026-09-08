@@ -106,6 +106,7 @@ func (h *ProjectTypeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		MetaDescription: req.MetaDescription,
 		IsFeatured:      req.IsFeatured,
 		OrderIndex:      req.OrderIndex,
+		Content:         req.Content,
 		CategoryIDs:     req.CategoryIDs,
 	}
 
@@ -136,6 +137,7 @@ func (h *ProjectTypeHandler) Update(w http.ResponseWriter, r *http.Request) {
 		MetaDescription: req.MetaDescription,
 		IsFeatured:      req.IsFeatured,
 		OrderIndex:      req.OrderIndex,
+		Content:         req.Content,
 		CategoryIDs:     req.CategoryIDs,
 	}
 

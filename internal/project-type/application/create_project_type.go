@@ -15,6 +15,7 @@ func CreateProjectType(ctx context.Context, repo domain.ProjectTypeRepository, i
 		input.MetaDescription,
 		input.IsFeatured,
 		input.OrderIndex,
+		input.Content,
 	)
 	if err != nil {
 		return nil, err

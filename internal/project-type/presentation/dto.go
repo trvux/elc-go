@@ -1,6 +1,7 @@
 package presentation
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/trvux/elc-go/internal/project-type/domain"
@@ -42,6 +43,7 @@ type projectTypeResponse struct {
 	MetaDescription *string               `json:"meta_description"`
 	IsFeatured      bool                  `json:"is_featured"`
 	OrderIndex      int                   `json:"order_index"`
+	Content         json.RawMessage       `json:"content"`
 	Categories      []categoryRefResponse `json:"categories"`
 	CreatedAt       time.Time             `json:"created_at"`
 	UpdatedAt       time.Time             `json:"updated_at"`
@@ -87,6 +89,7 @@ func toProjectTypeResponse(pt *domain.ProjectTypeWithCategories) projectTypeResp
 		MetaDescription: pt.MetaDescription(),
 		IsFeatured:      pt.IsFeatured(),
 		OrderIndex:      pt.OrderIndex(),
+		Content:         pt.Content(),
 		Categories:      categories,
 		CreatedAt:       pt.CreatedAt(),
 		UpdatedAt:       pt.UpdatedAt(),
@@ -110,23 +113,25 @@ func toBareProjectTypeResponse(pt *domain.ProjectType) projectTypeResponse {
 }
 
 type createProjectTypeRequest struct {
-	Name            string   `json:"name"`
-	Slug            string   `json:"slug"`
-	Image           *string  `json:"image"`
-	MetaTitle       *string  `json:"meta_title"`
-	MetaDescription *string  `json:"meta_description"`
-	IsFeatured      bool     `json:"is_featured"`
-	OrderIndex      int      `json:"order_index"`
-	CategoryIDs     []string `json:"category_ids"`
+	Name            string          `json:"name"`
+	Slug            string          `json:"slug"`
+	Image           *string         `json:"image"`
+	MetaTitle       *string         `json:"meta_title"`
+	MetaDescription *string         `json:"meta_description"`
+	IsFeatured      bool            `json:"is_featured"`
+	OrderIndex      int             `json:"order_index"`
+	Content         json.RawMessage `json:"content"`
+	CategoryIDs     []string        `json:"category_ids"`
 }
 
 type updateProjectTypeRequest struct {
-	Name            *string   `json:"name"`
-	Slug            *string   `json:"slug"`
-	Image           *string   `json:"image"`
-	MetaTitle       *string   `json:"meta_title"`
-	MetaDescription *string   `json:"meta_description"`
-	IsFeatured      *bool     `json:"is_featured"`
-	OrderIndex      *int      `json:"order_index"`
-	CategoryIDs     *[]string `json:"category_ids"`
+	Name            *string         `json:"name"`
+	Slug            *string         `json:"slug"`
+	Image           *string         `json:"image"`
+	MetaTitle       *string         `json:"meta_title"`
+	MetaDescription *string         `json:"meta_description"`
+	IsFeatured      *bool           `json:"is_featured"`
+	OrderIndex      *int            `json:"order_index"`
+	Content         json.RawMessage `json:"content"`
+	CategoryIDs     *[]string       `json:"category_ids"`
 }

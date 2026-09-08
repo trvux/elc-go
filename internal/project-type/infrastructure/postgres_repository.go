@@ -2,6 +2,7 @@ package infrastructure
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -23,7 +24,7 @@ func NewPostgresProjectTypeRepository(pool *pgxpool.Pool) *PostgresProjectTypeRe
 }
 
 const projectTypeColumns = `id, name, slug, image, meta_title, meta_description,
-	is_featured, order_index, created_at, updated_at, deleted_at`
+	is_featured, order_index, content, created_at, updated_at, deleted_at`
 
 type rowScanner interface {
 	Scan(dest ...any) error
@@ -42,20 +43,21 @@ func scanProjectType(row rowScanner) (*domain.ProjectType, error) {
 		image, metaTitle, metaDesc *string
 		isFeatured                 bool
 		orderIndex                 int
+		content                    json.RawMessage
 		createdAt, updatedAt       time.Time
 		deletedAt                  *time.Time
 	)
 
 	if err := row.Scan(
 		&id, &name, &slug, &image, &metaTitle, &metaDesc,
-		&isFeatured, &orderIndex, &createdAt, &updatedAt, &deletedAt,
+		&isFeatured, &orderIndex, &content, &createdAt, &updatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
 	}
 
 	return domain.RehydrateProjectType(
 		id, name, slug, image, metaTitle, metaDesc,
-		isFeatured, orderIndex, createdAt, updatedAt, deletedAt,
+		isFeatured, orderIndex, content, createdAt, updatedAt, deletedAt,
 	), nil
 }
 
@@ -285,12 +287,12 @@ func (r *PostgresProjectTypeRepository) Create(ctx context.Context, pt *domain.P
 		query := `
 			UPDATE project_type
 			SET name = $1, image = $2, meta_title = $3, meta_description = $4,
-				is_featured = $5, order_index = $6, deleted_at = NULL, updated_at = $7
-			WHERE id = $8
+				is_featured = $5, order_index = $6, content = $7, deleted_at = NULL, updated_at = $8
+			WHERE id = $9
 			RETURNING id`
 		if err := tx.QueryRow(ctx, query,
 			pt.Name(), pt.Image(), pt.MetaTitle(), pt.MetaDescription(),
-			pt.IsFeatured(), pt.OrderIndex(), time.Now(), existingID,
+			pt.IsFeatured(), pt.OrderIndex(), pt.Content(), time.Now(), existingID,
 		).Scan(&createdID); err != nil {
 			return nil, fmt.Errorf("project type repository create (resurrect): %w", err)
 		}
@@ -303,12 +305,12 @@ func (r *PostgresProjectTypeRepository) Create(ctx context.Context, pt *domain.P
 		}
 	} else {
 		query := `
-			INSERT INTO project_type (name, slug, image, meta_title, meta_description, is_featured, order_index)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			INSERT INTO project_type (name, slug, image, meta_title, meta_description, is_featured, order_index, content)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			RETURNING id`
 		if err := tx.QueryRow(ctx, query,
 			pt.Name(), pt.Slug(), pt.Image(), pt.MetaTitle(), pt.MetaDescription(),
-			pt.IsFeatured(), pt.OrderIndex(),
+			pt.IsFeatured(), pt.OrderIndex(), pt.Content(),
 		).Scan(&createdID); err != nil {
 			return nil, fmt.Errorf("project type repository create: %w", err)
 		}
@@ -342,13 +344,13 @@ func (r *PostgresProjectTypeRepository) Update(ctx context.Context, pt *domain.P
 	query := `
 		UPDATE project_type
 		SET name = $1, slug = $2, image = $3, meta_title = $4, meta_description = $5,
-			is_featured = $6, order_index = $7, updated_at = $8
-		WHERE id = $9
+			is_featured = $6, order_index = $7, content = $8, updated_at = $9
+		WHERE id = $10
 		RETURNING ` + projectTypeColumns
 
 	row := tx.QueryRow(ctx, query,
 		pt.Name(), pt.Slug(), pt.Image(), pt.MetaTitle(), pt.MetaDescription(),
-		pt.IsFeatured(), pt.OrderIndex(), pt.UpdatedAt(), pt.ID(),
+		pt.IsFeatured(), pt.OrderIndex(), pt.Content(), pt.UpdatedAt(), pt.ID(),
 	)
 	updated, err := scanProjectType(row)
 	if err != nil {

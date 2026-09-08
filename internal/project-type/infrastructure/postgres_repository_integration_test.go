@@ -28,7 +28,7 @@ func TestPostgresProjectTypeRepository_CRUD(t *testing.T) {
 		t.Skipf("no category row available to attach: %v", err)
 	}
 
-	pt, err := domain.NewProjectType("Integration Test Project Type", "integration-test-project-type-xyz", nil, nil, nil, false, 999)
+	pt, err := domain.NewProjectType("Integration Test Project Type", "integration-test-project-type-xyz", nil, nil, nil, false, 999, nil)
 	if err != nil {
 		t.Fatalf("NewProjectType failed: %v", err)
 	}
@@ -57,8 +57,9 @@ func TestPostgresProjectTypeRepository_CRUD(t *testing.T) {
 		t.Errorf("expected 1 attached category %s, got %+v", categoryID, fetched.Categories)
 	}
 
-	if err := fetched.UpdateName("Integration Test Project Type Updated"); err != nil {
-		t.Fatalf("UpdateName failed: %v", err)
+	newName := "Integration Test Project Type Updated"
+	if err := fetched.Update(domain.UpdateProjectTypeInput{Name: &newName}); err != nil {
+		t.Fatalf("Update failed: %v", err)
 	}
 	emptyCategories := []string{}
 	updated, err := repo.Update(ctx, fetched.ProjectType, &emptyCategories)
@@ -116,7 +117,7 @@ func TestPostgresProjectTypeRepository_SoftDeleteNullsReferencingProjects(t *tes
 		t.Skipf("no category row available: %v", err)
 	}
 
-	pt, err := domain.NewProjectType("FK Cleanup Test Project Type", "fk-cleanup-test-project-type-xyz", nil, nil, nil, false, 0)
+	pt, err := domain.NewProjectType("FK Cleanup Test Project Type", "fk-cleanup-test-project-type-xyz", nil, nil, nil, false, 0, nil)
 	if err != nil {
 		t.Fatalf("NewProjectType failed: %v", err)
 	}
