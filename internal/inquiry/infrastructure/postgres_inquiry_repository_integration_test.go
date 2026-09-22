@@ -25,7 +25,11 @@ func TestPostgresInquiryRepository_CRUD(t *testing.T) {
 
 	repo := NewPostgresInquiryRepository(pool)
 
-	inquiry, err := domain.NewInquiry("Integration Test", "0900000000-test", nil, nil, nil, nil, nil, "", nil, nil, nil, nil, nil)
+	inquiry, err := domain.NewInquiry(
+		"Integration Test", "0900000000-test", nil, nil, nil, nil, nil, "", nil, nil, nil,
+		"", nil, nil, nil, nil, nil, nil, nil,
+		nil, nil,
+	)
 	if err != nil {
 		t.Fatalf("NewInquiry failed: %v", err)
 	}

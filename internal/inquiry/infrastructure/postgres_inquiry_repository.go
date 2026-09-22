@@ -27,16 +27,19 @@ func NewPostgresInquiryRepository(pool *pgxpool.Pool) *PostgresInquiryRepository
 
 const inquiryColumns = `id, name, phone, email, message, product_id, project_id, service_id,
 	lead_type, sub_type, qualify_data, attachments,
-	status, internal_note, source_ip, user_agent, created_at, updated_at`
+	channel, gclid, utm_source, utm_medium, utm_campaign, utm_term, utm_content, ga_client_id,
+	status, internal_note, conversion_value, ads_conversion_synced_at,
+	source_ip, user_agent, created_at, updated_at`
 
 func (r *PostgresInquiryRepository) Create(ctx context.Context, inquiry *domain.Inquiry) (*domain.Inquiry, error) {
 	query := `
 		INSERT INTO inquiries (
 			name, phone, email, message, product_id, project_id, service_id,
 			lead_type, sub_type, qualify_data, attachments,
+			channel, gclid, utm_source, utm_medium, utm_campaign, utm_term, utm_content, ga_client_id,
 			status, source_ip, user_agent
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
 		RETURNING ` + inquiryColumns
 
 	// attachments is a domain []string — marshaled to JSON here so pgx sends
@@ -64,6 +67,8 @@ func (r *PostgresInquiryRepository) Create(ctx context.Context, inquiry *domain.
 		inquiry.Name(), inquiry.Phone(), inquiry.Email(), inquiry.Message(),
 		inquiry.ProductID(), inquiry.ProjectID(), inquiry.ServiceID(),
 		string(inquiry.LeadType()), inquiry.SubType(), inquiry.QualifyData(), attachmentsJSON,
+		string(inquiry.Channel()), inquiry.GCLID(), inquiry.UTMSource(), inquiry.UTMMedium(),
+		inquiry.UTMCampaign(), inquiry.UTMTerm(), inquiry.UTMContent(), inquiry.GAClientID(),
 		string(inquiry.Status()), inquiry.SourceIP(), inquiry.UserAgent(),
 	)
 	created, err := scanInquiry(row)
@@ -183,25 +188,32 @@ type rowScanner interface {
 
 func scanInquiry(row rowScanner) (*domain.Inquiry, error) {
 	var (
-		id, name, phone, status, leadType string
-		email, message                    *string
-		productID                         *string
-		projectID                         *string
-		serviceID                         *string
-		subType                           *string
-		qualifyData                       json.RawMessage
-		attachmentsRaw                    json.RawMessage
-		internalNote                      *string
-		sourceIP                          *string
-		userAgent                         *string
-		createdAt, updatedAt              time.Time
+		id, name, phone, status, leadType, channel string
+		email, message                             *string
+		productID                                  *string
+		projectID                                  *string
+		serviceID                                  *string
+		subType                                    *string
+		qualifyData                                json.RawMessage
+		attachmentsRaw                             json.RawMessage
+		gclid, utmSource, utmMedium                *string
+		utmCampaign, utmTerm, utmContent           *string
+		gaClientID                                 *string
+		internalNote                               *string
+		conversionValue                            *float64
+		adsConversionSyncedAt                      *time.Time
+		sourceIP                                   *string
+		userAgent                                  *string
+		createdAt, updatedAt                       time.Time
 	)
 
 	if err := row.Scan(
 		&id, &name, &phone, &email, &message,
 		&productID, &projectID, &serviceID,
 		&leadType, &subType, &qualifyData, &attachmentsRaw,
-		&status, &internalNote, &sourceIP, &userAgent,
+		&channel, &gclid, &utmSource, &utmMedium, &utmCampaign, &utmTerm, &utmContent, &gaClientID,
+		&status, &internalNote, &conversionValue, &adsConversionSyncedAt,
+		&sourceIP, &userAgent,
 		&createdAt, &updatedAt,
 	); err != nil {
 		return nil, err
@@ -218,7 +230,11 @@ func scanInquiry(row rowScanner) (*domain.Inquiry, error) {
 		id, name, phone, email, message,
 		productID, projectID, serviceID,
 		domain.LeadType(leadType), subType, qualifyData, attachments,
-		domain.InquiryStatus(status), internalNote, sourceIP, userAgent,
+		domain.ContactChannel(channel),
+		gclid, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gaClientID,
+		domain.InquiryStatus(status), internalNote,
+		conversionValue, adsConversionSyncedAt,
+		sourceIP, userAgent,
 		createdAt, updatedAt,
 	), nil
 }

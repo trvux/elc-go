@@ -17,6 +17,8 @@ func CreateInquiry(
 		input.Email, input.Message,
 		input.ProductID, input.ProjectID, input.ServiceID,
 		input.LeadType, input.SubType, input.QualifyData, input.Attachments,
+		input.Channel,
+		input.GCLID, input.UTMSource, input.UTMMedium, input.UTMCampaign, input.UTMTerm, input.UTMContent, input.GAClientID,
 		input.SourceIP, input.UserAgent,
 	)
 	if err != nil {

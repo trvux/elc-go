@@ -54,6 +54,31 @@ func (t LeadType) IsValid() bool {
 	}
 }
 
+// ContactChannel is HOW the visitor reached out — independent of LeadType,
+// which is WHAT they were looking at (product/service/project/general).
+// Same "what vs how" split reasoning as LeadType/SubType above. "form" is
+// the only channel that captures name/phone up front, at submission time;
+// the other 3 are recorded the moment the visitor clicks a Zalo/Messenger/
+// Hotline link (see internal/inquiry/presentation's POST /inquiries/clicks)
+// — staff fill in identity later, once they actually talk to the customer.
+type ContactChannel string
+
+const (
+	ChannelForm      ContactChannel = "form"
+	ChannelZalo      ContactChannel = "zalo"
+	ChannelMessenger ContactChannel = "messenger"
+	ChannelHotline   ContactChannel = "hotline"
+)
+
+func (c ContactChannel) IsValid() bool {
+	switch c {
+	case ChannelForm, ChannelZalo, ChannelMessenger, ChannelHotline:
+		return true
+	default:
+		return false
+	}
+}
+
 // Inquiry is a customer-submitted request for consultation/quote from the
 // public site. At most one of ProductID/ProjectID/ServiceID is set — which
 // one tells you what the customer was looking at, so no separate "source
@@ -72,12 +97,29 @@ type Inquiry struct {
 	subType      *string
 	qualifyData  json.RawMessage
 	attachments  []string
+	channel      ContactChannel
 	status       InquiryStatus
 	internalNote *string
-	sourceIP     *string
-	userAgent    *string
-	createdAt    time.Time
-	updatedAt    time.Time
+	// conversionValue/adsConversionSyncedAt are set later, when staff marks
+	// the lead 'converted' and the outcome is pushed to GA4/Ads — see
+	// internal/inquiry/application/update_inquiry_status.go.
+	conversionValue       *float64
+	adsConversionSyncedAt *time.Time
+	sourceIP              *string
+	userAgent             *string
+	// gclid/utm*/gaClientID are captured at creation time from the
+	// visitor's own attribution cookie (see elc-temp's middleware.ts) — the
+	// only way to later tie a real sale back to the ad/campaign that
+	// produced it.
+	gclid       *string
+	utmSource   *string
+	utmMedium   *string
+	utmCampaign *string
+	utmTerm     *string
+	utmContent  *string
+	gaClientID  *string
+	createdAt   time.Time
+	updatedAt   time.Time
 }
 
 // NewInquiry validates and creates a new Inquiry from a public form
@@ -88,14 +130,27 @@ func NewInquiry(
 	email, message *string,
 	productID, projectID, serviceID *string,
 	leadType LeadType, subType *string, qualifyData json.RawMessage, attachments []string,
+	channel ContactChannel,
+	gclid, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gaClientID *string,
 	sourceIP, userAgent *string,
 ) (*Inquiry, error) {
 	fields := map[string][]string{}
 
-	if errs := validateName(name); len(errs) > 0 {
+	if channel == "" {
+		channel = ChannelForm
+	}
+	if !channel.IsValid() {
+		fields["channel"] = []string{"invalid channel"}
+	}
+
+	// Only the on-site form captures identity up front — a click-origin
+	// lead (Zalo/Messenger/Hotline) has no name/phone yet, staff fill those
+	// in later once they actually talk to the customer.
+	requireIdentity := channel == ChannelForm
+	if errs := validateName(name, requireIdentity); len(errs) > 0 {
 		fields["name"] = errs
 	}
-	if errs := validatePhone(phone); len(errs) > 0 {
+	if errs := validatePhone(phone, requireIdentity); len(errs) > 0 {
 		fields["phone"] = errs
 	}
 	if errs := validateEmail(email); len(errs) > 0 {
@@ -135,6 +190,14 @@ func NewInquiry(
 		subType:     subType,
 		qualifyData: qualifyData,
 		attachments: attachments,
+		channel:     channel,
+		gclid:       gclid,
+		utmSource:   utmSource,
+		utmMedium:   utmMedium,
+		utmCampaign: utmCampaign,
+		utmTerm:     utmTerm,
+		utmContent:  utmContent,
+		gaClientID:  gaClientID,
 		status:      InquiryStatusNew,
 		sourceIP:    sourceIP,
 		userAgent:   userAgent,
@@ -150,29 +213,43 @@ func RehydrateInquiry(
 	email, message *string,
 	productID, projectID, serviceID *string,
 	leadType LeadType, subType *string, qualifyData json.RawMessage, attachments []string,
+	channel ContactChannel,
+	gclid, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gaClientID *string,
 	status InquiryStatus,
-	internalNote, sourceIP, userAgent *string,
+	internalNote *string,
+	conversionValue *float64, adsConversionSyncedAt *time.Time,
+	sourceIP, userAgent *string,
 	createdAt, updatedAt time.Time,
 ) *Inquiry {
 	return &Inquiry{
-		id:           id,
-		name:         name,
-		phone:        phone,
-		email:        email,
-		message:      message,
-		productID:    productID,
-		projectID:    projectID,
-		serviceID:    serviceID,
-		leadType:     leadType,
-		subType:      subType,
-		qualifyData:  qualifyData,
-		attachments:  attachments,
-		status:       status,
-		internalNote: internalNote,
-		sourceIP:     sourceIP,
-		userAgent:    userAgent,
-		createdAt:    createdAt,
-		updatedAt:    updatedAt,
+		id:                    id,
+		name:                  name,
+		phone:                 phone,
+		email:                 email,
+		message:               message,
+		productID:             productID,
+		projectID:             projectID,
+		serviceID:             serviceID,
+		leadType:              leadType,
+		subType:               subType,
+		qualifyData:           qualifyData,
+		attachments:           attachments,
+		channel:               channel,
+		gclid:                 gclid,
+		utmSource:             utmSource,
+		utmMedium:             utmMedium,
+		utmCampaign:           utmCampaign,
+		utmTerm:               utmTerm,
+		utmContent:            utmContent,
+		gaClientID:            gaClientID,
+		status:                status,
+		internalNote:          internalNote,
+		conversionValue:       conversionValue,
+		adsConversionSyncedAt: adsConversionSyncedAt,
+		sourceIP:              sourceIP,
+		userAgent:             userAgent,
+		createdAt:             createdAt,
+		updatedAt:             updatedAt,
 	}
 }
 
@@ -194,6 +271,17 @@ func (i *Inquiry) SourceIP() *string            { return i.sourceIP }
 func (i *Inquiry) UserAgent() *string           { return i.userAgent }
 func (i *Inquiry) CreatedAt() time.Time         { return i.createdAt }
 func (i *Inquiry) UpdatedAt() time.Time         { return i.updatedAt }
+
+func (i *Inquiry) Channel() ContactChannel           { return i.channel }
+func (i *Inquiry) GCLID() *string                    { return i.gclid }
+func (i *Inquiry) UTMSource() *string                { return i.utmSource }
+func (i *Inquiry) UTMMedium() *string                { return i.utmMedium }
+func (i *Inquiry) UTMCampaign() *string              { return i.utmCampaign }
+func (i *Inquiry) UTMTerm() *string                  { return i.utmTerm }
+func (i *Inquiry) UTMContent() *string               { return i.utmContent }
+func (i *Inquiry) GAClientID() *string               { return i.gaClientID }
+func (i *Inquiry) ConversionValue() *float64         { return i.conversionValue }
+func (i *Inquiry) AdsConversionSyncedAt() *time.Time { return i.adsConversionSyncedAt }
 
 func (i *Inquiry) MarkContacted() {
 	i.status = InquiryStatusContacted
@@ -220,21 +308,33 @@ func (i *Inquiry) SetInternalNote(note *string) {
 	i.updatedAt = time.Now()
 }
 
-func validateName(name string) []string {
+// validateName only requires a non-empty name when requireIdentity is true
+// (channel == ChannelForm) — a click-origin lead has no name yet. The
+// length cap still applies whenever a name IS given, regardless of channel.
+func validateName(name string, requireIdentity bool) []string {
 	var errs []string
 	if strings.TrimSpace(name) == "" {
-		errs = append(errs, "name is required")
-	} else if utf8.RuneCountInString(name) > 255 {
+		if requireIdentity {
+			errs = append(errs, "name is required")
+		}
+		return errs
+	}
+	if utf8.RuneCountInString(name) > 255 {
 		errs = append(errs, "name must not exceed 255 characters")
 	}
 	return errs
 }
 
-func validatePhone(phone string) []string {
+// validatePhone mirrors validateName's requireIdentity behavior.
+func validatePhone(phone string, requireIdentity bool) []string {
 	var errs []string
 	if strings.TrimSpace(phone) == "" {
-		errs = append(errs, "phone is required")
-	} else if utf8.RuneCountInString(phone) > 30 {
+		if requireIdentity {
+			errs = append(errs, "phone is required")
+		}
+		return errs
+	}
+	if utf8.RuneCountInString(phone) > 30 {
 		errs = append(errs, "phone must not exceed 30 characters")
 	}
 	return errs
@@ -291,6 +391,14 @@ type CreateInquiryInput struct {
 	SubType     *string
 	QualifyData json.RawMessage
 	Attachments []string
+	Channel     ContactChannel
+	GCLID       *string
+	UTMSource   *string
+	UTMMedium   *string
+	UTMCampaign *string
+	UTMTerm     *string
+	UTMContent  *string
+	GAClientID  *string
 	SourceIP    *string
 	UserAgent   *string
 }
