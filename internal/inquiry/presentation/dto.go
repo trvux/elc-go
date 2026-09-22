@@ -145,6 +145,13 @@ type createClickRequest struct {
 	// (buildClickQualifyData) alongside form leads' choice-step answers,
 	// same flexible JSONB bag, one less migration for a single debug field.
 	PagePath    *string `json:"page_path"`
+	// The specific product/service/project name, sent by the client (it
+	// already has it in hand — productName/title prop — at click time). A
+	// snapshot at click time, not a live lookup by ProductID/ServiceID/
+	// ProjectID: this module has no dependency on those modules' repos, and
+	// what the customer actually saw named when they clicked is the more
+	// honest record anyway, even if the entity gets renamed later.
+	EntityName  *string `json:"entity_name"`
 	SessionID   *string `json:"session_id"`
 	GCLID       *string `json:"gclid"`
 	UTMSource   *string `json:"utm_source"`
@@ -155,14 +162,21 @@ type createClickRequest struct {
 	GAClientID  *string `json:"ga_client_id"`
 }
 
-func buildClickQualifyData(pagePath *string) json.RawMessage {
-	if pagePath == nil || *pagePath == "" {
+func buildClickQualifyData(pagePath, entityName *string) json.RawMessage {
+	fields := map[string]string{}
+	if pagePath != nil && *pagePath != "" {
+		fields["pagePath"] = *pagePath
+	}
+	if entityName != nil && *entityName != "" {
+		fields["entityName"] = *entityName
+	}
+	if len(fields) == 0 {
 		return json.RawMessage("{}")
 	}
-	encoded, err := json.Marshal(map[string]string{"pagePath": *pagePath})
+	encoded, err := json.Marshal(fields)
 	if err != nil {
-		// Marshaling a single string field cannot realistically fail —
-		// fall back to an empty object rather than propagate an error for
+		// Marshaling plain string fields cannot realistically fail — fall
+		// back to an empty object rather than propagate an error for
 		// what's ultimately a nice-to-have debug field.
 		return json.RawMessage("{}")
 	}

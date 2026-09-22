@@ -139,7 +139,7 @@ func (h *InquiryHandler) CreateClick(w http.ResponseWriter, r *http.Request) {
 		ServiceID:   req.ServiceID,
 		LeadType:    domain.LeadType(req.LeadType),
 		SubType:     req.SubType,
-		QualifyData: buildClickQualifyData(req.PagePath),
+		QualifyData: buildClickQualifyData(req.PagePath, req.EntityName),
 		SessionID:   req.SessionID,
 		GCLID:       req.GCLID,
 		UTMSource:   req.UTMSource,
