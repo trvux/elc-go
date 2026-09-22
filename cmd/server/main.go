@@ -14,6 +14,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
+	adsconversiondomain "github.com/trvux/elc-go/internal/adsconversion/domain"
+	adsconversioninfra "github.com/trvux/elc-go/internal/adsconversion/infrastructure"
 	aiApplication "github.com/trvux/elc-go/internal/ai/application"
 	aiDomain "github.com/trvux/elc-go/internal/ai/domain"
 	aiInfra "github.com/trvux/elc-go/internal/ai/infrastructure"
@@ -196,8 +198,16 @@ func main() {
 		uploader = uploadinfra.NewNoopUploader()
 	}
 
+	var adsNotifier adsconversiondomain.Notifier
+	if measurementID := os.Getenv("GA4_MEASUREMENT_ID"); measurementID != "" && os.Getenv("GA4_API_SECRET") != "" {
+		adsNotifier = adsconversioninfra.NewMeasurementProtocolClient(measurementID, os.Getenv("GA4_API_SECRET"))
+	} else {
+		log.Warn("GA4_MEASUREMENT_ID/GA4_API_SECRET not set — marking a lead converted will not push close_convert_lead to GA4/Ads")
+		adsNotifier = adsconversioninfra.NewNoopNotifier()
+	}
+
 	inquiryRepo := inquiryinfra.NewPostgresInquiryRepository(pool)
-	inquiryHandler := inquirypresentation.NewInquiryHandler(inquiryRepo, uploader)
+	inquiryHandler := inquirypresentation.NewInquiryHandler(inquiryRepo, uploader, adsNotifier, log)
 	inquirypresentation.RegisterRoutes(router, inquiryHandler, tokenIssuer)
 
 	reviewRepo := reviewinfra.NewPostgresReviewRepository(pool)

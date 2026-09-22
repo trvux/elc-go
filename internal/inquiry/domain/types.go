@@ -383,6 +383,18 @@ func (i *Inquiry) SetConversionValue(value *float64) {
 	i.updatedAt = time.Now()
 }
 
+// MarkAdsConversionSynced records that close_convert_lead was successfully
+// pushed to GA4/Ads for this lead — called by
+// application.UpdateInquiryStatus after a successful
+// adsconversion.Notifier.SendCloseConvertLead call, never before (a failed
+// push must leave this nil so cmd/retry-ads-conversion-sync can find and
+// retry it later).
+func (i *Inquiry) MarkAdsConversionSynced() {
+	now := time.Now()
+	i.adsConversionSyncedAt = &now
+	i.updatedAt = now
+}
+
 // validateName only requires a non-empty name when requireIdentity is true
 // (channel == ChannelForm) — a click-origin lead has no name yet. The
 // length cap still applies whenever a name IS given, regardless of channel.

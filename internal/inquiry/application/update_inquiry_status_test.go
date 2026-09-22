@@ -24,7 +24,7 @@ func TestUpdateInquiryStatus(t *testing.T) {
 	seeded := seedInquiry(t, repo)
 	ctx := context.Background()
 
-	updated, err := UpdateInquiryStatus(ctx, repo, UpdateInquiryStatusInput{
+	updated, err := UpdateInquiryStatus(ctx, repo, nil, nil, UpdateInquiryStatusInput{
 		ID:     seeded.ID(),
 		Status: domain.InquiryStatusContacted,
 	})
@@ -40,7 +40,7 @@ func TestUpdateInquiryStatus_NotFound(t *testing.T) {
 	repo := newFakeInquiryRepository()
 	ctx := context.Background()
 
-	_, err := UpdateInquiryStatus(ctx, repo, UpdateInquiryStatusInput{
+	_, err := UpdateInquiryStatus(ctx, repo, nil, nil, UpdateInquiryStatusInput{
 		ID:     "does-not-exist",
 		Status: domain.InquiryStatusContacted,
 	})
@@ -54,7 +54,7 @@ func TestUpdateInquiryStatus_InvalidStatus(t *testing.T) {
 	seeded := seedInquiry(t, repo)
 	ctx := context.Background()
 
-	_, err := UpdateInquiryStatus(ctx, repo, UpdateInquiryStatusInput{
+	_, err := UpdateInquiryStatus(ctx, repo, nil, nil, UpdateInquiryStatusInput{
 		ID:     seeded.ID(),
 		Status: "bogus",
 	})
@@ -69,7 +69,7 @@ func TestUpdateInquiryStatus_InternalNoteOnly(t *testing.T) {
 	ctx := context.Background()
 
 	note := "Called, no answer"
-	updated, err := UpdateInquiryStatus(ctx, repo, UpdateInquiryStatusInput{
+	updated, err := UpdateInquiryStatus(ctx, repo, nil, nil, UpdateInquiryStatusInput{
 		ID:           seeded.ID(),
 		InternalNote: &note,
 	})

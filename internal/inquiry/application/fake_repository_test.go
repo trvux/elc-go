@@ -62,6 +62,28 @@ func (r *fakeInquiryRepository) UpdateDetails(ctx context.Context, inquiry *doma
 	return inquiry, nil
 }
 
+func (r *fakeInquiryRepository) UpdateAdsConversionSync(ctx context.Context, inquiry *domain.Inquiry) (*domain.Inquiry, error) {
+	r.inquiries[inquiry.ID()] = inquiry
+	return inquiry, nil
+}
+
+func (r *fakeInquiryRepository) FindPendingAdsConversionSync(ctx context.Context) ([]*domain.Inquiry, error) {
+	var pending []*domain.Inquiry
+	for _, i := range r.inquiries {
+		if i.Status() != domain.InquiryStatusConverted {
+			continue
+		}
+		if i.AdsConversionSyncedAt() != nil {
+			continue
+		}
+		if i.GAClientID() == nil || *i.GAClientID() == "" {
+			continue
+		}
+		pending = append(pending, i)
+	}
+	return pending, nil
+}
+
 func (r *fakeInquiryRepository) GetAll(ctx context.Context, filter domain.InquiryFilter) ([]*domain.Inquiry, error) {
 	result := make([]*domain.Inquiry, 0, len(r.inquiries))
 	for _, i := range r.inquiries {

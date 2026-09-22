@@ -104,7 +104,7 @@ func TestRecordContactClick_CreatesNewRowOnceThePreviousOneIsClosed(t *testing.T
 		t.Fatalf("first click: expected no error, got %v", err)
 	}
 
-	if _, err := UpdateInquiryStatus(ctx, repo, UpdateInquiryStatusInput{ID: first.ID(), Status: domain.InquiryStatusConverted}); err != nil {
+	if _, err := UpdateInquiryStatus(ctx, repo, nil, nil, UpdateInquiryStatusInput{ID: first.ID(), Status: domain.InquiryStatusConverted}); err != nil {
 		t.Fatalf("unexpected error marking converted: %v", err)
 	}
 

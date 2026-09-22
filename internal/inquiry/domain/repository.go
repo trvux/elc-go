@@ -23,4 +23,12 @@ type InquiryRepository interface {
 	// UpdateDetails persists name/phone/conversion_value changes made via
 	// the entity's own SetIdentity/SetConversionValue mutators.
 	UpdateDetails(ctx context.Context, inquiry *Inquiry) (*Inquiry, error)
+	// UpdateAdsConversionSync persists the ads_conversion_synced_at change
+	// made via the entity's own MarkAdsConversionSynced mutator.
+	UpdateAdsConversionSync(ctx context.Context, inquiry *Inquiry) (*Inquiry, error)
+	// FindPendingAdsConversionSync returns every converted lead whose
+	// close_convert_lead push never succeeded (ads_conversion_synced_at
+	// still nil) and that has a ga_client_id to retry with — used by
+	// cmd/retry-ads-conversion-sync.
+	FindPendingAdsConversionSync(ctx context.Context) ([]*Inquiry, error)
 }

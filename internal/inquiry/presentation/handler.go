@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 
+	adsconversiondomain "github.com/trvux/elc-go/internal/adsconversion/domain"
 	"github.com/trvux/elc-go/internal/inquiry/application"
 	"github.com/trvux/elc-go/internal/inquiry/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
@@ -19,15 +21,19 @@ import (
 type InquiryHandler struct {
 	repo          domain.InquiryRepository
 	uploader      uploaddomain.Uploader
+	notifier      adsconversiondomain.Notifier
+	log           *zap.Logger
 	createLimiter *ratelimit.Limiter
 	uploadLimiter *ratelimit.Limiter
 	clickLimiter  *ratelimit.Limiter
 }
 
-func NewInquiryHandler(repo domain.InquiryRepository, uploader uploaddomain.Uploader) *InquiryHandler {
+func NewInquiryHandler(repo domain.InquiryRepository, uploader uploaddomain.Uploader, notifier adsconversiondomain.Notifier, log *zap.Logger) *InquiryHandler {
 	return &InquiryHandler{
 		repo:     repo,
 		uploader: uploader,
+		notifier: notifier,
+		log:      log,
 		// 5 submissions per IP per 10 minutes — generous enough for a real
 		// visitor to retry a typo, tight enough to blunt a naive spam script.
 		createLimiter: ratelimit.New(5, 10*time.Minute),
@@ -210,7 +216,7 @@ func (h *InquiryHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		InternalNote: req.InternalNote,
 	}
 
-	inquiry, err := application.UpdateInquiryStatus(r.Context(), h.repo, input)
+	inquiry, err := application.UpdateInquiryStatus(r.Context(), h.repo, h.notifier, h.log, input)
 	if err != nil {
 		httpserver.WriteError(w, err)
 		return

@@ -218,6 +218,49 @@ func (r *PostgresInquiryRepository) UpdateDetails(ctx context.Context, inquiry *
 	return updated, nil
 }
 
+func (r *PostgresInquiryRepository) UpdateAdsConversionSync(ctx context.Context, inquiry *domain.Inquiry) (*domain.Inquiry, error) {
+	query := `
+		UPDATE inquiries
+		SET ads_conversion_synced_at = $1, updated_at = now()
+		WHERE id = $2
+		RETURNING ` + inquiryColumns
+
+	row := r.pool.QueryRow(ctx, query, inquiry.AdsConversionSyncedAt(), inquiry.ID())
+	updated, err := scanInquiry(row)
+	if err != nil {
+		return nil, fmt.Errorf("inquiry repository updateAdsConversionSync: %w", err)
+	}
+	return updated, nil
+}
+
+func (r *PostgresInquiryRepository) FindPendingAdsConversionSync(ctx context.Context) ([]*domain.Inquiry, error) {
+	query := `
+		SELECT ` + inquiryColumns + `
+		FROM inquiries
+		WHERE status = 'converted' AND ads_conversion_synced_at IS NULL AND ga_client_id IS NOT NULL
+		ORDER BY created_at`
+
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("inquiry repository findPendingAdsConversionSync: %w", err)
+	}
+	defer rows.Close()
+
+	var inquiries []*domain.Inquiry
+	for rows.Next() {
+		inquiry, err := scanInquiry(rows)
+		if err != nil {
+			return nil, fmt.Errorf("inquiry repository findPendingAdsConversionSync scan: %w", err)
+		}
+		inquiries = append(inquiries, inquiry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("inquiry repository findPendingAdsConversionSync rows: %w", err)
+	}
+
+	return inquiries, nil
+}
+
 // inquiryFilterConditions builds WHERE clauses shared by GetAll/Count so the
 // two queries can never drift out of sync with each other.
 func inquiryFilterConditions(filter domain.InquiryFilter) ([]string, []any) {
