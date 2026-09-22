@@ -30,6 +30,7 @@ func RegisterRoutes(r chi.Router, h *InquiryHandler, verifier httpserver.TokenVe
 			r.Get("/", h.List)
 			r.Get("/count", h.Count)
 			r.Get("/{id}", h.GetByID)
+			r.Patch("/{id}", h.UpdateDetails)
 			r.Patch("/{id}/status", h.UpdateStatus)
 		})
 	})

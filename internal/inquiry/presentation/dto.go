@@ -118,6 +118,18 @@ type updateInquiryStatusRequest struct {
 	InternalNote *string `json:"internal_note"`
 }
 
+// updateInquiryDetailsRequest is the admin-only payload for
+// InquiryHandler.UpdateDetails (PATCH /inquiries/{id}). Name/Phone are
+// plain strings, not *string — the admin dialog always sends its full
+// current draft (same "always send the whole form" posture as
+// updateInquiryStatusRequest's Status), so there's no "omitted" case to
+// distinguish from "cleared".
+type updateInquiryDetailsRequest struct {
+	Name            string   `json:"name"`
+	Phone           string   `json:"phone"`
+	ConversionValue *float64 `json:"conversion_value"`
+}
+
 // createClickRequest is the public payload for a Zalo/Messenger/Hotline
 // contact-link click — see InquiryHandler.CreateClick. No honeypot: unlike
 // createInquiryRequest, every field here is app-controlled/enumerated, the

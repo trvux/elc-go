@@ -349,6 +349,40 @@ func (i *Inquiry) SetInternalNote(note *string) {
 	i.updatedAt = time.Now()
 }
 
+// SetIdentity fills in the customer's name/phone once staff actually reach
+// them — the only way a click-origin lead (created with blank name/phone,
+// see ContactChannel's doc comment) ever gets an identity. Validated the
+// same way the on-site form's name/phone always are (NewInquiry's
+// requireIdentity=true case): once staff are setting this, blank is always
+// a mistake, not a valid "still unknown" state — leave the fields blank in
+// the request instead of calling this if there's nothing to save yet.
+func (i *Inquiry) SetIdentity(name, phone string) error {
+	fields := map[string][]string{}
+	if errs := validateName(name, true); len(errs) > 0 {
+		fields["name"] = errs
+	}
+	if errs := validatePhone(phone, true); len(errs) > 0 {
+		fields["phone"] = errs
+	}
+	if len(fields) > 0 {
+		return apperr.NewValidationError("validation failed", fields)
+	}
+
+	i.name = name
+	i.phone = phone
+	i.updatedAt = time.Now()
+	return nil
+}
+
+// SetConversionValue records the order value once staff mark a lead
+// 'converted' — nil clears it (e.g. status reopened after a mistaken
+// mark). Not validated beyond the type system: any float, including
+// negative or zero, is staff's call to make, not this entity's to police.
+func (i *Inquiry) SetConversionValue(value *float64) {
+	i.conversionValue = value
+	i.updatedAt = time.Now()
+}
+
 // validateName only requires a non-empty name when requireIdentity is true
 // (channel == ChannelForm) — a click-origin lead has no name yet. The
 // length cap still applies whenever a name IS given, regardless of channel.

@@ -20,4 +20,7 @@ type InquiryRepository interface {
 	// UpdateClickContext persists a fresh touch onto an existing click-
 	// origin inquiry — see Inquiry.RefreshClickContext.
 	UpdateClickContext(ctx context.Context, inquiry *Inquiry) (*Inquiry, error)
+	// UpdateDetails persists name/phone/conversion_value changes made via
+	// the entity's own SetIdentity/SetConversionValue mutators.
+	UpdateDetails(ctx context.Context, inquiry *Inquiry) (*Inquiry, error)
 }

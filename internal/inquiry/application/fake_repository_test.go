@@ -57,6 +57,11 @@ func (r *fakeInquiryRepository) UpdateClickContext(ctx context.Context, inquiry 
 	return inquiry, nil
 }
 
+func (r *fakeInquiryRepository) UpdateDetails(ctx context.Context, inquiry *domain.Inquiry) (*domain.Inquiry, error) {
+	r.inquiries[inquiry.ID()] = inquiry
+	return inquiry, nil
+}
+
 func (r *fakeInquiryRepository) GetAll(ctx context.Context, filter domain.InquiryFilter) ([]*domain.Inquiry, error) {
 	result := make([]*domain.Inquiry, 0, len(r.inquiries))
 	for _, i := range r.inquiries {

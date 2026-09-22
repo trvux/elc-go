@@ -219,6 +219,35 @@ func (h *InquiryHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	httpserver.WriteJSON(w, http.StatusOK, toInquiryResponse(inquiry))
 }
 
+// UpdateDetails handles PATCH /inquiries/{id} — staff filling in a click-
+// origin lead's name/phone, and/or recording the order value. Separate
+// from UpdateStatus (PATCH /inquiries/{id}/status) — see
+// domain.UpdateInquiryDetailsInput's doc comment.
+func (h *InquiryHandler) UpdateDetails(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var req updateInquiryDetailsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
+		return
+	}
+
+	input := application.UpdateInquiryDetailsInput{
+		ID:              id,
+		Name:            req.Name,
+		Phone:           req.Phone,
+		ConversionValue: req.ConversionValue,
+	}
+
+	inquiry, err := application.UpdateInquiryDetails(r.Context(), h.repo, input)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toInquiryResponse(inquiry))
+}
+
 func parseInquiryFilter(r *http.Request) domain.InquiryFilter {
 	return domain.InquiryFilter{
 		Status: r.URL.Query().Get("status"),

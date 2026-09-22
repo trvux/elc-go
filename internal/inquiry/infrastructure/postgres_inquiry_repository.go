@@ -203,6 +203,21 @@ func (r *PostgresInquiryRepository) UpdateClickContext(ctx context.Context, inqu
 	return updated, nil
 }
 
+func (r *PostgresInquiryRepository) UpdateDetails(ctx context.Context, inquiry *domain.Inquiry) (*domain.Inquiry, error) {
+	query := `
+		UPDATE inquiries
+		SET name = $1, phone = $2, conversion_value = $3, updated_at = now()
+		WHERE id = $4
+		RETURNING ` + inquiryColumns
+
+	row := r.pool.QueryRow(ctx, query, inquiry.Name(), inquiry.Phone(), inquiry.ConversionValue(), inquiry.ID())
+	updated, err := scanInquiry(row)
+	if err != nil {
+		return nil, fmt.Errorf("inquiry repository updateDetails: %w", err)
+	}
+	return updated, nil
+}
+
 // inquiryFilterConditions builds WHERE clauses shared by GetAll/Count so the
 // two queries can never drift out of sync with each other.
 func inquiryFilterConditions(filter domain.InquiryFilter) ([]string, []any) {
