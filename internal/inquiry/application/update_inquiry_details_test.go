@@ -69,6 +69,27 @@ func TestUpdateInquiryDetails_SetsConversionValue(t *testing.T) {
 	}
 }
 
+func TestUpdateInquiryDetails_SetsConversionValueWithoutIdentityOnAClickOriginLead(t *testing.T) {
+	repo := newFakeInquiryRepository()
+	seeded := seedClickLead(t, repo)
+	ctx := context.Background()
+
+	value := 15_000_000.0
+	updated, err := UpdateInquiryDetails(ctx, repo, UpdateInquiryDetailsInput{
+		ID:              seeded.ID(),
+		ConversionValue: &value,
+	})
+	if err != nil {
+		t.Fatalf("expected no error marking a click-origin lead converted without identity yet, got %v", err)
+	}
+	if updated.ConversionValue() == nil || *updated.ConversionValue() != value {
+		t.Errorf("expected conversion value %v, got %v", value, updated.ConversionValue())
+	}
+	if updated.Name() != "" || updated.Phone() != "" {
+		t.Errorf("expected identity to stay blank, got name=%q phone=%q", updated.Name(), updated.Phone())
+	}
+}
+
 func TestUpdateInquiryDetails_NotFound(t *testing.T) {
 	repo := newFakeInquiryRepository()
 	ctx := context.Background()
