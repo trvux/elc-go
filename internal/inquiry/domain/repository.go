@@ -11,4 +11,13 @@ type InquiryRepository interface {
 	// Update persists status/internal_note changes made via the entity's own
 	// mutator methods (MarkContacted, Close, SetInternalNote, ...).
 	Update(ctx context.Context, inquiry *Inquiry) (*Inquiry, error)
+	// FindOpenBySessionAndChannel returns the most recent still-open (new or
+	// contacted) inquiry for this session+channel, or nil if none exists —
+	// used to collapse repeated contact-channel clicks from the same
+	// visitor into one lead instead of one row per click. See
+	// application.RecordContactClick.
+	FindOpenBySessionAndChannel(ctx context.Context, sessionID string, channel ContactChannel) (*Inquiry, error)
+	// UpdateClickContext persists a fresh touch onto an existing click-
+	// origin inquiry — see Inquiry.RefreshClickContext.
+	UpdateClickContext(ctx context.Context, inquiry *Inquiry) (*Inquiry, error)
 }

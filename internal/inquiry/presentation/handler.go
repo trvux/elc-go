@@ -21,6 +21,7 @@ type InquiryHandler struct {
 	uploader      uploaddomain.Uploader
 	createLimiter *ratelimit.Limiter
 	uploadLimiter *ratelimit.Limiter
+	clickLimiter  *ratelimit.Limiter
 }
 
 func NewInquiryHandler(repo domain.InquiryRepository, uploader uploaddomain.Uploader) *InquiryHandler {
@@ -33,6 +34,11 @@ func NewInquiryHandler(repo domain.InquiryRepository, uploader uploaddomain.Uplo
 		// More generous than createLimiter — a single visitor attaching 3-5
 		// photos to one lead is normal use, not abuse.
 		uploadLimiter: ratelimit.New(20, 10*time.Minute),
+		// Most generous of the three — a visitor legitimately clicking
+		// Zalo/Hotline on several product pages while browsing (or
+		// double-clicking) is normal use, and RecordContactClick's own
+		// session+channel dedup already collapses those into one lead.
+		clickLimiter: ratelimit.New(30, 10*time.Minute),
 	}
 }
 
@@ -96,6 +102,57 @@ func (h *InquiryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpserver.WriteJSON(w, http.StatusCreated, toInquiryResponse(inquiry))
+}
+
+// CreateClick handles a Zalo/Messenger/Hotline contact-link click — public,
+// unauthenticated, same posture as Create but with no honeypot (see
+// createClickRequest's doc comment) and a more generous rate limit.
+// Expected to be called via navigator.sendBeacon from the client (fires
+// even if the page is about to navigate away to zalo.me/m.me/tel:), so the
+// response body is never actually read by the caller — still returns the
+// full inquiryResponse for consistency/debuggability.
+func (h *InquiryHandler) CreateClick(w http.ResponseWriter, r *http.Request) {
+	var req createClickRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpserver.WriteError(w, apperr.NewValidationError("invalid JSON body", nil))
+		return
+	}
+
+	if !h.clickLimiter.Allow(httpserver.ClientIP(r)) {
+		httpserver.WriteError(w, apperr.NewTooManyRequestsError("please try again later"))
+		return
+	}
+
+	sourceIP := httpserver.ClientIP(r)
+	userAgent := r.UserAgent()
+
+	input := domain.CreateContactClickInput{
+		Channel:     domain.ContactChannel(req.Channel),
+		ProductID:   req.ProductID,
+		ProjectID:   req.ProjectID,
+		ServiceID:   req.ServiceID,
+		LeadType:    domain.LeadType(req.LeadType),
+		SubType:     req.SubType,
+		QualifyData: buildClickQualifyData(req.PagePath),
+		SessionID:   req.SessionID,
+		GCLID:       req.GCLID,
+		UTMSource:   req.UTMSource,
+		UTMMedium:   req.UTMMedium,
+		UTMCampaign: req.UTMCampaign,
+		UTMTerm:     req.UTMTerm,
+		UTMContent:  req.UTMContent,
+		GAClientID:  req.GAClientID,
+		SourceIP:    &sourceIP,
+		UserAgent:   &userAgent,
+	}
+
+	inquiry, err := application.RecordContactClick(r.Context(), h.repo, input)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	httpserver.WriteJSON(w, http.StatusOK, toInquiryResponse(inquiry))
 }
 
 func (h *InquiryHandler) List(w http.ResponseWriter, r *http.Request) {

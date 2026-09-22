@@ -27,7 +27,7 @@ func TestPostgresInquiryRepository_CRUD(t *testing.T) {
 
 	inquiry, err := domain.NewInquiry(
 		"Integration Test", "0900000000-test", nil, nil, nil, nil, nil, "", nil, nil, nil,
-		"", nil, nil, nil, nil, nil, nil, nil,
+		"", nil, nil, nil, nil, nil, nil, nil, nil,
 		nil, nil,
 	)
 	if err != nil {

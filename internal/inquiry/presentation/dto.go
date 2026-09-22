@@ -117,3 +117,42 @@ type updateInquiryStatusRequest struct {
 	Status       string  `json:"status"`
 	InternalNote *string `json:"internal_note"`
 }
+
+// createClickRequest is the public payload for a Zalo/Messenger/Hotline
+// contact-link click — see InquiryHandler.CreateClick. No honeypot: unlike
+// createInquiryRequest, every field here is app-controlled/enumerated, the
+// visitor never types anything into this request.
+type createClickRequest struct {
+	Channel   string  `json:"channel"`
+	ProductID *string `json:"product_id"`
+	ProjectID *string `json:"project_id"`
+	ServiceID *string `json:"service_id"`
+	LeadType  string  `json:"lead_type"`
+	SubType   *string `json:"sub_type"`
+	// PagePath isn't its own inquiries column — folded into qualify_data
+	// (buildClickQualifyData) alongside form leads' choice-step answers,
+	// same flexible JSONB bag, one less migration for a single debug field.
+	PagePath    *string `json:"page_path"`
+	SessionID   *string `json:"session_id"`
+	GCLID       *string `json:"gclid"`
+	UTMSource   *string `json:"utm_source"`
+	UTMMedium   *string `json:"utm_medium"`
+	UTMCampaign *string `json:"utm_campaign"`
+	UTMTerm     *string `json:"utm_term"`
+	UTMContent  *string `json:"utm_content"`
+	GAClientID  *string `json:"ga_client_id"`
+}
+
+func buildClickQualifyData(pagePath *string) json.RawMessage {
+	if pagePath == nil || *pagePath == "" {
+		return json.RawMessage("{}")
+	}
+	encoded, err := json.Marshal(map[string]string{"pagePath": *pagePath})
+	if err != nil {
+		// Marshaling a single string field cannot realistically fail —
+		// fall back to an empty object rather than propagate an error for
+		// what's ultimately a nice-to-have debug field.
+		return json.RawMessage("{}")
+	}
+	return encoded
+}

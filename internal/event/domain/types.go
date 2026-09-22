@@ -22,11 +22,18 @@ const (
 	// two modules speak the same vocabulary for a future funnel view
 	// (view_item -> generate_lead conversion rate per product/category).
 	EventGenerateLead EventName = "generate_lead"
+	// EventQualifyLead fires when a visitor clicks a Zalo/Messenger/Hotline
+	// contact link (see internal/inquiry's POST /inquiries/clicks) —
+	// declared intent to reach out, recorded even though (unlike
+	// generate_lead) no name/phone is captured yet at this moment. Not a
+	// GA4 "recommended" event name, but matches the GA4 key event of the
+	// same name already configured as a primary Ads conversion goal.
+	EventQualifyLead EventName = "qualify_lead"
 )
 
 func (n EventName) IsValid() bool {
 	switch n {
-	case EventViewItem, EventGenerateLead:
+	case EventViewItem, EventGenerateLead, EventQualifyLead:
 		return true
 	default:
 		return false

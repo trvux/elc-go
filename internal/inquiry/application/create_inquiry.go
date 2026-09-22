@@ -18,7 +18,11 @@ func CreateInquiry(
 		input.ProductID, input.ProjectID, input.ServiceID,
 		input.LeadType, input.SubType, input.QualifyData, input.Attachments,
 		input.Channel,
-		input.GCLID, input.UTMSource, input.UTMMedium, input.UTMCampaign, input.UTMTerm, input.UTMContent, input.GAClientID,
+		// No session_id here — dedup-by-session is only meaningful for
+		// click-origin leads with no name/phone (see RecordContactClick);
+		// the form always has both, so staff can already tell duplicates
+		// apart.
+		input.GCLID, input.UTMSource, input.UTMMedium, input.UTMCampaign, input.UTMTerm, input.UTMContent, input.GAClientID, nil,
 		input.SourceIP, input.UserAgent,
 	)
 	if err != nil {

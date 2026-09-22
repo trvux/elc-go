@@ -26,7 +26,7 @@ func (r *fakeInquiryRepository) Create(ctx context.Context, inquiry *domain.Inqu
 		inquiry.ProductID(), inquiry.ProjectID(), inquiry.ServiceID(),
 		inquiry.LeadType(), inquiry.SubType(), inquiry.QualifyData(), inquiry.Attachments(),
 		inquiry.Channel(),
-		inquiry.GCLID(), inquiry.UTMSource(), inquiry.UTMMedium(), inquiry.UTMCampaign(), inquiry.UTMTerm(), inquiry.UTMContent(), inquiry.GAClientID(),
+		inquiry.GCLID(), inquiry.UTMSource(), inquiry.UTMMedium(), inquiry.UTMCampaign(), inquiry.UTMTerm(), inquiry.UTMContent(), inquiry.GAClientID(), inquiry.SessionID(),
 		inquiry.Status(), inquiry.InternalNote(),
 		inquiry.ConversionValue(), inquiry.AdsConversionSyncedAt(),
 		inquiry.SourceIP(), inquiry.UserAgent(),
@@ -34,6 +34,27 @@ func (r *fakeInquiryRepository) Create(ctx context.Context, inquiry *domain.Inqu
 	)
 	r.inquiries[id] = created
 	return created, nil
+}
+
+func (r *fakeInquiryRepository) FindOpenBySessionAndChannel(ctx context.Context, sessionID string, channel domain.ContactChannel) (*domain.Inquiry, error) {
+	var found *domain.Inquiry
+	for _, i := range r.inquiries {
+		if i.SessionID() == nil || *i.SessionID() != sessionID || i.Channel() != channel {
+			continue
+		}
+		if i.Status() != domain.InquiryStatusNew && i.Status() != domain.InquiryStatusContacted {
+			continue
+		}
+		if found == nil || i.CreatedAt().After(found.CreatedAt()) {
+			found = i
+		}
+	}
+	return found, nil
+}
+
+func (r *fakeInquiryRepository) UpdateClickContext(ctx context.Context, inquiry *domain.Inquiry) (*domain.Inquiry, error) {
+	r.inquiries[inquiry.ID()] = inquiry
+	return inquiry, nil
 }
 
 func (r *fakeInquiryRepository) GetAll(ctx context.Context, filter domain.InquiryFilter) ([]*domain.Inquiry, error) {

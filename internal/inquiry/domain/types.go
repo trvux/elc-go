@@ -118,8 +118,13 @@ type Inquiry struct {
 	utmTerm     *string
 	utmContent  *string
 	gaClientID  *string
-	createdAt   time.Time
-	updatedAt   time.Time
+	// sessionID (the visitor's own first-party session cookie) is only
+	// populated for click-origin leads — lets POST /inquiries/clicks find
+	// and refresh this row instead of creating a duplicate one on a repeat
+	// click. See RefreshClickContext.
+	sessionID *string
+	createdAt time.Time
+	updatedAt time.Time
 }
 
 // NewInquiry validates and creates a new Inquiry from a public form
@@ -131,7 +136,7 @@ func NewInquiry(
 	productID, projectID, serviceID *string,
 	leadType LeadType, subType *string, qualifyData json.RawMessage, attachments []string,
 	channel ContactChannel,
-	gclid, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gaClientID *string,
+	gclid, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gaClientID, sessionID *string,
 	sourceIP, userAgent *string,
 ) (*Inquiry, error) {
 	fields := map[string][]string{}
@@ -198,6 +203,7 @@ func NewInquiry(
 		utmTerm:     utmTerm,
 		utmContent:  utmContent,
 		gaClientID:  gaClientID,
+		sessionID:   sessionID,
 		status:      InquiryStatusNew,
 		sourceIP:    sourceIP,
 		userAgent:   userAgent,
@@ -214,7 +220,7 @@ func RehydrateInquiry(
 	productID, projectID, serviceID *string,
 	leadType LeadType, subType *string, qualifyData json.RawMessage, attachments []string,
 	channel ContactChannel,
-	gclid, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gaClientID *string,
+	gclid, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gaClientID, sessionID *string,
 	status InquiryStatus,
 	internalNote *string,
 	conversionValue *float64, adsConversionSyncedAt *time.Time,
@@ -242,6 +248,7 @@ func RehydrateInquiry(
 		utmTerm:               utmTerm,
 		utmContent:            utmContent,
 		gaClientID:            gaClientID,
+		sessionID:             sessionID,
 		status:                status,
 		internalNote:          internalNote,
 		conversionValue:       conversionValue,
@@ -282,6 +289,40 @@ func (i *Inquiry) UTMContent() *string               { return i.utmContent }
 func (i *Inquiry) GAClientID() *string               { return i.gaClientID }
 func (i *Inquiry) ConversionValue() *float64         { return i.conversionValue }
 func (i *Inquiry) AdsConversionSyncedAt() *time.Time { return i.adsConversionSyncedAt }
+func (i *Inquiry) SessionID() *string                { return i.sessionID }
+
+// RefreshClickContext updates a click-origin inquiry with the latest touch
+// — called by RecordContactClick when the same visitor (session+channel)
+// clicks a contact link again before this lead is picked up, instead of
+// creating a duplicate row. "Last Google-Ads-touch": entity/lead-type/
+// attribution are overwritten with the newest click's values. Deliberately
+// never touches name/phone/status — those belong to staff once they've
+// actually talked to the customer (see MarkContacted/MarkConverted/Close).
+func (i *Inquiry) RefreshClickContext(
+	leadType LeadType, subType *string,
+	productID, projectID, serviceID *string,
+	qualifyData json.RawMessage,
+	gclid, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gaClientID *string,
+) {
+	if qualifyData == nil {
+		qualifyData = json.RawMessage("{}")
+	}
+
+	i.leadType = leadType
+	i.subType = subType
+	i.productID = productID
+	i.projectID = projectID
+	i.serviceID = serviceID
+	i.qualifyData = qualifyData
+	i.gclid = gclid
+	i.utmSource = utmSource
+	i.utmMedium = utmMedium
+	i.utmCampaign = utmCampaign
+	i.utmTerm = utmTerm
+	i.utmContent = utmContent
+	i.gaClientID = gaClientID
+	i.updatedAt = time.Now()
+}
 
 func (i *Inquiry) MarkContacted() {
 	i.status = InquiryStatusContacted
@@ -392,6 +433,30 @@ type CreateInquiryInput struct {
 	QualifyData json.RawMessage
 	Attachments []string
 	Channel     ContactChannel
+	GCLID       *string
+	UTMSource   *string
+	UTMMedium   *string
+	UTMCampaign *string
+	UTMTerm     *string
+	UTMContent  *string
+	GAClientID  *string
+	SourceIP    *string
+	UserAgent   *string
+}
+
+// CreateContactClickInput is the public-facing payload for a Zalo/
+// Messenger/Hotline click — see POST /inquiries/clicks. No Name/Phone: a
+// click alone never carries the visitor's identity, unlike the on-site
+// form (see requireIdentity in NewInquiry).
+type CreateContactClickInput struct {
+	Channel     ContactChannel
+	ProductID   *string
+	ProjectID   *string
+	ServiceID   *string
+	LeadType    LeadType
+	SubType     *string
+	QualifyData json.RawMessage
+	SessionID   *string
 	GCLID       *string
 	UTMSource   *string
 	UTMMedium   *string

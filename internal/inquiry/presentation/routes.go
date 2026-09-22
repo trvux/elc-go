@@ -20,6 +20,9 @@ func RegisterRoutes(r chi.Router, h *InquiryHandler, verifier httpserver.TokenVe
 		// Public — lets an anonymous visitor attach photos to a lead before
 		// the inquiry itself exists. See UploadAttachment's doc comment.
 		r.Post("/uploads", h.UploadAttachment)
+		// Public — a Zalo/Messenger/Hotline contact-link click, called via
+		// navigator.sendBeacon. See CreateClick's doc comment.
+		r.Post("/clicks", h.CreateClick)
 
 		r.Group(func(r chi.Router) {
 			r.Use(httpserver.RequireAuth(verifier))

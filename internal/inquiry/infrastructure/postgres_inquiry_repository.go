@@ -27,7 +27,7 @@ func NewPostgresInquiryRepository(pool *pgxpool.Pool) *PostgresInquiryRepository
 
 const inquiryColumns = `id, name, phone, email, message, product_id, project_id, service_id,
 	lead_type, sub_type, qualify_data, attachments,
-	channel, gclid, utm_source, utm_medium, utm_campaign, utm_term, utm_content, ga_client_id,
+	channel, gclid, utm_source, utm_medium, utm_campaign, utm_term, utm_content, ga_client_id, session_id,
 	status, internal_note, conversion_value, ads_conversion_synced_at,
 	source_ip, user_agent, created_at, updated_at`
 
@@ -36,10 +36,10 @@ func (r *PostgresInquiryRepository) Create(ctx context.Context, inquiry *domain.
 		INSERT INTO inquiries (
 			name, phone, email, message, product_id, project_id, service_id,
 			lead_type, sub_type, qualify_data, attachments,
-			channel, gclid, utm_source, utm_medium, utm_campaign, utm_term, utm_content, ga_client_id,
+			channel, gclid, utm_source, utm_medium, utm_campaign, utm_term, utm_content, ga_client_id, session_id,
 			status, source_ip, user_agent
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 		RETURNING ` + inquiryColumns
 
 	// attachments is a domain []string — marshaled to JSON here so pgx sends
@@ -68,7 +68,7 @@ func (r *PostgresInquiryRepository) Create(ctx context.Context, inquiry *domain.
 		inquiry.ProductID(), inquiry.ProjectID(), inquiry.ServiceID(),
 		string(inquiry.LeadType()), inquiry.SubType(), inquiry.QualifyData(), attachmentsJSON,
 		string(inquiry.Channel()), inquiry.GCLID(), inquiry.UTMSource(), inquiry.UTMMedium(),
-		inquiry.UTMCampaign(), inquiry.UTMTerm(), inquiry.UTMContent(), inquiry.GAClientID(),
+		inquiry.UTMCampaign(), inquiry.UTMTerm(), inquiry.UTMContent(), inquiry.GAClientID(), inquiry.SessionID(),
 		string(inquiry.Status()), inquiry.SourceIP(), inquiry.UserAgent(),
 	)
 	created, err := scanInquiry(row)
@@ -161,6 +161,48 @@ func (r *PostgresInquiryRepository) Update(ctx context.Context, inquiry *domain.
 	return updated, nil
 }
 
+func (r *PostgresInquiryRepository) FindOpenBySessionAndChannel(ctx context.Context, sessionID string, channel domain.ContactChannel) (*domain.Inquiry, error) {
+	query := `
+		SELECT ` + inquiryColumns + `
+		FROM inquiries
+		WHERE session_id = $1 AND channel = $2 AND status IN ('new', 'contacted')
+		ORDER BY created_at DESC
+		LIMIT 1`
+
+	row := r.pool.QueryRow(ctx, query, sessionID, string(channel))
+	inquiry, err := scanInquiry(row)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("inquiry repository findOpenBySessionAndChannel: %w", err)
+	}
+	return inquiry, nil
+}
+
+func (r *PostgresInquiryRepository) UpdateClickContext(ctx context.Context, inquiry *domain.Inquiry) (*domain.Inquiry, error) {
+	query := `
+		UPDATE inquiries
+		SET lead_type = $1, sub_type = $2, product_id = $3, project_id = $4, service_id = $5,
+			qualify_data = $6,
+			gclid = $7, utm_source = $8, utm_medium = $9, utm_campaign = $10, utm_term = $11, utm_content = $12, ga_client_id = $13,
+			updated_at = now()
+		WHERE id = $14
+		RETURNING ` + inquiryColumns
+
+	row := r.pool.QueryRow(ctx, query,
+		string(inquiry.LeadType()), inquiry.SubType(), inquiry.ProductID(), inquiry.ProjectID(), inquiry.ServiceID(),
+		inquiry.QualifyData(),
+		inquiry.GCLID(), inquiry.UTMSource(), inquiry.UTMMedium(), inquiry.UTMCampaign(), inquiry.UTMTerm(), inquiry.UTMContent(), inquiry.GAClientID(),
+		inquiry.ID(),
+	)
+	updated, err := scanInquiry(row)
+	if err != nil {
+		return nil, fmt.Errorf("inquiry repository updateClickContext: %w", err)
+	}
+	return updated, nil
+}
+
 // inquiryFilterConditions builds WHERE clauses shared by GetAll/Count so the
 // two queries can never drift out of sync with each other.
 func inquiryFilterConditions(filter domain.InquiryFilter) ([]string, []any) {
@@ -199,6 +241,7 @@ func scanInquiry(row rowScanner) (*domain.Inquiry, error) {
 		gclid, utmSource, utmMedium                *string
 		utmCampaign, utmTerm, utmContent           *string
 		gaClientID                                 *string
+		sessionID                                  *string
 		internalNote                               *string
 		conversionValue                            *float64
 		adsConversionSyncedAt                      *time.Time
@@ -211,7 +254,7 @@ func scanInquiry(row rowScanner) (*domain.Inquiry, error) {
 		&id, &name, &phone, &email, &message,
 		&productID, &projectID, &serviceID,
 		&leadType, &subType, &qualifyData, &attachmentsRaw,
-		&channel, &gclid, &utmSource, &utmMedium, &utmCampaign, &utmTerm, &utmContent, &gaClientID,
+		&channel, &gclid, &utmSource, &utmMedium, &utmCampaign, &utmTerm, &utmContent, &gaClientID, &sessionID,
 		&status, &internalNote, &conversionValue, &adsConversionSyncedAt,
 		&sourceIP, &userAgent,
 		&createdAt, &updatedAt,
@@ -231,7 +274,7 @@ func scanInquiry(row rowScanner) (*domain.Inquiry, error) {
 		productID, projectID, serviceID,
 		domain.LeadType(leadType), subType, qualifyData, attachments,
 		domain.ContactChannel(channel),
-		gclid, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gaClientID,
+		gclid, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gaClientID, sessionID,
 		domain.InquiryStatus(status), internalNote,
 		conversionValue, adsConversionSyncedAt,
 		sourceIP, userAgent,
