@@ -16,6 +16,7 @@ func CreateInquiry(
 		input.Name, input.Phone,
 		input.Email, input.Message,
 		input.ProductID, input.ProjectID, input.ServiceID,
+		input.LeadType, input.SubType, input.QualifyData, input.Attachments,
 		input.SourceIP, input.UserAgent,
 	)
 	if err != nil {

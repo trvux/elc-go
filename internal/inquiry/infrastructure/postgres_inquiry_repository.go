@@ -2,6 +2,7 @@ package infrastructure
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -25,17 +26,44 @@ func NewPostgresInquiryRepository(pool *pgxpool.Pool) *PostgresInquiryRepository
 }
 
 const inquiryColumns = `id, name, phone, email, message, product_id, project_id, service_id,
+	lead_type, sub_type, qualify_data, attachments,
 	status, internal_note, source_ip, user_agent, created_at, updated_at`
 
 func (r *PostgresInquiryRepository) Create(ctx context.Context, inquiry *domain.Inquiry) (*domain.Inquiry, error) {
 	query := `
-		INSERT INTO inquiries (name, phone, email, message, product_id, project_id, service_id, status, source_ip, user_agent)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO inquiries (
+			name, phone, email, message, product_id, project_id, service_id,
+			lead_type, sub_type, qualify_data, attachments,
+			status, source_ip, user_agent
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING ` + inquiryColumns
+
+	// attachments is a domain []string — marshaled to JSON here so pgx sends
+	// it as a jsonb value rather than encoding a Go slice as a postgres
+	// array; qualifyData is already json.RawMessage (raw bytes), same as
+	// how internal/page's Content field is inserted as-is. A nil slice
+	// marshals to JSON `null`, not `[]` — normalize so the stored value
+	// matches the column's `[]` default instead of a JSON null.
+	attachments := inquiry.Attachments()
+	if attachments == nil {
+		attachments = []string{}
+	}
+	attachmentsBytes, err := json.Marshal(attachments)
+	if err != nil {
+		return nil, fmt.Errorf("inquiry repository create: marshal attachments: %w", err)
+	}
+	// Cast to json.RawMessage, not plain []byte — pgx's default type map
+	// sends plain []byte through the bytea codec (wrong wire format for a
+	// jsonb column: "invalid input syntax for type json"), but recognizes
+	// json.RawMessage specifically and sends it as JSON text, same as
+	// qualifyData below.
+	attachmentsJSON := json.RawMessage(attachmentsBytes)
 
 	row := r.pool.QueryRow(ctx, query,
 		inquiry.Name(), inquiry.Phone(), inquiry.Email(), inquiry.Message(),
 		inquiry.ProductID(), inquiry.ProjectID(), inquiry.ServiceID(),
+		string(inquiry.LeadType()), inquiry.SubType(), inquiry.QualifyData(), attachmentsJSON,
 		string(inquiry.Status()), inquiry.SourceIP(), inquiry.UserAgent(),
 	)
 	created, err := scanInquiry(row)
@@ -155,29 +183,41 @@ type rowScanner interface {
 
 func scanInquiry(row rowScanner) (*domain.Inquiry, error) {
 	var (
-		id, name, phone, status string
-		email, message          *string
-		productID               *string
-		projectID               *string
-		serviceID               *string
-		internalNote            *string
-		sourceIP                *string
-		userAgent               *string
-		createdAt, updatedAt    time.Time
+		id, name, phone, status, leadType string
+		email, message                    *string
+		productID                         *string
+		projectID                         *string
+		serviceID                         *string
+		subType                           *string
+		qualifyData                       json.RawMessage
+		attachmentsRaw                    json.RawMessage
+		internalNote                      *string
+		sourceIP                          *string
+		userAgent                         *string
+		createdAt, updatedAt              time.Time
 	)
 
 	if err := row.Scan(
 		&id, &name, &phone, &email, &message,
 		&productID, &projectID, &serviceID,
+		&leadType, &subType, &qualifyData, &attachmentsRaw,
 		&status, &internalNote, &sourceIP, &userAgent,
 		&createdAt, &updatedAt,
 	); err != nil {
 		return nil, err
 	}
 
+	var attachments []string
+	if len(attachmentsRaw) > 0 {
+		if err := json.Unmarshal(attachmentsRaw, &attachments); err != nil {
+			return nil, fmt.Errorf("inquiry repository scan: unmarshal attachments: %w", err)
+		}
+	}
+
 	return domain.RehydrateInquiry(
 		id, name, phone, email, message,
 		productID, projectID, serviceID,
+		domain.LeadType(leadType), subType, qualifyData, attachments,
 		domain.InquiryStatus(status), internalNote, sourceIP, userAgent,
 		createdAt, updatedAt,
 	), nil

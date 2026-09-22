@@ -12,20 +12,27 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
 	"github.com/trvux/elc-go/internal/platform/ratelimit"
+	uploaddomain "github.com/trvux/elc-go/internal/upload/domain"
 )
 
 // InquiryHandler is the composition root for the inquiry module.
 type InquiryHandler struct {
 	repo          domain.InquiryRepository
+	uploader      uploaddomain.Uploader
 	createLimiter *ratelimit.Limiter
+	uploadLimiter *ratelimit.Limiter
 }
 
-func NewInquiryHandler(repo domain.InquiryRepository) *InquiryHandler {
+func NewInquiryHandler(repo domain.InquiryRepository, uploader uploaddomain.Uploader) *InquiryHandler {
 	return &InquiryHandler{
-		repo: repo,
+		repo:     repo,
+		uploader: uploader,
 		// 5 submissions per IP per 10 minutes — generous enough for a real
 		// visitor to retry a typo, tight enough to blunt a naive spam script.
 		createLimiter: ratelimit.New(5, 10*time.Minute),
+		// More generous than createLimiter — a single visitor attaching 3-5
+		// photos to one lead is normal use, not abuse.
+		uploadLimiter: ratelimit.New(20, 10*time.Minute),
 	}
 }
 
@@ -59,15 +66,19 @@ func (h *InquiryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	userAgent := r.UserAgent()
 
 	input := domain.CreateInquiryInput{
-		Name:      req.Name,
-		Phone:     req.Phone,
-		Email:     req.Email,
-		Message:   req.Message,
-		ProductID: req.ProductID,
-		ProjectID: req.ProjectID,
-		ServiceID: req.ServiceID,
-		SourceIP:  &sourceIP,
-		UserAgent: &userAgent,
+		Name:        req.Name,
+		Phone:       req.Phone,
+		Email:       req.Email,
+		Message:     req.Message,
+		ProductID:   req.ProductID,
+		ProjectID:   req.ProjectID,
+		ServiceID:   req.ServiceID,
+		LeadType:    domain.LeadType(req.LeadType),
+		SubType:     req.SubType,
+		QualifyData: req.QualifyData,
+		Attachments: req.Attachments,
+		SourceIP:    &sourceIP,
+		UserAgent:   &userAgent,
 	}
 
 	inquiry, err := application.CreateInquiry(r.Context(), h.repo, input)

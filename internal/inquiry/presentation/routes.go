@@ -17,6 +17,9 @@ import (
 func RegisterRoutes(r chi.Router, h *InquiryHandler, verifier httpserver.TokenVerifier) {
 	r.Route("/inquiries", func(r chi.Router) {
 		r.Post("/", h.Create)
+		// Public — lets an anonymous visitor attach photos to a lead before
+		// the inquiry itself exists. See UploadAttachment's doc comment.
+		r.Post("/uploads", h.UploadAttachment)
 
 		r.Group(func(r chi.Router) {
 			r.Use(httpserver.RequireAuth(verifier))

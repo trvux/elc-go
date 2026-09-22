@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -29,6 +30,30 @@ func (s InquiryStatus) IsValid() bool {
 	}
 }
 
+// LeadType is which of the lead-capture form's 3 branches (or none) the
+// visitor went through. Recorded independently of ProductID/ProjectID/
+// ServiceID because a visitor can pick "Bỏ qua, chỉ cần tư vấn chung" at
+// every catalog picker and still tell us which branch they were in — admin
+// needs to filter/prioritize by branch regardless of whether a concrete
+// catalog entity ended up linked.
+type LeadType string
+
+const (
+	LeadTypeProduct LeadType = "product"
+	LeadTypeService LeadType = "service"
+	LeadTypeProject LeadType = "project"
+	LeadTypeGeneral LeadType = "general"
+)
+
+func (t LeadType) IsValid() bool {
+	switch t {
+	case LeadTypeProduct, LeadTypeService, LeadTypeProject, LeadTypeGeneral:
+		return true
+	default:
+		return false
+	}
+}
+
 // Inquiry is a customer-submitted request for consultation/quote from the
 // public site. At most one of ProductID/ProjectID/ServiceID is set — which
 // one tells you what the customer was looking at, so no separate "source
@@ -43,6 +68,10 @@ type Inquiry struct {
 	productID    *string
 	projectID    *string
 	serviceID    *string
+	leadType     LeadType
+	subType      *string
+	qualifyData  json.RawMessage
+	attachments  []string
 	status       InquiryStatus
 	internalNote *string
 	sourceIP     *string
@@ -58,6 +87,7 @@ func NewInquiry(
 	name, phone string,
 	email, message *string,
 	productID, projectID, serviceID *string,
+	leadType LeadType, subType *string, qualifyData json.RawMessage, attachments []string,
 	sourceIP, userAgent *string,
 ) (*Inquiry, error) {
 	fields := map[string][]string{}
@@ -74,25 +104,42 @@ func NewInquiry(
 	if errs := validateSingleEntity(productID, projectID, serviceID); len(errs) > 0 {
 		fields["entity"] = errs
 	}
+	if leadType == "" {
+		leadType = LeadTypeGeneral
+	}
+	if !leadType.IsValid() {
+		fields["leadType"] = []string{"invalid lead type"}
+	}
+	if errs := validateAttachments(attachments); len(errs) > 0 {
+		fields["attachments"] = errs
+	}
 
 	if len(fields) > 0 {
 		return nil, apperr.NewValidationError("validation failed", fields)
 	}
 
+	if qualifyData == nil {
+		qualifyData = json.RawMessage("{}")
+	}
+
 	now := time.Now()
 	return &Inquiry{
-		name:      name,
-		phone:     phone,
-		email:     email,
-		message:   message,
-		productID: productID,
-		projectID: projectID,
-		serviceID: serviceID,
-		status:    InquiryStatusNew,
-		sourceIP:  sourceIP,
-		userAgent: userAgent,
-		createdAt: now,
-		updatedAt: now,
+		name:        name,
+		phone:       phone,
+		email:       email,
+		message:     message,
+		productID:   productID,
+		projectID:   projectID,
+		serviceID:   serviceID,
+		leadType:    leadType,
+		subType:     subType,
+		qualifyData: qualifyData,
+		attachments: attachments,
+		status:      InquiryStatusNew,
+		sourceIP:    sourceIP,
+		userAgent:   userAgent,
+		createdAt:   now,
+		updatedAt:   now,
 	}, nil
 }
 
@@ -102,6 +149,7 @@ func RehydrateInquiry(
 	id, name, phone string,
 	email, message *string,
 	productID, projectID, serviceID *string,
+	leadType LeadType, subType *string, qualifyData json.RawMessage, attachments []string,
 	status InquiryStatus,
 	internalNote, sourceIP, userAgent *string,
 	createdAt, updatedAt time.Time,
@@ -115,6 +163,10 @@ func RehydrateInquiry(
 		productID:    productID,
 		projectID:    projectID,
 		serviceID:    serviceID,
+		leadType:     leadType,
+		subType:      subType,
+		qualifyData:  qualifyData,
+		attachments:  attachments,
 		status:       status,
 		internalNote: internalNote,
 		sourceIP:     sourceIP,
@@ -124,20 +176,24 @@ func RehydrateInquiry(
 	}
 }
 
-func (i *Inquiry) ID() string            { return i.id }
-func (i *Inquiry) Name() string          { return i.name }
-func (i *Inquiry) Phone() string         { return i.phone }
-func (i *Inquiry) Email() *string        { return i.email }
-func (i *Inquiry) Message() *string      { return i.message }
-func (i *Inquiry) ProductID() *string    { return i.productID }
-func (i *Inquiry) ProjectID() *string    { return i.projectID }
-func (i *Inquiry) ServiceID() *string    { return i.serviceID }
-func (i *Inquiry) Status() InquiryStatus { return i.status }
-func (i *Inquiry) InternalNote() *string { return i.internalNote }
-func (i *Inquiry) SourceIP() *string     { return i.sourceIP }
-func (i *Inquiry) UserAgent() *string    { return i.userAgent }
-func (i *Inquiry) CreatedAt() time.Time  { return i.createdAt }
-func (i *Inquiry) UpdatedAt() time.Time  { return i.updatedAt }
+func (i *Inquiry) ID() string                   { return i.id }
+func (i *Inquiry) Name() string                 { return i.name }
+func (i *Inquiry) Phone() string                { return i.phone }
+func (i *Inquiry) Email() *string               { return i.email }
+func (i *Inquiry) Message() *string             { return i.message }
+func (i *Inquiry) ProductID() *string           { return i.productID }
+func (i *Inquiry) ProjectID() *string           { return i.projectID }
+func (i *Inquiry) ServiceID() *string           { return i.serviceID }
+func (i *Inquiry) LeadType() LeadType           { return i.leadType }
+func (i *Inquiry) SubType() *string             { return i.subType }
+func (i *Inquiry) QualifyData() json.RawMessage { return i.qualifyData }
+func (i *Inquiry) Attachments() []string        { return i.attachments }
+func (i *Inquiry) Status() InquiryStatus        { return i.status }
+func (i *Inquiry) InternalNote() *string        { return i.internalNote }
+func (i *Inquiry) SourceIP() *string            { return i.sourceIP }
+func (i *Inquiry) UserAgent() *string           { return i.userAgent }
+func (i *Inquiry) CreatedAt() time.Time         { return i.createdAt }
+func (i *Inquiry) UpdatedAt() time.Time         { return i.updatedAt }
 
 func (i *Inquiry) MarkContacted() {
 	i.status = InquiryStatusContacted
@@ -207,17 +263,36 @@ func validateSingleEntity(productID, projectID, serviceID *string) []string {
 	return nil
 }
 
+// validateAttachments caps the lead-form's photo upload step at 6 images —
+// matches the limit enforced client-side in createInquirySchema (Zod), kept
+// here too since the public endpoint can't rely on the client alone.
+func validateAttachments(attachments []string) []string {
+	if len(attachments) > 6 {
+		return []string{"at most 6 attachments allowed"}
+	}
+	for _, a := range attachments {
+		if strings.TrimSpace(a) == "" {
+			return []string{"attachment url must not be empty"}
+		}
+	}
+	return nil
+}
+
 // CreateInquiryInput is the public-facing create payload.
 type CreateInquiryInput struct {
-	Name      string
-	Phone     string
-	Email     *string
-	Message   *string
-	ProductID *string
-	ProjectID *string
-	ServiceID *string
-	SourceIP  *string
-	UserAgent *string
+	Name        string
+	Phone       string
+	Email       *string
+	Message     *string
+	ProductID   *string
+	ProjectID   *string
+	ServiceID   *string
+	LeadType    LeadType
+	SubType     *string
+	QualifyData json.RawMessage
+	Attachments []string
+	SourceIP    *string
+	UserAgent   *string
 }
 
 // InquiryFilter drives the admin list view.

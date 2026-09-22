@@ -24,6 +24,7 @@ func (r *fakeInquiryRepository) Create(ctx context.Context, inquiry *domain.Inqu
 		id, inquiry.Name(), inquiry.Phone(),
 		inquiry.Email(), inquiry.Message(),
 		inquiry.ProductID(), inquiry.ProjectID(), inquiry.ServiceID(),
+		inquiry.LeadType(), inquiry.SubType(), inquiry.QualifyData(), inquiry.Attachments(),
 		inquiry.Status(), inquiry.InternalNote(), inquiry.SourceIP(), inquiry.UserAgent(),
 		inquiry.CreatedAt(), inquiry.UpdatedAt(),
 	)

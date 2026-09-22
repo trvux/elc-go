@@ -182,8 +182,22 @@ func main() {
 	contactHandler := contactpresentation.NewContactHandler(contactRepo)
 	contactpresentation.RegisterRoutes(router, contactHandler, tokenIssuer)
 
+	// Constructed here (rather than down by uploadHandler below) because
+	// InquiryHandler also needs it — for the public POST /inquiries/uploads
+	// attachment endpoint — not just the admin upload module.
+	var uploader uploaddomain.Uploader
+	if r2AccountID := os.Getenv("R2_ACCOUNT_ID"); r2AccountID != "" {
+		uploader = uploadinfra.NewR2Uploader(
+			r2AccountID, os.Getenv("R2_ACCESS_KEY_ID"), os.Getenv("R2_SECRET_ACCESS_KEY"),
+			os.Getenv("R2_BUCKET_NAME"), os.Getenv("R2_PUBLIC_URL"),
+		)
+	} else {
+		log.Warn("R2_ACCOUNT_ID not set — image uploads will fail until R2 is configured")
+		uploader = uploadinfra.NewNoopUploader()
+	}
+
 	inquiryRepo := inquiryinfra.NewPostgresInquiryRepository(pool)
-	inquiryHandler := inquirypresentation.NewInquiryHandler(inquiryRepo)
+	inquiryHandler := inquirypresentation.NewInquiryHandler(inquiryRepo, uploader)
 	inquirypresentation.RegisterRoutes(router, inquiryHandler, tokenIssuer)
 
 	reviewRepo := reviewinfra.NewPostgresReviewRepository(pool)
@@ -338,16 +352,6 @@ func main() {
 	slugRegistryHandler := slugregistrypresentation.NewSlugRegistryHandler(slugRegistryRepo)
 	slugregistrypresentation.RegisterRoutes(router, slugRegistryHandler)
 
-	var uploader uploaddomain.Uploader
-	if r2AccountID := os.Getenv("R2_ACCOUNT_ID"); r2AccountID != "" {
-		uploader = uploadinfra.NewR2Uploader(
-			r2AccountID, os.Getenv("R2_ACCESS_KEY_ID"), os.Getenv("R2_SECRET_ACCESS_KEY"),
-			os.Getenv("R2_BUCKET_NAME"), os.Getenv("R2_PUBLIC_URL"),
-		)
-	} else {
-		log.Warn("R2_ACCOUNT_ID not set — image uploads will fail until R2 is configured")
-		uploader = uploadinfra.NewNoopUploader()
-	}
 	uploadHandler := uploadpresentation.NewUploadHandler(uploader, uploadinfra.NewImageCropper())
 	uploadpresentation.RegisterRoutes(router, uploadHandler, tokenIssuer)
 

@@ -1,22 +1,30 @@
 package presentation
 
-import "github.com/trvux/elc-go/internal/inquiry/domain"
+import (
+	"encoding/json"
+
+	"github.com/trvux/elc-go/internal/inquiry/domain"
+)
 
 // inquiryResponse is what the admin panel sees over HTTP — separate from
 // domain.Inquiry so the entity's internal shape can evolve independently.
 type inquiryResponse struct {
-	ID           string  `json:"id"`
-	Name         string  `json:"name"`
-	Phone        string  `json:"phone"`
-	Email        *string `json:"email"`
-	Message      *string `json:"message"`
-	ProductID    *string `json:"product_id"`
-	ProjectID    *string `json:"project_id"`
-	ServiceID    *string `json:"service_id"`
-	Status       string  `json:"status"`
-	InternalNote *string `json:"internal_note"`
-	CreatedAt    string  `json:"created_at"`
-	UpdatedAt    string  `json:"updated_at"`
+	ID           string          `json:"id"`
+	Name         string          `json:"name"`
+	Phone        string          `json:"phone"`
+	Email        *string         `json:"email"`
+	Message      *string         `json:"message"`
+	ProductID    *string         `json:"product_id"`
+	ProjectID    *string         `json:"project_id"`
+	ServiceID    *string         `json:"service_id"`
+	LeadType     string          `json:"lead_type"`
+	SubType      *string         `json:"sub_type"`
+	QualifyData  json.RawMessage `json:"qualify_data"`
+	Attachments  []string        `json:"attachments"`
+	Status       string          `json:"status"`
+	InternalNote *string         `json:"internal_note"`
+	CreatedAt    string          `json:"created_at"`
+	UpdatedAt    string          `json:"updated_at"`
 }
 
 func toInquiryResponse(i *domain.Inquiry) inquiryResponse {
@@ -29,6 +37,10 @@ func toInquiryResponse(i *domain.Inquiry) inquiryResponse {
 		ProductID:    i.ProductID(),
 		ProjectID:    i.ProjectID(),
 		ServiceID:    i.ServiceID(),
+		LeadType:     string(i.LeadType()),
+		SubType:      i.SubType(),
+		QualifyData:  i.QualifyData(),
+		Attachments:  i.Attachments(),
 		Status:       string(i.Status()),
 		InternalNote: i.InternalNote(),
 		CreatedAt:    i.CreatedAt().Format(timeFormat),
@@ -50,14 +62,18 @@ const timeFormat = "2006-01-02T15:04:05Z07:00"
 // a hidden field real visitors never see or fill; a bot that fills every
 // field on the page trips it. See InquiryHandler.Create.
 type createInquiryRequest struct {
-	Name      string  `json:"name"`
-	Phone     string  `json:"phone"`
-	Email     *string `json:"email"`
-	Message   *string `json:"message"`
-	ProductID *string `json:"product_id"`
-	ProjectID *string `json:"project_id"`
-	ServiceID *string `json:"service_id"`
-	Website   string  `json:"website"`
+	Name        string          `json:"name"`
+	Phone       string          `json:"phone"`
+	Email       *string         `json:"email"`
+	Message     *string         `json:"message"`
+	ProductID   *string         `json:"product_id"`
+	ProjectID   *string         `json:"project_id"`
+	ServiceID   *string         `json:"service_id"`
+	LeadType    string          `json:"lead_type"`
+	SubType     *string         `json:"sub_type"`
+	QualifyData json.RawMessage `json:"qualify_data"`
+	Attachments []string        `json:"attachments"`
+	Website     string          `json:"website"`
 }
 
 type updateInquiryStatusRequest struct {
