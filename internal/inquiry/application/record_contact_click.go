@@ -41,10 +41,11 @@ func RecordContactClick(ctx context.Context, repo domain.InquiryRepository, inpu
 			return nil, fmt.Errorf("record contact click: find open: %w", err)
 		}
 		if existing != nil {
+			mergedQualifyData := domain.AppendInterestTouch(existing.QualifyData(), input.QualifyData)
 			existing.RefreshClickContext(
 				input.LeadType, input.SubType,
 				input.ProductID, input.ProjectID, input.ServiceID,
-				input.QualifyData,
+				mergedQualifyData,
 				input.GCLID, input.UTMSource, input.UTMMedium, input.UTMCampaign, input.UTMTerm, input.UTMContent, input.GAClientID,
 			)
 			updated, err := repo.UpdateClickContext(ctx, existing)
@@ -55,10 +56,11 @@ func RecordContactClick(ctx context.Context, repo domain.InquiryRepository, inpu
 		}
 	}
 
+	seededQualifyData := domain.AppendInterestTouch(nil, input.QualifyData)
 	inquiry, err := domain.NewInquiry(
 		"", "", nil, nil,
 		input.ProductID, input.ProjectID, input.ServiceID,
-		input.LeadType, input.SubType, input.QualifyData, nil,
+		input.LeadType, input.SubType, seededQualifyData, nil,
 		input.Channel,
 		input.GCLID, input.UTMSource, input.UTMMedium, input.UTMCampaign, input.UTMTerm, input.UTMContent, input.GAClientID, input.SessionID,
 		input.SourceIP, input.UserAgent,

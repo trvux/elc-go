@@ -10,35 +10,37 @@ import (
 // inquiryResponse is what the admin panel sees over HTTP — separate from
 // domain.Inquiry so the entity's internal shape can evolve independently.
 type inquiryResponse struct {
-	ID                    string          `json:"id"`
-	Name                  string          `json:"name"`
-	Phone                 string          `json:"phone"`
-	Email                 *string         `json:"email"`
-	Message               *string         `json:"message"`
-	ProductID             *string         `json:"product_id"`
-	ProjectID             *string         `json:"project_id"`
-	ServiceID             *string         `json:"service_id"`
-	LeadType              string          `json:"lead_type"`
-	SubType               *string         `json:"sub_type"`
-	QualifyData           json.RawMessage `json:"qualify_data"`
-	Attachments           []string        `json:"attachments"`
-	Channel               string          `json:"channel"`
-	GCLID                 *string         `json:"gclid"`
-	UTMSource             *string         `json:"utm_source"`
-	UTMMedium             *string         `json:"utm_medium"`
-	UTMCampaign           *string         `json:"utm_campaign"`
-	UTMTerm               *string         `json:"utm_term"`
-	UTMContent            *string         `json:"utm_content"`
-	GAClientID            *string         `json:"ga_client_id"`
-	Status                string          `json:"status"`
-	InternalNote          *string         `json:"internal_note"`
-	ConversionValue       *float64        `json:"conversion_value"`
-	AdsConversionSyncedAt *string         `json:"ads_conversion_synced_at"`
-	CreatedAt             string          `json:"created_at"`
-	UpdatedAt             string          `json:"updated_at"`
+	ID                    string                 `json:"id"`
+	Name                  string                 `json:"name"`
+	Phone                 string                 `json:"phone"`
+	Email                 *string                `json:"email"`
+	Message               *string                `json:"message"`
+	ProductID             *string                `json:"product_id"`
+	ProjectID             *string                `json:"project_id"`
+	ServiceID             *string                `json:"service_id"`
+	LeadType              string                 `json:"lead_type"`
+	SubType               *string                `json:"sub_type"`
+	QualifyData           json.RawMessage        `json:"qualify_data"`
+	InterestHistory       []domain.InterestTouch `json:"interest_history"`
+	Attachments           []string               `json:"attachments"`
+	Channel               string                 `json:"channel"`
+	GCLID                 *string                `json:"gclid"`
+	UTMSource             *string                `json:"utm_source"`
+	UTMMedium             *string                `json:"utm_medium"`
+	UTMCampaign           *string                `json:"utm_campaign"`
+	UTMTerm               *string                `json:"utm_term"`
+	UTMContent            *string                `json:"utm_content"`
+	GAClientID            *string                `json:"ga_client_id"`
+	Status                string                 `json:"status"`
+	InternalNote          *string                `json:"internal_note"`
+	ConversionValue       *float64               `json:"conversion_value"`
+	AdsConversionSyncedAt *string                `json:"ads_conversion_synced_at"`
+	CreatedAt             string                 `json:"created_at"`
+	UpdatedAt             string                 `json:"updated_at"`
 }
 
 func toInquiryResponse(i *domain.Inquiry) inquiryResponse {
+	cleanQualifyData, interestHistory := splitInterestHistory(i.QualifyData())
 	return inquiryResponse{
 		ID:                    i.ID(),
 		Name:                  i.Name(),
@@ -50,7 +52,8 @@ func toInquiryResponse(i *domain.Inquiry) inquiryResponse {
 		ServiceID:             i.ServiceID(),
 		LeadType:              string(i.LeadType()),
 		SubType:               i.SubType(),
-		QualifyData:           i.QualifyData(),
+		QualifyData:           cleanQualifyData,
+		InterestHistory:       interestHistory,
 		Attachments:           i.Attachments(),
 		Channel:               string(i.Channel()),
 		GCLID:                 i.GCLID(),
@@ -67,6 +70,40 @@ func toInquiryResponse(i *domain.Inquiry) inquiryResponse {
 		CreatedAt:             i.CreatedAt().Format(timeFormat),
 		UpdatedAt:             i.UpdatedAt().Format(timeFormat),
 	}
+}
+
+// splitInterestHistory pulls the "interestHistory" key (see
+// domain.AppendInterestTouch) out of a click-origin lead's qualify_data and
+// returns it as its own typed field, plus the remainder unchanged — the
+// admin's generic "Thông tin khảo sát" key/value list isn't built to render
+// an array, and this gets its own dedicated timeline UI instead. A blank/
+// nil raw or one with no interestHistory key returns it as-is with a nil
+// slice — every other qualify_data shape (form-origin leads' choice-step
+// answers) round-trips untouched.
+func splitInterestHistory(raw json.RawMessage) (json.RawMessage, []domain.InterestTouch) {
+	if len(raw) == 0 {
+		return raw, nil
+	}
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return raw, nil
+	}
+
+	historyRaw, ok := fields["interestHistory"]
+	if !ok {
+		return raw, nil
+	}
+
+	var history []domain.InterestTouch
+	_ = json.Unmarshal(historyRaw, &history)
+
+	delete(fields, "interestHistory")
+	cleaned, err := json.Marshal(fields)
+	if err != nil {
+		return raw, history
+	}
+	return cleaned, history
 }
 
 func formatOptionalTime(t *time.Time) *string {
@@ -144,7 +181,7 @@ type createClickRequest struct {
 	// PagePath isn't its own inquiries column — folded into qualify_data
 	// (buildClickQualifyData) alongside form leads' choice-step answers,
 	// same flexible JSONB bag, one less migration for a single debug field.
-	PagePath    *string `json:"page_path"`
+	PagePath *string `json:"page_path"`
 	// The specific product/service/project name, sent by the client (it
 	// already has it in hand — productName/title prop — at click time). A
 	// snapshot at click time, not a live lookup by ProductID/ServiceID/

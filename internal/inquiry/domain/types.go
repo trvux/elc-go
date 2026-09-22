@@ -294,10 +294,17 @@ func (i *Inquiry) SessionID() *string                { return i.sessionID }
 // RefreshClickContext updates a click-origin inquiry with the latest touch
 // — called by RecordContactClick when the same visitor (session+channel)
 // clicks a contact link again before this lead is picked up, instead of
-// creating a duplicate row. "Last Google-Ads-touch": entity/lead-type/
-// attribution are overwritten with the newest click's values. Deliberately
-// never touches name/phone/status — those belong to staff once they've
-// actually talked to the customer (see MarkContacted/MarkConverted/Close).
+// creating a duplicate row. "Last Google-Ads-touch": leadType/product/
+// project/service and attribution (gclid/UTM) are overwritten with the
+// newest click's values — those describe "what to act on now"/"how to
+// attribute this lead", where only the latest touch makes sense. qualifyData
+// is the one exception: the caller (RecordContactClick) is expected to have
+// already folded the new touch into the existing qualifyData's running
+// interestHistory (see AppendInterestTouch) before calling this, so the
+// visitor's full browsing trail survives repeat clicks instead of each one
+// erasing the last. Deliberately never touches name/phone/status — those
+// belong to staff once they've actually talked to the customer (see
+// MarkContacted/MarkConverted/Close).
 func (i *Inquiry) RefreshClickContext(
 	leadType LeadType, subType *string,
 	productID, projectID, serviceID *string,

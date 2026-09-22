@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/trvux/elc-go/internal/inquiry/domain"
@@ -72,6 +73,55 @@ func TestRecordContactClick_DedupsSameSessionAndChannelWhileOpen(t *testing.T) {
 	}
 	if count != 1 {
 		t.Errorf("expected exactly 1 row after 2 clicks in the same open session+channel, got %d", count)
+	}
+}
+
+func TestRecordContactClick_DedupKeepsFullInterestHistoryNotJustLatestTouch(t *testing.T) {
+	repo := newFakeInquiryRepository()
+	ctx := context.Background()
+	sessionID := "session-1"
+
+	qualifyA := json.RawMessage(`{"entityName":"Máy lạnh Daikin FTKB25ZVMV","pagePath":"/san-pham/a"}`)
+	first, err := RecordContactClick(ctx, repo, domain.CreateContactClickInput{
+		Channel:     domain.ChannelZalo,
+		SessionID:   &sessionID,
+		QualifyData: qualifyA,
+	})
+	if err != nil {
+		t.Fatalf("first click: expected no error, got %v", err)
+	}
+
+	qualifyB := json.RawMessage(`{"entityName":"Vệ sinh bảo trì các dòng máy lạnh","pagePath":"/dich-vu"}`)
+	second, err := RecordContactClick(ctx, repo, domain.CreateContactClickInput{
+		Channel:     domain.ChannelZalo,
+		SessionID:   &sessionID,
+		QualifyData: qualifyB,
+	})
+	if err != nil {
+		t.Fatalf("second click: expected no error, got %v", err)
+	}
+	if second.ID() != first.ID() {
+		t.Fatalf("expected dedup onto the same row, got a new id (%s vs %s)", second.ID(), first.ID())
+	}
+
+	var got struct {
+		EntityName      string                 `json:"entityName"`
+		InterestHistory []domain.InterestTouch `json:"interestHistory"`
+	}
+	if err := json.Unmarshal(second.QualifyData(), &got); err != nil {
+		t.Fatalf("unexpected error unmarshaling qualify_data: %v", err)
+	}
+	if got.EntityName != "Vệ sinh bảo trì các dòng máy lạnh" {
+		t.Errorf("expected top-level entityName to still be the latest touch, got %q", got.EntityName)
+	}
+	if len(got.InterestHistory) != 2 {
+		t.Fatalf("expected both touches preserved in interestHistory, got %d entries: %+v", len(got.InterestHistory), got.InterestHistory)
+	}
+	if got.InterestHistory[0].EntityName != "Máy lạnh Daikin FTKB25ZVMV" {
+		t.Errorf("expected first entry to be the first click's entity, got %q", got.InterestHistory[0].EntityName)
+	}
+	if got.InterestHistory[1].EntityName != "Vệ sinh bảo trì các dòng máy lạnh" {
+		t.Errorf("expected second entry to be the second click's entity, got %q", got.InterestHistory[1].EntityName)
 	}
 }
 
