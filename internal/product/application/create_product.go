@@ -105,23 +105,32 @@ func resolveDefaultVariant(variants []domain.ProductVariantInput) ([]domain.Prod
 	return variants, nil
 }
 
-// validateVariantPrices rejects a price no real retail product can have —
-// previously unenforced anywhere (see
-// docs/rfc/2026-08-18-product-data-anomaly-detection.md §2.1): a customer-
-// facing price of 0 or less always means bad data entry, never a genuine
-// price, and this is the data internal/ai's search_products tool grounds
-// its answers in. Doesn't check SalePrice against OriginalPrice or
+// validateVariantPrices rejects a price no real retail product can ever
+// have — previously unenforced anywhere (see
+// docs/rfc/2026-08-18-product-data-anomaly-detection.md §2.1). That RFC
+// originally treated 0 itself as invalid too, on the assumption every
+// standalone product in this catalog has a real listed price. Confirmed
+// wrong 2026-09-22: several supplier lines (Menred khí tươi/lọc nước) never
+// get a price from the distributor at all — "Liên hệ" is the genuine,
+// permanent price for those, not a data-entry gap to chase down. 0 is
+// already the established sentinel for that everywhere else in the system
+// (modules/catalog/domain/price.ts's formatPrice renders any price <= 0 as
+// "Liên hệ", and internal/ai's product_search_tool already nils out
+// PriceFrom/PriceTo <= 0 so the AI chat tool never cites it as a real
+// number) — so 0 on write should match 0's meaning on read. Only negative
+// prices are still rejected; those are never valid under any
+// interpretation. Doesn't check SalePrice against OriginalPrice or
 // anything else — out of this RFC's scope.
 func validateVariantPrices(variants []domain.ProductVariantInput) error {
 	for i, v := range variants {
-		if v.OriginalPrice <= 0 {
+		if v.OriginalPrice < 0 {
 			return apperr.NewValidationError("validation failed", map[string][]string{
-				"variants": {fmt.Sprintf("variant %d: original price must be greater than 0", i)},
+				"variants": {fmt.Sprintf("variant %d: original price cannot be negative", i)},
 			})
 		}
-		if v.SalePrice != nil && *v.SalePrice <= 0 {
+		if v.SalePrice != nil && *v.SalePrice < 0 {
 			return apperr.NewValidationError("validation failed", map[string][]string{
-				"variants": {fmt.Sprintf("variant %d: sale price must be greater than 0", i)},
+				"variants": {fmt.Sprintf("variant %d: sale price cannot be negative", i)},
 			})
 		}
 	}

@@ -1,6 +1,6 @@
 # RFC: Phát hiện data khả nghi (giá ≤ 0, spec lệch bất thường) — tự động, không nhập tay
 
-- **Status**: Completed — merged `42bc9f3` (price ≤0 + statistical spec-outlier detection).
+- **Status**: Completed — merged `42bc9f3` (price ≤0 + statistical spec-outlier detection). **Amended 2026-09-22**: §2.1's "price ≤ 0 always means bad data entry" assumption (flagged at merge time in §3 as needing confirmation) is confirmed wrong — several supplier lines (Menred khí tươi/lọc nước) never get a price from the distributor, "Liên hệ" is genuine and permanent for those. Validation loosened to reject negative prices only; 0 is accepted, matching the sentinel §2.3 already relies on (`formatPrice` renders any price ≤0 as "Liên hệ", `product_search_tool` already nils out ≤0 prices before the AI ever sees them). See `internal/product/application/create_product.go`'s `validateVariantPrices`.
 - **Date**: 2026-08-18
 - **Tác giả**: Trần Vũ (với hỗ trợ Claude Code)
 - **Scope**: `internal/product` (validate giá + cột đánh dấu spec bất thường), `cmd/detect-attribute-anomalies` (mới), `internal/ai/infrastructure/product_search_tool.go` (dùng kết quả để không trích dẫn data khả nghi cho khách)
