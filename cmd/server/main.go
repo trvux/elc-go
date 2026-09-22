@@ -37,6 +37,8 @@ import (
 	contactpresentation "github.com/trvux/elc-go/internal/contact/presentation"
 	eventinfra "github.com/trvux/elc-go/internal/event/infrastructure"
 	eventpresentation "github.com/trvux/elc-go/internal/event/presentation"
+	faqinfra "github.com/trvux/elc-go/internal/faq/infrastructure"
+	faqpresentation "github.com/trvux/elc-go/internal/faq/presentation"
 	groupinfra "github.com/trvux/elc-go/internal/group/infrastructure"
 	grouppresentation "github.com/trvux/elc-go/internal/group/presentation"
 	hppageinfra "github.com/trvux/elc-go/internal/hp-page/infrastructure"
@@ -213,6 +215,10 @@ func main() {
 	reviewRepo := reviewinfra.NewPostgresReviewRepository(pool)
 	reviewHandler := reviewpresentation.NewReviewHandler(reviewRepo)
 	reviewpresentation.RegisterRoutes(router, reviewHandler, tokenIssuer)
+
+	faqRepo := faqinfra.NewPostgresFAQRepository(pool)
+	faqHandler := faqpresentation.NewFAQHandler(faqRepo)
+	faqpresentation.RegisterRoutes(router, faqHandler, tokenIssuer)
 
 	eventRepo := eventinfra.NewPostgresEventRepository(pool)
 	eventHandler := eventpresentation.NewEventHandler(eventRepo)
