@@ -82,6 +82,7 @@ func (r *fakePageRepository) Create(ctx context.Context, page *domain.Page) (*do
 	created := domain.RehydratePage(
 		id,
 		page.Title(),
+		page.TitleAlign(),
 		page.Slug(),
 		page.Content(),
 		page.IsPublished(),
@@ -114,6 +115,7 @@ func (r *fakePageRepository) Delete(ctx context.Context, id string) error {
 		deleted := domain.RehydratePage(
 			p.ID(),
 			p.Title(),
+			p.TitleAlign(),
 			p.Slug(),
 			p.Content(),
 			p.IsPublished(),
@@ -138,6 +140,7 @@ func (r *fakePageRepository) Restore(ctx context.Context, id string) error {
 		restored := domain.RehydratePage(
 			p.ID(),
 			p.Title(),
+			p.TitleAlign(),
 			p.Slug(),
 			p.Content(),
 			p.IsPublished(),

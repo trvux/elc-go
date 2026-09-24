@@ -19,6 +19,7 @@ func UpdatePage(ctx context.Context, repo domain.PageRepository, input domain.Up
 	if err := p.Update(
 		input.Title,
 		input.Slug,
+		input.TitleAlign,
 		input.Content,
 		input.IsPublished,
 		input.MetaTitle,

@@ -28,7 +28,7 @@ func TestPostgresPageRepository_CRUD(t *testing.T) {
 
 	content := json.RawMessage(`{"text": "test"}`)
 	p, err := domain.NewPage(
-		"ELC Page Integration", "elc-page-integration-xyz", content,
+		"ELC Page Integration", "elc-page-integration-xyz", "", content,
 		true, nil, nil, 999,
 	)
 	if err != nil {
@@ -65,7 +65,7 @@ func TestPostgresPageRepository_CRUD(t *testing.T) {
 	}
 
 	// Update page
-	if err := fetched.Update("ELC Page Integration Updated", "elc-page-integration-xyz", content, true, nil, nil, 999); err != nil {
+	if err := fetched.Update("ELC Page Integration Updated", "elc-page-integration-xyz", "", content, true, nil, nil, 999); err != nil {
 		t.Fatalf("Update entity failed: %v", err)
 	}
 	updated, err := repo.Update(ctx, fetched)

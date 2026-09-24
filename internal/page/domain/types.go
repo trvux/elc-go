@@ -11,6 +11,7 @@ import (
 type Page struct {
 	id              string
 	title           string
+	titleAlign      string
 	slug            string
 	content         json.RawMessage
 	isPublished     bool
@@ -22,8 +23,27 @@ type Page struct {
 	deletedAt       *time.Time
 }
 
+// TitleAlign values — see internal/news/domain/types.go's identical
+// TitleAlignLeft/Center/Right + validTitleAlign for the original pattern
+// this mirrors.
+const (
+	TitleAlignLeft   = "left"
+	TitleAlignCenter = "center"
+	TitleAlignRight  = "right"
+)
+
+func validTitleAlign(v string) bool {
+	switch v {
+	case TitleAlignLeft, TitleAlignCenter, TitleAlignRight:
+		return true
+	default:
+		return false
+	}
+}
+
 func NewPage(
 	title, slug string,
+	titleAlign string,
 	content json.RawMessage,
 	isPublished bool,
 	metaTitle, metaDescription *string,
@@ -42,6 +62,11 @@ func NewPage(
 	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
 		fieldErrors["metaDescription"] = errs
 	}
+	if titleAlign == "" {
+		titleAlign = TitleAlignLeft
+	} else if !validTitleAlign(titleAlign) {
+		fieldErrors["titleAlign"] = []string{"titleAlign must be 'left', 'center' or 'right'"}
+	}
 	if len(fieldErrors) > 0 {
 		return nil, apperr.NewValidationError("invalid page input", fieldErrors)
 	}
@@ -52,6 +77,7 @@ func NewPage(
 
 	return &Page{
 		title:           title,
+		titleAlign:      titleAlign,
 		slug:            slug,
 		content:         content,
 		isPublished:     isPublished,
@@ -63,7 +89,9 @@ func NewPage(
 
 func RehydratePage(
 	id string,
-	title, slug string,
+	title string,
+	titleAlign string,
+	slug string,
 	content json.RawMessage,
 	isPublished bool,
 	metaTitle, metaDescription *string,
@@ -74,6 +102,7 @@ func RehydratePage(
 	return &Page{
 		id:              id,
 		title:           title,
+		titleAlign:      titleAlign,
 		slug:            slug,
 		content:         content,
 		isPublished:     isPublished,
@@ -88,6 +117,7 @@ func RehydratePage(
 
 func (p *Page) ID() string               { return p.id }
 func (p *Page) Title() string            { return p.title }
+func (p *Page) TitleAlign() string       { return p.titleAlign }
 func (p *Page) Slug() string             { return p.slug }
 func (p *Page) Content() json.RawMessage { return p.content }
 func (p *Page) IsPublished() bool        { return p.isPublished }
@@ -100,6 +130,7 @@ func (p *Page) DeletedAt() *time.Time    { return p.deletedAt }
 
 func (p *Page) Update(
 	title, slug string,
+	titleAlign string,
 	content json.RawMessage,
 	isPublished bool,
 	metaTitle, metaDescription *string,
@@ -111,6 +142,11 @@ func (p *Page) Update(
 	}
 	if slug == "" {
 		fieldErrors["slug"] = []string{"slug cannot be empty"}
+	}
+	if titleAlign == "" {
+		titleAlign = TitleAlignLeft
+	} else if !validTitleAlign(titleAlign) {
+		fieldErrors["titleAlign"] = []string{"titleAlign must be 'left', 'center' or 'right'"}
 	}
 	// Only re-validate a meta field against the length limit if it's
 	// actually changing — Update always resends the whole record (no
@@ -132,6 +168,7 @@ func (p *Page) Update(
 	}
 
 	p.title = title
+	p.titleAlign = titleAlign
 	p.slug = slug
 	if content != nil {
 		p.content = content
@@ -146,6 +183,7 @@ func (p *Page) Update(
 
 type CreatePageInput struct {
 	Title           string          `json:"title"`
+	TitleAlign      string          `json:"title_align"`
 	Slug            string          `json:"slug"`
 	Content         json.RawMessage `json:"content"`
 	IsPublished     bool            `json:"is_published"`
@@ -157,6 +195,7 @@ type CreatePageInput struct {
 type UpdatePageInput struct {
 	ID              string          `json:"id"`
 	Title           string          `json:"title"`
+	TitleAlign      string          `json:"title_align"`
 	Slug            string          `json:"slug"`
 	Content         json.RawMessage `json:"content"`
 	IsPublished     bool            `json:"is_published"`

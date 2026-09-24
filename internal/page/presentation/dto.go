@@ -10,6 +10,7 @@ import (
 type PageDTO struct {
 	ID              string          `json:"id"`
 	Title           string          `json:"title"`
+	TitleAlign      string          `json:"title_align"`
 	Slug            string          `json:"slug"`
 	Content         json.RawMessage `json:"content"`
 	IsPublished     bool            `json:"is_published"`
@@ -25,6 +26,7 @@ func toPageDTO(p *domain.Page) PageDTO {
 	return PageDTO{
 		ID:              p.ID(),
 		Title:           p.Title(),
+		TitleAlign:      p.TitleAlign(),
 		Slug:            p.Slug(),
 		Content:         p.Content(),
 		IsPublished:     p.IsPublished(),

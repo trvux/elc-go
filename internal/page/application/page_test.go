@@ -3,9 +3,11 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/trvux/elc-go/internal/page/domain"
+	"github.com/trvux/elc-go/internal/platform/apperr"
 )
 
 func TestPageUseCases(t *testing.T) {
@@ -29,6 +31,9 @@ func TestPageUseCases(t *testing.T) {
 
 	if created.ID() == "" || created.Title() != "Test Page" || created.Slug() != "test-page" {
 		t.Errorf("unexpected created page state: %+v", created)
+	}
+	if created.TitleAlign() != domain.TitleAlignLeft {
+		t.Errorf("expected titleAlign to default to left, got %s", created.TitleAlign())
 	}
 
 	// 2. Get pages
@@ -56,6 +61,7 @@ func TestPageUseCases(t *testing.T) {
 	updateInput := domain.UpdatePageInput{
 		ID:          created.ID(),
 		Title:       "Updated Page Title",
+		TitleAlign:  domain.TitleAlignCenter,
 		Slug:        "updated-page-slug",
 		Content:     content,
 		IsPublished: false,
@@ -67,6 +73,9 @@ func TestPageUseCases(t *testing.T) {
 	}
 	if updated.Title() != "Updated Page Title" || updated.Slug() != "updated-page-slug" || updated.IsPublished() != false {
 		t.Errorf("unexpected updated page state: %+v", updated)
+	}
+	if updated.TitleAlign() != domain.TitleAlignCenter {
+		t.Errorf("expected titleAlign updated to center, got %s", updated.TitleAlign())
 	}
 
 	// 5. Delete page
@@ -96,5 +105,39 @@ func TestPageUseCases(t *testing.T) {
 	}
 	if found == nil || found.DeletedAt() != nil {
 		t.Error("expected page to be restored and active")
+	}
+}
+
+func TestCreatePage_InvalidTitleAlign(t *testing.T) {
+	ctx := context.Background()
+	repo := newFakePageRepository()
+
+	_, err := CreatePage(ctx, repo, domain.CreatePageInput{
+		Title: "Test Page", Slug: "test-page", TitleAlign: "sideways",
+	})
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != "VALIDATION_ERROR" {
+		t.Fatalf("expected VALIDATION_ERROR, got %v", err)
+	}
+	if len(appErr.Fields["titleAlign"]) == 0 {
+		t.Errorf("expected titleAlign field error, got %v", appErr.Fields)
+	}
+}
+
+func TestUpdatePage_InvalidTitleAlign(t *testing.T) {
+	ctx := context.Background()
+	repo := newFakePageRepository()
+
+	created, _ := CreatePage(ctx, repo, domain.CreatePageInput{Title: "Test Page", Slug: "test-page"})
+
+	_, err := UpdatePage(ctx, repo, domain.UpdatePageInput{
+		ID: created.ID(), Title: "Test Page", Slug: "test-page", TitleAlign: "sideways",
+	})
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != "VALIDATION_ERROR" {
+		t.Fatalf("expected VALIDATION_ERROR, got %v", err)
+	}
+	if len(appErr.Fields["titleAlign"]) == 0 {
+		t.Errorf("expected titleAlign field error, got %v", appErr.Fields)
 	}
 }

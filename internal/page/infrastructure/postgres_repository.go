@@ -24,7 +24,7 @@ func NewPostgresPageRepository(pool *pgxpool.Pool) *PostgresPageRepository {
 
 func (r *PostgresPageRepository) GetAll(ctx context.Context, filter domain.PageFilter) ([]*domain.Page, error) {
 	query := `
-		SELECT id, title, slug, content, is_published, meta_title, meta_description, order_index, created_at, updated_at, deleted_at
+		SELECT id, title, title_align, slug, content, is_published, meta_title, meta_description, order_index, created_at, updated_at, deleted_at
 		FROM pages
 		WHERE 1=1`
 	args := []any{}
@@ -117,7 +117,7 @@ func (r *PostgresPageRepository) Count(ctx context.Context, filter domain.PageFi
 
 func (r *PostgresPageRepository) GetByID(ctx context.Context, id string) (*domain.Page, error) {
 	query := `
-		SELECT id, title, slug, content, is_published, meta_title, meta_description, order_index, created_at, updated_at, deleted_at
+		SELECT id, title, title_align, slug, content, is_published, meta_title, meta_description, order_index, created_at, updated_at, deleted_at
 		FROM pages
 		WHERE id = $1 AND deleted_at IS NULL`
 
@@ -134,7 +134,7 @@ func (r *PostgresPageRepository) GetByID(ctx context.Context, id string) (*domai
 
 func (r *PostgresPageRepository) GetBySlug(ctx context.Context, slug string) (*domain.Page, error) {
 	query := `
-		SELECT id, title, slug, content, is_published, meta_title, meta_description, order_index, created_at, updated_at, deleted_at
+		SELECT id, title, title_align, slug, content, is_published, meta_title, meta_description, order_index, created_at, updated_at, deleted_at
 		FROM pages
 		WHERE slug = $1 AND deleted_at IS NULL`
 
@@ -151,22 +151,22 @@ func (r *PostgresPageRepository) GetBySlug(ctx context.Context, slug string) (*d
 
 func (r *PostgresPageRepository) Create(ctx context.Context, p *domain.Page) (*domain.Page, error) {
 	query := `
-		INSERT INTO pages (title, slug, content, is_published, meta_title, meta_description, order_index, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+		INSERT INTO pages (title, title_align, slug, content, is_published, meta_title, meta_description, order_index, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
 		RETURNING id, created_at, updated_at`
 
 	var id string
 	var createdAt, updatedAt time.Time
 
 	err := r.pool.QueryRow(ctx, query,
-		p.Title(), p.Slug(), p.Content(), p.IsPublished(), p.MetaTitle(), p.MetaDescription(), p.OrderIndex(),
+		p.Title(), p.TitleAlign(), p.Slug(), p.Content(), p.IsPublished(), p.MetaTitle(), p.MetaDescription(), p.OrderIndex(),
 	).Scan(&id, &createdAt, &updatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("page repository create: %w", err)
 	}
 
 	return domain.RehydratePage(
-		id, p.Title(), p.Slug(), p.Content(), p.IsPublished(), p.MetaTitle(), p.MetaDescription(), p.OrderIndex(),
+		id, p.Title(), p.TitleAlign(), p.Slug(), p.Content(), p.IsPublished(), p.MetaTitle(), p.MetaDescription(), p.OrderIndex(),
 		createdAt, updatedAt, nil,
 	), nil
 }
@@ -174,13 +174,13 @@ func (r *PostgresPageRepository) Create(ctx context.Context, p *domain.Page) (*d
 func (r *PostgresPageRepository) Update(ctx context.Context, p *domain.Page) (*domain.Page, error) {
 	query := `
 		UPDATE pages
-		SET title = $1, slug = $2, content = $3, is_published = $4, meta_title = $5, meta_description = $6, order_index = $7, updated_at = NOW()
-		WHERE id = $8 AND deleted_at IS NULL
+		SET title = $1, title_align = $2, slug = $3, content = $4, is_published = $5, meta_title = $6, meta_description = $7, order_index = $8, updated_at = NOW()
+		WHERE id = $9 AND deleted_at IS NULL
 		RETURNING updated_at`
 
 	var updatedAt time.Time
 	err := r.pool.QueryRow(ctx, query,
-		p.Title(), p.Slug(), p.Content(), p.IsPublished(), p.MetaTitle(), p.MetaDescription(), p.OrderIndex(), p.ID(),
+		p.Title(), p.TitleAlign(), p.Slug(), p.Content(), p.IsPublished(), p.MetaTitle(), p.MetaDescription(), p.OrderIndex(), p.ID(),
 	).Scan(&updatedAt)
 	if err != nil {
 		// The application layer already checked existence via GetByID before
@@ -193,7 +193,7 @@ func (r *PostgresPageRepository) Update(ctx context.Context, p *domain.Page) (*d
 	}
 
 	return domain.RehydratePage(
-		p.ID(), p.Title(), p.Slug(), p.Content(), p.IsPublished(), p.MetaTitle(), p.MetaDescription(), p.OrderIndex(),
+		p.ID(), p.Title(), p.TitleAlign(), p.Slug(), p.Content(), p.IsPublished(), p.MetaTitle(), p.MetaDescription(), p.OrderIndex(),
 		p.CreatedAt(), updatedAt, nil,
 	), nil
 }
@@ -223,6 +223,7 @@ type rowScanner interface {
 func (r *PostgresPageRepository) scanRow(scanner rowScanner) (*domain.Page, error) {
 	var id string
 	var title string
+	var titleAlign string
 	var slug string
 	var content json.RawMessage
 	var isPublished bool
@@ -234,13 +235,13 @@ func (r *PostgresPageRepository) scanRow(scanner rowScanner) (*domain.Page, erro
 	var deletedAt *time.Time
 
 	err := scanner.Scan(
-		&id, &title, &slug, &content, &isPublished, &metaTitle, &metaDescription, &orderIndex, &createdAt, &updatedAt, &deletedAt,
+		&id, &title, &titleAlign, &slug, &content, &isPublished, &metaTitle, &metaDescription, &orderIndex, &createdAt, &updatedAt, &deletedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return domain.RehydratePage(
-		id, title, slug, content, isPublished, metaTitle, metaDescription, orderIndex, createdAt, updatedAt, deletedAt,
+		id, title, titleAlign, slug, content, isPublished, metaTitle, metaDescription, orderIndex, createdAt, updatedAt, deletedAt,
 	), nil
 }

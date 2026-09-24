@@ -10,6 +10,7 @@ func CreatePage(ctx context.Context, repo domain.PageRepository, input domain.Cr
 	p, err := domain.NewPage(
 		input.Title,
 		input.Slug,
+		input.TitleAlign,
 		input.Content,
 		input.IsPublished,
 		input.MetaTitle,
