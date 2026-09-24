@@ -121,7 +121,7 @@ func (h *ServiceHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input := domain.CreateServiceInput{
-		Title: req.Title, Slug: req.Slug,
+		Title: req.Title, TitleAlign: req.TitleAlign, Slug: req.Slug,
 		GroupID: req.GroupID, CategoryID: req.CategoryID,
 		OriginalPrice: req.OriginalPrice, DiscountPercent: req.DiscountPercent,
 		PriceDisplayText: req.PriceDisplayText, Labels: req.Labels,
@@ -149,7 +149,7 @@ func (h *ServiceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input := domain.UpdateServiceInput{
-		ID: id, Title: req.Title, Slug: req.Slug,
+		ID: id, Title: req.Title, TitleAlign: req.TitleAlign, Slug: req.Slug,
 		GroupID: req.GroupID, CategoryID: req.CategoryID,
 		OriginalPrice: req.OriginalPrice, DiscountPercent: req.DiscountPercent,
 		PriceDisplayText: req.PriceDisplayText, Labels: req.Labels,

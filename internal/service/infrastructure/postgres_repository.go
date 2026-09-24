@@ -24,7 +24,7 @@ func NewPostgresServiceRepository(pool *pgxpool.Pool) *PostgresServiceRepository
 	return &PostgresServiceRepository{pool: pool}
 }
 
-const serviceColumns = `s.id, s.title, s.slug, s.group_id, s.category_id,
+const serviceColumns = `s.id, s.title, s.title_align, s.slug, s.group_id, s.category_id,
 	s.original_price, s.discount_percent, s.price_display_text, s.labels,
 	s.description, s.content, s.images, s.meta_title, s.meta_description,
 	s.is_featured, s.is_published, s.order_index,
@@ -114,12 +114,12 @@ func (r *PostgresServiceRepository) GetBySlug(ctx context.Context, slug string) 
 func (r *PostgresServiceRepository) Create(ctx context.Context, service *domain.Service) (*domain.Service, error) {
 	query := `
 		INSERT INTO services (
-			title, slug, group_id, category_id, original_price, sale_price, discount_percent,
+			title, title_align, slug, group_id, category_id, original_price, sale_price, discount_percent,
 			price_display_text, labels, description, content, images, meta_title, meta_description,
 			is_featured, is_published, order_index
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-		RETURNING id, title, slug, group_id, category_id, original_price, discount_percent,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		RETURNING id, title, title_align, slug, group_id, category_id, original_price, discount_percent,
 			price_display_text, labels, description, content, images, meta_title, meta_description,
 			is_featured, is_published, order_index, created_at, updated_at, deleted_at`
 
@@ -129,7 +129,7 @@ func (r *PostgresServiceRepository) Create(ctx context.Context, service *domain.
 	}
 
 	row := r.pool.QueryRow(ctx, query,
-		service.Title(), service.Slug(), service.GroupID(), service.CategoryID(),
+		service.Title(), service.TitleAlign(), service.Slug(), service.GroupID(), service.CategoryID(),
 		service.OriginalPrice(), service.SalePrice(), service.DiscountPercent(),
 		service.PriceDisplayText(), service.Labels(), service.Description(), service.Content(),
 		imagesJSON, service.MetaTitle(), service.MetaDescription(),
@@ -145,12 +145,12 @@ func (r *PostgresServiceRepository) Create(ctx context.Context, service *domain.
 func (r *PostgresServiceRepository) Update(ctx context.Context, service *domain.Service) (*domain.Service, error) {
 	query := `
 		UPDATE services
-		SET title = $1, slug = $2, group_id = $3, category_id = $4, original_price = $5,
-			sale_price = $6, discount_percent = $7, price_display_text = $8, labels = $9,
-			description = $10, content = $11, images = $12, meta_title = $13, meta_description = $14,
-			is_featured = $15, is_published = $16, order_index = $17, updated_at = $18
-		WHERE id = $19
-		RETURNING id, title, slug, group_id, category_id, original_price, discount_percent,
+		SET title = $1, title_align = $2, slug = $3, group_id = $4, category_id = $5, original_price = $6,
+			sale_price = $7, discount_percent = $8, price_display_text = $9, labels = $10,
+			description = $11, content = $12, images = $13, meta_title = $14, meta_description = $15,
+			is_featured = $16, is_published = $17, order_index = $18, updated_at = $19
+		WHERE id = $20
+		RETURNING id, title, title_align, slug, group_id, category_id, original_price, discount_percent,
 			price_display_text, labels, description, content, images, meta_title, meta_description,
 			is_featured, is_published, order_index, created_at, updated_at, deleted_at`
 
@@ -160,7 +160,7 @@ func (r *PostgresServiceRepository) Update(ctx context.Context, service *domain.
 	}
 
 	row := r.pool.QueryRow(ctx, query,
-		service.Title(), service.Slug(), service.GroupID(), service.CategoryID(),
+		service.Title(), service.TitleAlign(), service.Slug(), service.GroupID(), service.CategoryID(),
 		service.OriginalPrice(), service.SalePrice(), service.DiscountPercent(),
 		service.PriceDisplayText(), service.Labels(), service.Description(), service.Content(),
 		imagesJSON, service.MetaTitle(), service.MetaDescription(),
@@ -239,7 +239,7 @@ type rowScanner interface {
 
 func scanService(row rowScanner) (*domain.Service, error) {
 	var (
-		id, title, slug               string
+		id, title, titleAlign, slug   string
 		groupID, categoryID           *string
 		originalPrice                 *int64
 		discountPercent               *int
@@ -255,7 +255,7 @@ func scanService(row rowScanner) (*domain.Service, error) {
 	)
 
 	if err := row.Scan(
-		&id, &title, &slug, &groupID, &categoryID,
+		&id, &title, &titleAlign, &slug, &groupID, &categoryID,
 		&originalPrice, &discountPercent, &priceDisplayText, &labels,
 		&description, &content, &imagesRaw, &metaTitle, &metaDescription,
 		&isFeatured, &isPublished, &orderIndex,
@@ -270,7 +270,7 @@ func scanService(row rowScanner) (*domain.Service, error) {
 	}
 
 	return domain.RehydrateService(
-		id, title, slug, groupID, categoryID,
+		id, title, titleAlign, slug, groupID, categoryID,
 		originalPrice, discountPercent, priceDisplayText, labels, description, content,
 		images, metaTitle, metaDescription, isFeatured, isPublished, orderIndex,
 		createdAt, updatedAt, deletedAt,
@@ -279,7 +279,7 @@ func scanService(row rowScanner) (*domain.Service, error) {
 
 func scanServiceWithRelations(row rowScanner) (*domain.ServiceWithRelations, error) {
 	var (
-		id, title, slug                                          string
+		id, title, titleAlign, slug                              string
 		groupID, categoryID                                      *string
 		originalPrice                                            *int64
 		discountPercent                                          *int
@@ -296,7 +296,7 @@ func scanServiceWithRelations(row rowScanner) (*domain.ServiceWithRelations, err
 	)
 
 	if err := row.Scan(
-		&id, &title, &slug, &groupID, &categoryID,
+		&id, &title, &titleAlign, &slug, &groupID, &categoryID,
 		&originalPrice, &discountPercent, &priceDisplayText, &labels,
 		&description, &content, &imagesRaw, &metaTitle, &metaDescription,
 		&isFeatured, &isPublished, &orderIndex,
@@ -312,7 +312,7 @@ func scanServiceWithRelations(row rowScanner) (*domain.ServiceWithRelations, err
 	}
 
 	service := domain.RehydrateService(
-		id, title, slug, groupID, categoryID,
+		id, title, titleAlign, slug, groupID, categoryID,
 		originalPrice, discountPercent, priceDisplayText, labels, description, content,
 		images, metaTitle, metaDescription, isFeatured, isPublished, orderIndex,
 		createdAt, updatedAt, deletedAt,

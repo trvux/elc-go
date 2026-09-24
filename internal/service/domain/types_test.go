@@ -21,7 +21,7 @@ func TestService_SalePrice(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := RehydrateService(
-				"id-1", "Title", "slug", nil, nil,
+				"id-1", "Title", "", "slug", nil, nil,
 				tt.originalPrice, tt.discountPercent, nil, nil, nil, nil,
 				nil, nil, nil, false, true, 0,
 				time.Now(), time.Now(), nil,
@@ -40,7 +40,7 @@ func TestService_SalePrice(t *testing.T) {
 
 func TestService_UpdatePricing_NeverGoesStale(t *testing.T) {
 	s := RehydrateService(
-		"id-1", "Title", "slug", nil, nil,
+		"id-1", "Title", "", "slug", nil, nil,
 		ptrInt64(100000), ptrInt(10), nil, nil, nil, nil,
 		nil, nil, nil, false, true, 0,
 		time.Now(), time.Now(), nil,
@@ -65,7 +65,7 @@ func TestService_UpdatePricing_NeverGoesStale(t *testing.T) {
 
 func TestService_Update_RejectsInvalidDiscountPercent(t *testing.T) {
 	s := RehydrateService(
-		"id-1", "Title", "slug", nil, nil,
+		"id-1", "Title", "", "slug", nil, nil,
 		ptrInt64(100000), ptrInt(10), nil, nil, nil, nil,
 		nil, nil, nil, false, true, 0,
 		time.Now(), time.Now(), nil,
@@ -79,7 +79,7 @@ func TestService_Update_RejectsInvalidDiscountPercent(t *testing.T) {
 func TestService_Update_NoOpLeavesUpdatedAtUnchanged(t *testing.T) {
 	createdAt := time.Now().Add(-time.Hour)
 	s := RehydrateService(
-		"id-1", "Title", "slug", nil, nil,
+		"id-1", "Title", "", "slug", nil, nil,
 		nil, nil, nil, nil, nil, nil,
 		nil, nil, nil, false, true, 0,
 		createdAt, createdAt, nil,

@@ -9,6 +9,7 @@ import (
 func CreateService(ctx context.Context, repo domain.ServiceRepository, input domain.CreateServiceInput) (*domain.Service, error) {
 	service, err := domain.NewService(
 		input.Title, input.Slug,
+		input.TitleAlign,
 		input.GroupID, input.CategoryID,
 		input.OriginalPrice, input.DiscountPercent,
 		input.PriceDisplayText, input.Labels, input.Description, input.Content,

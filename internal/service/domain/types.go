@@ -7,6 +7,7 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/media"
 	"github.com/trvux/elc-go/internal/platform/seo"
+	"github.com/trvux/elc-go/internal/platform/titlealign"
 )
 
 // ImageAsset re-exports the shared media type — see product/domain/types.go's
@@ -16,6 +17,7 @@ type ImageAsset = media.ImageAsset
 type Service struct {
 	id               string
 	title            string
+	titleAlign       string
 	slug             string
 	groupID          *string
 	categoryID       *string
@@ -60,10 +62,19 @@ type ServiceWithRelations struct {
 	Category *CategoryRef
 }
 
+// TitleAlignLeft/Center/Right re-export platform/titlealign — see its doc
+// comment.
+const (
+	TitleAlignLeft   = titlealign.Left
+	TitleAlignCenter = titlealign.Center
+	TitleAlignRight  = titlealign.Right
+)
+
 // NewService validates and creates a new entity from user input.
 // salePrice is intentionally not a parameter here — see SalePrice().
 func NewService(
 	title, slug string,
+	titleAlign string,
 	groupID, categoryID *string,
 	originalPrice *int64,
 	discountPercent *int,
@@ -93,6 +104,10 @@ func NewService(
 	if errs := validatePricing(originalPrice, discountPercent); len(errs) > 0 {
 		fields["discountPercent"] = errs
 	}
+	titleAlign = titlealign.OrDefault(titleAlign)
+	if !titlealign.Valid(titleAlign) {
+		fields["titleAlign"] = []string{"titleAlign must be 'left', 'center' or 'right'"}
+	}
 
 	if len(fields) > 0 {
 		return nil, apperr.NewValidationError("validation failed", fields)
@@ -101,6 +116,7 @@ func NewService(
 	now := time.Now()
 	return &Service{
 		title:            title,
+		titleAlign:       titleAlign,
 		slug:             slug,
 		groupID:          groupID,
 		categoryID:       categoryID,
@@ -124,7 +140,9 @@ func NewService(
 // RehydrateService reconstructs from a trusted DB row — no validation.
 // Only the infrastructure layer should call this.
 func RehydrateService(
-	id, title, slug string,
+	id, title string,
+	titleAlign string,
+	slug string,
 	groupID, categoryID *string,
 	originalPrice *int64,
 	discountPercent *int,
@@ -140,7 +158,7 @@ func RehydrateService(
 	deletedAt *time.Time,
 ) *Service {
 	return &Service{
-		id: id, title: title, slug: slug,
+		id: id, title: title, titleAlign: titleAlign, slug: slug,
 		groupID: groupID, categoryID: categoryID,
 		originalPrice: originalPrice, discountPercent: discountPercent,
 		priceDisplayText: priceDisplayText, labels: labels,
@@ -153,6 +171,7 @@ func RehydrateService(
 
 func (s *Service) ID() string                { return s.id }
 func (s *Service) Title() string             { return s.title }
+func (s *Service) TitleAlign() string        { return s.titleAlign }
 func (s *Service) Slug() string              { return s.slug }
 func (s *Service) GroupID() *string          { return s.groupID }
 func (s *Service) CategoryID() *string       { return s.categoryID }
@@ -213,6 +232,13 @@ func (s *Service) Update(input UpdateServiceInput) error {
 			return apperr.NewValidationError("validation failed", map[string][]string{"title": errs})
 		}
 		s.title = *input.Title
+		changed = true
+	}
+	if input.TitleAlign != nil {
+		if !titlealign.Valid(*input.TitleAlign) {
+			return apperr.NewValidationError("validation failed", map[string][]string{"titleAlign": {"titleAlign must be 'left', 'center' or 'right'"}})
+		}
+		s.titleAlign = *input.TitleAlign
 		changed = true
 	}
 	if input.Slug != nil {
@@ -354,6 +380,7 @@ func validatePricing(originalPrice *int64, discountPercent *int) []string {
 
 type CreateServiceInput struct {
 	Title            string
+	TitleAlign       string
 	Slug             string
 	GroupID          *string
 	CategoryID       *string
@@ -374,6 +401,7 @@ type CreateServiceInput struct {
 type UpdateServiceInput struct {
 	ID               string
 	Title            *string
+	TitleAlign       *string
 	Slug             *string
 	GroupID          *string
 	CategoryID       *string

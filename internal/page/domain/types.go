@@ -6,6 +6,7 @@ import (
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/seo"
+	"github.com/trvux/elc-go/internal/platform/titlealign"
 )
 
 type Page struct {
@@ -23,23 +24,13 @@ type Page struct {
 	deletedAt       *time.Time
 }
 
-// TitleAlign values — see internal/news/domain/types.go's identical
-// TitleAlignLeft/Center/Right + validTitleAlign for the original pattern
-// this mirrors.
+// TitleAlignLeft/Center/Right re-export platform/titlealign — see its doc
+// comment.
 const (
-	TitleAlignLeft   = "left"
-	TitleAlignCenter = "center"
-	TitleAlignRight  = "right"
+	TitleAlignLeft   = titlealign.Left
+	TitleAlignCenter = titlealign.Center
+	TitleAlignRight  = titlealign.Right
 )
-
-func validTitleAlign(v string) bool {
-	switch v {
-	case TitleAlignLeft, TitleAlignCenter, TitleAlignRight:
-		return true
-	default:
-		return false
-	}
-}
 
 func NewPage(
 	title, slug string,
@@ -62,9 +53,8 @@ func NewPage(
 	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
 		fieldErrors["metaDescription"] = errs
 	}
-	if titleAlign == "" {
-		titleAlign = TitleAlignLeft
-	} else if !validTitleAlign(titleAlign) {
+	titleAlign = titlealign.OrDefault(titleAlign)
+	if !titlealign.Valid(titleAlign) {
 		fieldErrors["titleAlign"] = []string{"titleAlign must be 'left', 'center' or 'right'"}
 	}
 	if len(fieldErrors) > 0 {
@@ -143,9 +133,8 @@ func (p *Page) Update(
 	if slug == "" {
 		fieldErrors["slug"] = []string{"slug cannot be empty"}
 	}
-	if titleAlign == "" {
-		titleAlign = TitleAlignLeft
-	} else if !validTitleAlign(titleAlign) {
+	titleAlign = titlealign.OrDefault(titleAlign)
+	if !titlealign.Valid(titleAlign) {
 		fieldErrors["titleAlign"] = []string{"titleAlign must be 'left', 'center' or 'right'"}
 	}
 	// Only re-validate a meta field against the length limit if it's

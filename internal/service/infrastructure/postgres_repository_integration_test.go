@@ -30,6 +30,7 @@ func TestPostgresServiceRepository_CRUD(t *testing.T) {
 
 	svc, err := domain.NewService(
 		"Integration Test Service", "integration-test-service-xyz",
+		"",
 		nil, nil,
 		&originalPrice, &discountPercent, nil,
 		[]string{"moi", "hot"}, nil, content,

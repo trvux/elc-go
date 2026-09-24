@@ -52,7 +52,7 @@ func (r *fakeServiceRepository) Create(ctx context.Context, service *domain.Serv
 	id := fmt.Sprintf("id-%d", len(r.items)+1)
 	now := time.Now()
 	created := domain.RehydrateService(
-		id, service.Title(), service.Slug(),
+		id, service.Title(), service.TitleAlign(), service.Slug(),
 		service.GroupID(), service.CategoryID(),
 		service.OriginalPrice(), service.DiscountPercent(),
 		service.PriceDisplayText(), service.Labels(), service.Description(), service.Content(),

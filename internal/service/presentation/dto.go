@@ -40,6 +40,7 @@ func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
 type serviceResponse struct {
 	ID               string          `json:"id"`
 	Title            string          `json:"title"`
+	TitleAlign       string          `json:"title_align"`
 	Slug             string          `json:"slug"`
 	GroupID          *string         `json:"group_id"`
 	CategoryID       *string         `json:"category_id"`
@@ -67,6 +68,7 @@ func toServiceResponse(sr *domain.ServiceWithRelations) serviceResponse {
 	resp := serviceResponse{
 		ID:               sr.ID(),
 		Title:            sr.Title(),
+		TitleAlign:       sr.TitleAlign(),
 		Slug:             sr.Slug(),
 		GroupID:          sr.GroupID(),
 		CategoryID:       sr.CategoryID(),
@@ -102,6 +104,7 @@ func toPlainServiceResponse(s *domain.Service) serviceResponse {
 	return serviceResponse{
 		ID:               s.ID(),
 		Title:            s.Title(),
+		TitleAlign:       s.TitleAlign(),
 		Slug:             s.Slug(),
 		GroupID:          s.GroupID(),
 		CategoryID:       s.CategoryID(),
@@ -134,6 +137,7 @@ func toServiceResponseList(services []*domain.ServiceWithRelations) []serviceRes
 
 type createServiceRequest struct {
 	Title            string          `json:"title"`
+	TitleAlign       string          `json:"title_align"`
 	Slug             string          `json:"slug"`
 	GroupID          *string         `json:"group_id"`
 	CategoryID       *string         `json:"category_id"`
@@ -153,6 +157,7 @@ type createServiceRequest struct {
 
 type updateServiceRequest struct {
 	Title            *string         `json:"title"`
+	TitleAlign       *string         `json:"title_align"`
 	Slug             *string         `json:"slug"`
 	GroupID          *string         `json:"group_id"`
 	CategoryID       *string         `json:"category_id"`

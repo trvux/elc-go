@@ -8,6 +8,7 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/media"
 	"github.com/trvux/elc-go/internal/platform/seo"
+	"github.com/trvux/elc-go/internal/platform/titlealign"
 )
 
 // ImageAsset re-exports the shared media type — see product/domain/types.go's
@@ -37,24 +38,14 @@ type Project struct {
 	deletedAt         *time.Time
 }
 
-// TitleAlign values — see internal/news/domain/types.go's identical
-// TitleAlignLeft/Center/Right + validTitleAlign for the original pattern
-// this mirrors (title stays a separate structured field outside the Tiptap
+// TitleAlignLeft/Center/Right re-export platform/titlealign — see its doc
+// comment (title stays a separate structured field outside the Tiptap
 // description, never inside the body itself).
 const (
-	TitleAlignLeft   = "left"
-	TitleAlignCenter = "center"
-	TitleAlignRight  = "right"
+	TitleAlignLeft   = titlealign.Left
+	TitleAlignCenter = titlealign.Center
+	TitleAlignRight  = titlealign.Right
 )
-
-func validTitleAlign(v string) bool {
-	switch v {
-	case TitleAlignLeft, TitleAlignCenter, TitleAlignRight:
-		return true
-	default:
-		return false
-	}
-}
 
 // ProjectTypeRef/CategoryGroupRef/ServiceGroupRef/ServiceRef are lightweight,
 // read-only references to entities owned by other modules (project-type,
@@ -170,9 +161,8 @@ func NewProject(
 	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
 		fields["metaDescription"] = errs
 	}
-	if titleAlign == "" {
-		titleAlign = TitleAlignLeft
-	} else if !validTitleAlign(titleAlign) {
+	titleAlign = titlealign.OrDefault(titleAlign)
+	if !titlealign.Valid(titleAlign) {
 		fields["titleAlign"] = []string{"titleAlign must be 'left', 'center' or 'right'"}
 	}
 
@@ -307,7 +297,7 @@ func (p *Project) Update(input UpdateProjectInput) error {
 		changed = true
 	}
 	if input.TitleAlign != nil {
-		if !validTitleAlign(*input.TitleAlign) {
+		if !titlealign.Valid(*input.TitleAlign) {
 			return apperr.NewValidationError("validation failed", map[string][]string{"titleAlign": {"titleAlign must be 'left', 'center' or 'right'"}})
 		}
 		p.titleAlign = *input.TitleAlign

@@ -9,6 +9,7 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/media"
 	"github.com/trvux/elc-go/internal/platform/seo"
+	"github.com/trvux/elc-go/internal/platform/titlealign"
 )
 
 // ImageAsset re-exports the shared media type — see product/domain/types.go's
@@ -17,25 +18,18 @@ type ImageAsset = media.ImageAsset
 
 var slugRegex = regexp.MustCompile("^[a-z0-9-]+$")
 
-// Mirrors the migration's CHECK constraint — kept in sync by hand since
-// Postgres CHECK constraints aren't introspectable at compile time. Same
+// TitleAlignLeft/Center/Right re-export platform/titlealign so every
+// existing domain.TitleAlignX call site (application layer, tests) keeps
+// working unchanged — see platform/titlealign's doc comment for why the
+// enum itself now lives there instead of being copied per module. Same
 // left/center/right set as the image node's own `align` attribute
 // (shared/lib/tiptap-render.ts), so the two never drift into different
 // vocabularies for the same concept.
 const (
-	TitleAlignLeft   = "left"
-	TitleAlignCenter = "center"
-	TitleAlignRight  = "right"
+	TitleAlignLeft   = titlealign.Left
+	TitleAlignCenter = titlealign.Center
+	TitleAlignRight  = titlealign.Right
 )
-
-func validTitleAlign(align string) bool {
-	switch align {
-	case TitleAlignLeft, TitleAlignCenter, TitleAlignRight:
-		return true
-	default:
-		return false
-	}
-}
 
 type News struct {
 	id              string
@@ -95,9 +89,8 @@ func NewNews(
 	if errs := validateTitle(title); len(errs) > 0 {
 		fields["title"] = errs
 	}
-	if titleAlign == "" {
-		titleAlign = TitleAlignLeft
-	} else if !validTitleAlign(titleAlign) {
+	titleAlign = titlealign.OrDefault(titleAlign)
+	if !titlealign.Valid(titleAlign) {
 		fields["titleAlign"] = []string{"titleAlign must be one of: left, center, right"}
 	}
 	if errs := validateSlug(slug); len(errs) > 0 {
@@ -205,7 +198,7 @@ func (n *News) UpdateTitle(title string) error {
 }
 
 func (n *News) UpdateTitleAlign(titleAlign string) error {
-	if !validTitleAlign(titleAlign) {
+	if !titlealign.Valid(titleAlign) {
 		return apperr.NewValidationError("validation failed", map[string][]string{
 			"titleAlign": {"titleAlign must be one of: left, center, right"},
 		})

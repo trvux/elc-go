@@ -48,7 +48,7 @@ func derefStr(s *string) string {
 
 func scanProject(row rowScanner) (*domain.Project, error) {
 	var (
-		id, title, titleAlign, slug          string
+		id, title, titleAlign, slug         string
 		description                         json.RawMessage
 		imagesRaw                           []byte
 		isPublished, isFeatured             bool
@@ -91,7 +91,7 @@ func scanProject(row rowScanner) (*domain.Project, error) {
 // docs/project.md).
 func scanProjectWithType(row rowScanner) (*domain.Project, *domain.ProjectTypeRef, error) {
 	var (
-		id, title, titleAlign, slug          string
+		id, title, titleAlign, slug         string
 		description                         json.RawMessage
 		imagesRaw                           []byte
 		isPublished, isFeatured             bool

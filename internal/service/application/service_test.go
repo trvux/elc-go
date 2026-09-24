@@ -32,6 +32,78 @@ func TestCreateService(t *testing.T) {
 	}
 }
 
+func TestCreateService_TitleAlignDefaultsToLeft(t *testing.T) {
+	repo := newFakeServiceRepository()
+	ctx := context.Background()
+
+	s, err := CreateService(ctx, repo, domain.CreateServiceInput{
+		Title: "May lanh treo tuong", Slug: "may-lanh-treo-tuong",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if s.TitleAlign() != domain.TitleAlignLeft {
+		t.Errorf("expected titleAlign to default to left, got %s", s.TitleAlign())
+	}
+}
+
+func TestCreateService_InvalidTitleAlign(t *testing.T) {
+	repo := newFakeServiceRepository()
+	ctx := context.Background()
+
+	_, err := CreateService(ctx, repo, domain.CreateServiceInput{
+		Title: "May lanh treo tuong", Slug: "may-lanh-treo-tuong", TitleAlign: "sideways",
+	})
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != "VALIDATION_ERROR" {
+		t.Fatalf("expected VALIDATION_ERROR, got %v", err)
+	}
+	if len(appErr.Fields["titleAlign"]) == 0 {
+		t.Errorf("expected titleAlign field error, got %v", appErr.Fields)
+	}
+}
+
+func TestUpdateService_TitleAlign(t *testing.T) {
+	repo := newFakeServiceRepository()
+	ctx := context.Background()
+
+	created, _ := CreateService(ctx, repo, domain.CreateServiceInput{
+		Title: "May lanh treo tuong", Slug: "may-lanh-treo-tuong",
+	})
+
+	center := domain.TitleAlignCenter
+	updated, err := UpdateService(ctx, repo, domain.UpdateServiceInput{
+		ID: created.ID(), TitleAlign: &center,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if updated.TitleAlign() != domain.TitleAlignCenter {
+		t.Errorf("expected titleAlign updated to center, got %s", updated.TitleAlign())
+	}
+}
+
+func TestUpdateService_InvalidTitleAlign(t *testing.T) {
+	repo := newFakeServiceRepository()
+	ctx := context.Background()
+
+	created, _ := CreateService(ctx, repo, domain.CreateServiceInput{
+		Title: "May lanh treo tuong", Slug: "may-lanh-treo-tuong",
+	})
+
+	invalid := "diagonal"
+	_, err := UpdateService(ctx, repo, domain.UpdateServiceInput{
+		ID: created.ID(), TitleAlign: &invalid,
+	})
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != "VALIDATION_ERROR" {
+		t.Fatalf("expected VALIDATION_ERROR, got %v", err)
+	}
+	if len(appErr.Fields["titleAlign"]) == 0 {
+		t.Errorf("expected titleAlign field error, got %v", appErr.Fields)
+	}
+}
+
 func TestUpdateService_NotFound(t *testing.T) {
 	repo := newFakeServiceRepository()
 	ctx := context.Background()
