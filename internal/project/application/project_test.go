@@ -24,6 +24,37 @@ func TestCreateProject(t *testing.T) {
 	}
 }
 
+func TestCreateProject_TitleAlignDefaultsToLeft(t *testing.T) {
+	repo := newFakeProjectRepository()
+	ctx := context.Background()
+
+	p, err := CreateProject(ctx, repo, domain.CreateProjectInput{
+		Title: "Nha may A", Slug: "nha-may-a",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if p.TitleAlign() != domain.TitleAlignLeft {
+		t.Errorf("expected titleAlign to default to left, got %s", p.TitleAlign())
+	}
+}
+
+func TestCreateProject_InvalidTitleAlign(t *testing.T) {
+	repo := newFakeProjectRepository()
+	ctx := context.Background()
+
+	_, err := CreateProject(ctx, repo, domain.CreateProjectInput{
+		Title: "Nha may A", Slug: "nha-may-a", TitleAlign: "center-ish",
+	})
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != "VALIDATION_ERROR" {
+		t.Fatalf("expected VALIDATION_ERROR, got %v", err)
+	}
+	if len(appErr.Fields["titleAlign"]) == 0 {
+		t.Errorf("expected titleAlign field error, got %v", appErr.Fields)
+	}
+}
+
 func TestCreateProject_ValidationError(t *testing.T) {
 	repo := newFakeProjectRepository()
 	ctx := context.Background()
@@ -96,6 +127,47 @@ func TestUpdateProject_PartialUpdate(t *testing.T) {
 	// OrderIndex wasn't in the input, must stay unchanged.
 	if updated.OrderIndex() != 5 {
 		t.Errorf("expected orderIndex to remain 5, got %d", updated.OrderIndex())
+	}
+}
+
+func TestUpdateProject_TitleAlign(t *testing.T) {
+	repo := newFakeProjectRepository()
+	ctx := context.Background()
+
+	created, _ := CreateProject(ctx, repo, domain.CreateProjectInput{
+		Title: "Nha may A", Slug: "nha-may-a",
+	})
+
+	center := domain.TitleAlignCenter
+	updated, err := UpdateProject(ctx, repo, domain.UpdateProjectInput{
+		ID: created.ID(), TitleAlign: &center,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if updated.TitleAlign() != domain.TitleAlignCenter {
+		t.Errorf("expected titleAlign updated to center, got %s", updated.TitleAlign())
+	}
+}
+
+func TestUpdateProject_InvalidTitleAlign(t *testing.T) {
+	repo := newFakeProjectRepository()
+	ctx := context.Background()
+
+	created, _ := CreateProject(ctx, repo, domain.CreateProjectInput{
+		Title: "Nha may A", Slug: "nha-may-a",
+	})
+
+	invalid := "diagonal"
+	_, err := UpdateProject(ctx, repo, domain.UpdateProjectInput{
+		ID: created.ID(), TitleAlign: &invalid,
+	})
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != "VALIDATION_ERROR" {
+		t.Fatalf("expected VALIDATION_ERROR, got %v", err)
+	}
+	if len(appErr.Fields["titleAlign"]) == 0 {
+		t.Errorf("expected titleAlign field error, got %v", appErr.Fields)
 	}
 }
 

@@ -137,6 +137,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	input := domain.CreateProjectInput{
 		Title:             req.Title,
+		TitleAlign:        req.TitleAlign,
 		Slug:              req.Slug,
 		Description:       req.Description,
 		Images:            toImageAssetDomainList(req.Images),
@@ -177,6 +178,7 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 	input := domain.UpdateProjectInput{
 		ID:                id,
 		Title:             req.Title,
+		TitleAlign:        req.TitleAlign,
 		Slug:              req.Slug,
 		Description:       req.Description,
 		Images:            toImageAssetDomainList(req.Images),

@@ -11,6 +11,7 @@ func CreateProject(ctx context.Context, repo domain.ProjectRepository, input dom
 	project, err := domain.NewProject(
 		input.Title,
 		input.Slug,
+		input.TitleAlign,
 		input.Description,
 		input.Images,
 		input.IsFeatured,

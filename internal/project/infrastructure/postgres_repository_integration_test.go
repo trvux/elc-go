@@ -29,7 +29,7 @@ func TestPostgresProjectRepository_CRUD(t *testing.T) {
 	repo := NewPostgresProjectRepository(pool)
 
 	p, err := domain.NewProject(
-		"Integration Test Project", "integration-test-project-xyz",
+		"Integration Test Project", "integration-test-project-xyz", "",
 		nil, nil, false, true, nil, nil, 999, nil,
 		"", "", nil, "", "",
 	)
@@ -73,8 +73,9 @@ func TestPostgresProjectRepository_CRUD(t *testing.T) {
 	// service relations untouched, mirroring the old TS
 	// `input.categories !== undefined` distinction. See domain/types.go's
 	// UpdateProjectInput doc comment.
-	if err := fetched.UpdateTitle("Integration Test Project Updated"); err != nil {
-		t.Fatalf("UpdateTitle failed: %v", err)
+	newTitle := "Integration Test Project Updated"
+	if err := fetched.Update(domain.UpdateProjectInput{Title: &newTitle}); err != nil {
+		t.Fatalf("Update failed: %v", err)
 	}
 	updated, err := repo.Update(ctx, fetched.Project, nil, nil, nil)
 	if err != nil {
@@ -147,7 +148,7 @@ func TestPostgresProjectRepository_ResurrectOnSlugReuse(t *testing.T) {
 
 	repo := NewPostgresProjectRepository(pool)
 
-	p1, _ := domain.NewProject("Resurrect Test", "integration-test-resurrect-xyz", nil, nil, false, true, nil, nil, 0, nil, "", "", nil, "", "")
+	p1, _ := domain.NewProject("Resurrect Test", "integration-test-resurrect-xyz", "", nil, nil, false, true, nil, nil, 0, nil, "", "", nil, "", "")
 	created1, err := repo.Create(ctx, p1, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("first Create failed: %v", err)
@@ -160,7 +161,7 @@ func TestPostgresProjectRepository_ResurrectOnSlugReuse(t *testing.T) {
 		t.Fatalf("SoftDelete failed: %v", err)
 	}
 
-	p2, _ := domain.NewProject("Resurrect Test Again", "integration-test-resurrect-xyz", nil, nil, false, true, nil, nil, 0, nil, "", "", nil, "", "")
+	p2, _ := domain.NewProject("Resurrect Test Again", "integration-test-resurrect-xyz", "", nil, nil, false, true, nil, nil, 0, nil, "", "", nil, "", "")
 	created2, err := repo.Create(ctx, p2, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("second Create (resurrect) failed: %v", err)
@@ -199,7 +200,7 @@ func TestPostgresProjectRepository_CreateRollsBackOnBadRelation(t *testing.T) {
 
 	repo := NewPostgresProjectRepository(pool)
 
-	p, _ := domain.NewProject("Rollback Test", "integration-test-rollback-xyz", nil, nil, false, true, nil, nil, 0, nil, "", "", nil, "", "")
+	p, _ := domain.NewProject("Rollback Test", "integration-test-rollback-xyz", "", nil, nil, false, true, nil, nil, 0, nil, "", "", nil, "", "")
 	_, err = repo.Create(ctx, p, []domain.CategoryCondition{{CategoryID: "00000000-0000-0000-0000-000000000000", Condition: "new"}}, nil, nil)
 	if err == nil {
 		t.Fatal("expected Create to fail on a nonexistent category id")

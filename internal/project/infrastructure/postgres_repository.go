@@ -30,7 +30,7 @@ func NewPostgresProjectRepository(pool *pgxpool.Pool) *PostgresProjectRepository
 // TS mapper's `row.is_published || false` / `row.order_index || 0` /
 // `row.is_featured || false` fallbacks exactly (see
 // modules/project/infrastructure/projectRepo.ts's mapToDomain).
-const projectColumns = `p.id, p.title, p.description, p.images,
+const projectColumns = `p.id, p.title, p.title_align, p.description, p.images,
 	COALESCE(p.is_published, false), COALESCE(p.order_index, 0), p.created_at, p.slug, p.updated_at,
 	COALESCE(p.is_featured, false), p.deleted_at, p.meta_title, p.meta_description, p.project_type_id,
 	p.client_name, p.location, p.completed_at, p.testimonial_quote, p.testimonial_author`
@@ -48,7 +48,7 @@ func derefStr(s *string) string {
 
 func scanProject(row rowScanner) (*domain.Project, error) {
 	var (
-		id, title, slug                     string
+		id, title, titleAlign, slug          string
 		description                         json.RawMessage
 		imagesRaw                           []byte
 		isPublished, isFeatured             bool
@@ -63,7 +63,7 @@ func scanProject(row rowScanner) (*domain.Project, error) {
 	)
 
 	if err := row.Scan(
-		&id, &title, &description, &imagesRaw,
+		&id, &title, &titleAlign, &description, &imagesRaw,
 		&isPublished, &orderIndex, &createdAt, &slug, &updatedAt,
 		&isFeatured, &deletedAt, &metaTitle, &metaDescription, &projectTypeID,
 		&clientName, &location, &completedAt, &testimonialQuote, &testimonialAuthor,
@@ -77,7 +77,7 @@ func scanProject(row rowScanner) (*domain.Project, error) {
 	}
 
 	return domain.RehydrateProject(
-		id, title, slug, description, images,
+		id, title, titleAlign, slug, description, images,
 		isFeatured, isPublished, metaTitle, metaDescription,
 		orderIndex, projectTypeID,
 		clientName, location, completedAt, testimonialQuote, testimonialAuthor,
@@ -91,7 +91,7 @@ func scanProject(row rowScanner) (*domain.Project, error) {
 // docs/project.md).
 func scanProjectWithType(row rowScanner) (*domain.Project, *domain.ProjectTypeRef, error) {
 	var (
-		id, title, slug                     string
+		id, title, titleAlign, slug          string
 		description                         json.RawMessage
 		imagesRaw                           []byte
 		isPublished, isFeatured             bool
@@ -107,7 +107,7 @@ func scanProjectWithType(row rowScanner) (*domain.Project, *domain.ProjectTypeRe
 	)
 
 	if err := row.Scan(
-		&id, &title, &description, &imagesRaw,
+		&id, &title, &titleAlign, &description, &imagesRaw,
 		&isPublished, &orderIndex, &createdAt, &slug, &updatedAt,
 		&isFeatured, &deletedAt, &metaTitle, &metaDescription, &projectTypeID,
 		&clientName, &location, &completedAt, &testimonialQuote, &testimonialAuthor,
@@ -122,7 +122,7 @@ func scanProjectWithType(row rowScanner) (*domain.Project, *domain.ProjectTypeRe
 	}
 
 	project := domain.RehydrateProject(
-		id, title, slug, description, images,
+		id, title, titleAlign, slug, description, images,
 		isFeatured, isPublished, metaTitle, metaDescription,
 		orderIndex, projectTypeID,
 		clientName, location, completedAt, testimonialQuote, testimonialAuthor,
@@ -564,15 +564,15 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 	if isResurrect {
 		query := `
 			UPDATE projects
-			SET title = $1, description = $2, images = $3,
-				is_published = $4, order_index = $5, slug = $6,
-				is_featured = $7, meta_title = $8, meta_description = $9,
-				project_type_id = $10, client_name = $11, location = $12, completed_at = $13,
-				testimonial_quote = $14, testimonial_author = $15, deleted_at = NULL, updated_at = $16
-			WHERE id = $17
+			SET title = $1, title_align = $2, description = $3, images = $4,
+				is_published = $5, order_index = $6, slug = $7,
+				is_featured = $8, meta_title = $9, meta_description = $10,
+				project_type_id = $11, client_name = $12, location = $13, completed_at = $14,
+				testimonial_quote = $15, testimonial_author = $16, deleted_at = NULL, updated_at = $17
+			WHERE id = $18
 			RETURNING id`
 		if err := tx.QueryRow(ctx, query,
-			project.Title(), project.Description(), imagesJSON,
+			project.Title(), project.TitleAlign(), project.Description(), imagesJSON,
 			project.IsPublished(), project.OrderIndex(), project.Slug(),
 			project.IsFeatured(), project.MetaTitle(), project.MetaDescription(),
 			project.ProjectTypeID(), project.ClientName(), project.Location(), project.CompletedAt(),
@@ -595,11 +595,11 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 		}
 	} else {
 		query := `
-			INSERT INTO projects (title, description, images, is_published, order_index, slug, is_featured, meta_title, meta_description, project_type_id, client_name, location, completed_at, testimonial_quote, testimonial_author)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			INSERT INTO projects (title, title_align, description, images, is_published, order_index, slug, is_featured, meta_title, meta_description, project_type_id, client_name, location, completed_at, testimonial_quote, testimonial_author)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 			RETURNING id`
 		if err := tx.QueryRow(ctx, query,
-			project.Title(), project.Description(), imagesJSON,
+			project.Title(), project.TitleAlign(), project.Description(), imagesJSON,
 			project.IsPublished(), project.OrderIndex(), project.Slug(),
 			project.IsFeatured(), project.MetaTitle(), project.MetaDescription(),
 			project.ProjectTypeID(), project.ClientName(), project.Location(), project.CompletedAt(),
@@ -647,16 +647,16 @@ func (r *PostgresProjectRepository) Update(ctx context.Context, project *domain.
 
 	query := `
 		UPDATE projects p
-		SET title = $1, description = $2, images = $3,
-			is_published = $4, order_index = $5, slug = $6,
-			is_featured = $7, meta_title = $8, meta_description = $9,
-			project_type_id = $10, client_name = $11, location = $12, completed_at = $13,
-			testimonial_quote = $14, testimonial_author = $15, updated_at = $16
-		WHERE p.id = $17
+		SET title = $1, title_align = $2, description = $3, images = $4,
+			is_published = $5, order_index = $6, slug = $7,
+			is_featured = $8, meta_title = $9, meta_description = $10,
+			project_type_id = $11, client_name = $12, location = $13, completed_at = $14,
+			testimonial_quote = $15, testimonial_author = $16, updated_at = $17
+		WHERE p.id = $18
 		RETURNING ` + projectColumns
 
 	row := tx.QueryRow(ctx, query,
-		project.Title(), project.Description(), imagesJSON,
+		project.Title(), project.TitleAlign(), project.Description(), imagesJSON,
 		project.IsPublished(), project.OrderIndex(), project.Slug(),
 		project.IsFeatured(), project.MetaTitle(), project.MetaDescription(),
 		project.ProjectTypeID(), project.ClientName(), project.Location(), project.CompletedAt(),

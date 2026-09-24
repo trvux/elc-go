@@ -82,6 +82,7 @@ type projectServiceResponse struct {
 type projectResponse struct {
 	ID                string                    `json:"id"`
 	Title             string                    `json:"title"`
+	TitleAlign        string                    `json:"title_align"`
 	Slug              string                    `json:"slug"`
 	Description       json.RawMessage           `json:"description"`
 	Images            []imageAssetDTO           `json:"images"`
@@ -135,6 +136,7 @@ func toProjectResponse(p *domain.ProjectWithRelations) projectResponse {
 	return projectResponse{
 		ID:                p.ID(),
 		Title:             p.Title(),
+		TitleAlign:        p.TitleAlign(),
 		Slug:              p.Slug(),
 		Description:       p.Description(),
 		Images:            toImageAssetDTOList(p.Images()),
@@ -203,6 +205,7 @@ func toCategoryConditionDomainPtr(dtos *[]categoryConditionDTO) *[]domain.Catego
 
 type createProjectRequest struct {
 	Title             string                 `json:"title"`
+	TitleAlign        string                 `json:"title_align"`
 	Slug              string                 `json:"slug"`
 	Description       json.RawMessage        `json:"description"`
 	Images            []imageAssetDTO        `json:"images"`
@@ -224,6 +227,7 @@ type createProjectRequest struct {
 
 type updateProjectRequest struct {
 	Title             *string                 `json:"title"`
+	TitleAlign        *string                 `json:"title_align"`
 	Slug              *string                 `json:"slug"`
 	Description       json.RawMessage         `json:"description"`
 	Images            []imageAssetDTO         `json:"images"`

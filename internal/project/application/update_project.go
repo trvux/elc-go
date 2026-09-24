@@ -17,63 +17,8 @@ func UpdateProject(ctx context.Context, repo domain.ProjectRepository, input dom
 	}
 	project := existing.Project
 
-	if input.Title != nil {
-		if err := project.UpdateTitle(*input.Title); err != nil {
-			return nil, err
-		}
-	}
-	if input.Slug != nil {
-		if err := project.UpdateSlug(*input.Slug); err != nil {
-			return nil, err
-		}
-	}
-	if input.Description != nil {
-		project.UpdateDescription(input.Description)
-	}
-	if input.Images != nil {
-		project.UpdateImages(input.Images)
-	}
-	if input.IsFeatured != nil {
-		project.SetFeatured(*input.IsFeatured)
-	}
-	if input.IsPublished != nil {
-		project.SetPublished(*input.IsPublished)
-	}
-	if input.MetaTitle != nil {
-		if err := project.UpdateMetaTitle(input.MetaTitle); err != nil {
-			return nil, err
-		}
-	}
-	if input.MetaDescription != nil {
-		if err := project.UpdateMetaDescription(input.MetaDescription); err != nil {
-			return nil, err
-		}
-	}
-	if input.OrderIndex != nil {
-		project.Reorder(*input.OrderIndex)
-	}
-	if input.ProjectTypeID != nil {
-		project.UpdateProjectTypeID(input.ProjectTypeID)
-	}
-	if input.ClientName != nil {
-		project.UpdateClientName(*input.ClientName)
-	}
-	if input.Location != nil {
-		project.UpdateLocation(*input.Location)
-	}
-	if input.CompletedAt != nil {
-		project.UpdateCompletedAt(input.CompletedAt)
-	}
-	if input.TestimonialQuote != nil || input.TestimonialAuthor != nil {
-		quote := project.TestimonialQuote()
-		if input.TestimonialQuote != nil {
-			quote = *input.TestimonialQuote
-		}
-		author := project.TestimonialAuthor()
-		if input.TestimonialAuthor != nil {
-			author = *input.TestimonialAuthor
-		}
-		project.UpdateTestimonial(quote, author)
+	if err := project.Update(input); err != nil {
+		return nil, err
 	}
 
 	if input.Categories != nil {

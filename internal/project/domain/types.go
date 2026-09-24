@@ -17,6 +17,7 @@ type ImageAsset = media.ImageAsset
 type Project struct {
 	id                string
 	title             string
+	titleAlign        string
 	slug              string
 	description       json.RawMessage
 	images            []ImageAsset
@@ -34,6 +35,25 @@ type Project struct {
 	createdAt         time.Time
 	updatedAt         time.Time
 	deletedAt         *time.Time
+}
+
+// TitleAlign values — see internal/news/domain/types.go's identical
+// TitleAlignLeft/Center/Right + validTitleAlign for the original pattern
+// this mirrors (title stays a separate structured field outside the Tiptap
+// description, never inside the body itself).
+const (
+	TitleAlignLeft   = "left"
+	TitleAlignCenter = "center"
+	TitleAlignRight  = "right"
+)
+
+func validTitleAlign(v string) bool {
+	switch v {
+	case TitleAlignLeft, TitleAlignCenter, TitleAlignRight:
+		return true
+	default:
+		return false
+	}
 }
 
 // ProjectTypeRef/CategoryGroupRef/ServiceGroupRef/ServiceRef are lightweight,
@@ -125,6 +145,7 @@ type AdjacentProject struct {
 // NewProject validates and creates a new entity from user input.
 func NewProject(
 	title, slug string,
+	titleAlign string,
 	description json.RawMessage,
 	images []ImageAsset,
 	isFeatured, isPublished bool,
@@ -149,6 +170,11 @@ func NewProject(
 	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
 		fields["metaDescription"] = errs
 	}
+	if titleAlign == "" {
+		titleAlign = TitleAlignLeft
+	} else if !validTitleAlign(titleAlign) {
+		fields["titleAlign"] = []string{"titleAlign must be 'left', 'center' or 'right'"}
+	}
 
 	if len(fields) > 0 {
 		return nil, apperr.NewValidationError("validation failed", fields)
@@ -164,6 +190,7 @@ func NewProject(
 	now := time.Now()
 	return &Project{
 		title:             title,
+		titleAlign:        titleAlign,
 		slug:              slug,
 		description:       description,
 		images:            images,
@@ -186,7 +213,9 @@ func NewProject(
 // RehydrateProject reconstructs from a trusted DB row — no validation. Only
 // the infrastructure layer should call this.
 func RehydrateProject(
-	id, title, slug string,
+	id, title string,
+	titleAlign string,
+	slug string,
 	description json.RawMessage,
 	images []ImageAsset,
 	isFeatured, isPublished bool,
@@ -202,6 +231,7 @@ func RehydrateProject(
 	return &Project{
 		id:                id,
 		title:             title,
+		titleAlign:        titleAlign,
 		slug:              slug,
 		description:       description,
 		images:            images,
@@ -224,6 +254,7 @@ func RehydrateProject(
 
 func (p *Project) ID() string                   { return p.id }
 func (p *Project) Title() string                { return p.title }
+func (p *Project) TitleAlign() string           { return p.titleAlign }
 func (p *Project) Slug() string                 { return p.slug }
 func (p *Project) Description() json.RawMessage { return p.description }
 func (p *Project) Images() []ImageAsset         { return p.images }
@@ -246,97 +277,116 @@ func (p *Project) IsDeleted() bool {
 	return p.deletedAt != nil
 }
 
-func (p *Project) UpdateTitle(title string) error {
-	if errs := validateTitle(title); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"title": errs})
-	}
-	p.title = title
-	p.updatedAt = time.Now()
-	return nil
-}
-
-func (p *Project) UpdateSlug(slug string) error {
-	if errs := validateSlug(slug); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"slug": errs})
-	}
-	p.slug = slug
-	p.updatedAt = time.Now()
-	return nil
-}
-
-func (p *Project) UpdateDescription(description json.RawMessage) {
-	if len(description) == 0 {
-		description = json.RawMessage(`{}`)
-	}
-	p.description = description
-	p.updatedAt = time.Now()
-}
-
-func (p *Project) UpdateImages(images []ImageAsset) {
-	if images == nil {
-		images = []ImageAsset{}
-	}
-	p.images = images
-	p.updatedAt = time.Now()
-}
-
-func (p *Project) SetFeatured(isFeatured bool) {
-	p.isFeatured = isFeatured
-	p.updatedAt = time.Now()
-}
-
-func (p *Project) SetPublished(isPublished bool) {
-	p.isPublished = isPublished
-	p.updatedAt = time.Now()
-}
-
-func (p *Project) UpdateMetaTitle(metaTitle *string) error {
-	if errs := seo.ValidateMetaTitle(metaTitle); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
-	}
-	p.metaTitle = metaTitle
-	p.updatedAt = time.Now()
-	return nil
-}
-
-func (p *Project) UpdateMetaDescription(metaDescription *string) error {
-	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
-		return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
-	}
-	p.metaDescription = metaDescription
-	p.updatedAt = time.Now()
-	return nil
-}
-
 func (p *Project) Reorder(orderIndex int) {
 	p.orderIndex = orderIndex
 	p.updatedAt = time.Now()
 }
 
-func (p *Project) UpdateProjectTypeID(projectTypeID *string) {
-	p.projectTypeID = projectTypeID
-	p.updatedAt = time.Now()
-}
+// Update applies a partial edit from a form submission: only non-nil fields
+// in input are validated and set — see internal/branch/domain/types.go's
+// identical Update(input) for the original pattern this mirrors (per
+// CLAUDE.md's lazy-consolidation rule: fold this in whenever the entity is
+// touched anyway, here for adding TitleAlign). Validates and applies in the
+// same order the fields appeared in the old per-field UpdateX() calls from
+// application.UpdateProject, failing fast on the first invalid field.
+//
+// OrderIndex goes through Reorder rather than setting orderIndex directly,
+// so drag-drop reorder (application.UpdateProjectOrder) and the edit form
+// share one path for that field.
+func (p *Project) Update(input UpdateProjectInput) error {
+	// changed tracks whether any field below actually mutated p, so a no-op
+	// call leaves updatedAt untouched — matching the old per-field UpdateX()
+	// behavior. OrderIndex is excluded: Reorder bumps updatedAt itself.
+	changed := false
 
-func (p *Project) UpdateClientName(clientName string) {
-	p.clientName = clientName
-	p.updatedAt = time.Now()
-}
+	if input.Title != nil {
+		if errs := validateTitle(*input.Title); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"title": errs})
+		}
+		p.title = *input.Title
+		changed = true
+	}
+	if input.TitleAlign != nil {
+		if !validTitleAlign(*input.TitleAlign) {
+			return apperr.NewValidationError("validation failed", map[string][]string{"titleAlign": {"titleAlign must be 'left', 'center' or 'right'"}})
+		}
+		p.titleAlign = *input.TitleAlign
+		changed = true
+	}
+	if input.Slug != nil {
+		if errs := validateSlug(*input.Slug); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"slug": errs})
+		}
+		p.slug = *input.Slug
+		changed = true
+	}
+	if input.Description != nil {
+		description := input.Description
+		if len(description) == 0 {
+			description = json.RawMessage(`{}`)
+		}
+		p.description = description
+		changed = true
+	}
+	if input.Images != nil {
+		p.images = input.Images
+		changed = true
+	}
+	if input.IsFeatured != nil {
+		p.isFeatured = *input.IsFeatured
+		changed = true
+	}
+	if input.IsPublished != nil {
+		p.isPublished = *input.IsPublished
+		changed = true
+	}
+	if input.MetaTitle != nil {
+		if errs := seo.ValidateMetaTitle(input.MetaTitle); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"metaTitle": errs})
+		}
+		p.metaTitle = input.MetaTitle
+		changed = true
+	}
+	if input.MetaDescription != nil {
+		if errs := seo.ValidateMetaDescription(input.MetaDescription); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"metaDescription": errs})
+		}
+		p.metaDescription = input.MetaDescription
+		changed = true
+	}
+	if input.OrderIndex != nil {
+		p.Reorder(*input.OrderIndex)
+	}
+	if input.ProjectTypeID != nil {
+		p.projectTypeID = input.ProjectTypeID
+		changed = true
+	}
+	if input.ClientName != nil {
+		p.clientName = *input.ClientName
+		changed = true
+	}
+	if input.Location != nil {
+		p.location = *input.Location
+		changed = true
+	}
+	if input.CompletedAt != nil {
+		p.completedAt = input.CompletedAt
+		changed = true
+	}
+	if input.TestimonialQuote != nil || input.TestimonialAuthor != nil {
+		if input.TestimonialQuote != nil {
+			p.testimonialQuote = *input.TestimonialQuote
+		}
+		if input.TestimonialAuthor != nil {
+			p.testimonialAuthor = *input.TestimonialAuthor
+		}
+		changed = true
+	}
 
-func (p *Project) UpdateLocation(location string) {
-	p.location = location
-	p.updatedAt = time.Now()
-}
-
-func (p *Project) UpdateCompletedAt(completedAt *time.Time) {
-	p.completedAt = completedAt
-	p.updatedAt = time.Now()
-}
-
-func (p *Project) UpdateTestimonial(quote, author string) {
-	p.testimonialQuote = quote
-	p.testimonialAuthor = author
-	p.updatedAt = time.Now()
+	if changed {
+		p.updatedAt = time.Now()
+	}
+	return nil
 }
 
 func (p *Project) MarkDeleted(deletedAt time.Time) {
@@ -380,6 +430,7 @@ func ValidateCondition(condition string) []string {
 
 type CreateProjectInput struct {
 	Title             string
+	TitleAlign        string
 	Slug              string
 	Description       json.RawMessage
 	Images            []ImageAsset
@@ -402,6 +453,7 @@ type CreateProjectInput struct {
 type UpdateProjectInput struct {
 	ID              string
 	Title           *string
+	TitleAlign      *string
 	Slug            *string
 	Description     json.RawMessage
 	Images          []ImageAsset

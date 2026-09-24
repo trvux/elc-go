@@ -85,7 +85,7 @@ func (r *fakeProjectRepository) Create(ctx context.Context, project *domain.Proj
 	id := fmt.Sprintf("id-%d", len(r.items)+1)
 	now := time.Now()
 	created := domain.RehydrateProject(
-		id, project.Title(), project.Slug(), project.Description(), project.Images(),
+		id, project.Title(), project.TitleAlign(), project.Slug(), project.Description(), project.Images(),
 		project.IsFeatured(), project.IsPublished(), project.MetaTitle(), project.MetaDescription(),
 		project.OrderIndex(), project.ProjectTypeID(),
 		project.ClientName(), project.Location(), project.CompletedAt(),
@@ -145,7 +145,7 @@ func (r *fakeProjectRepository) TogglePublish(ctx context.Context, id string, is
 	if !ok {
 		return nil
 	}
-	p.SetPublished(isPublished)
+	_ = p.Update(domain.UpdateProjectInput{IsPublished: &isPublished})
 	return nil
 }
 
@@ -154,7 +154,7 @@ func (r *fakeProjectRepository) ToggleFeatured(ctx context.Context, id string, i
 	if !ok {
 		return nil
 	}
-	p.SetFeatured(isFeatured)
+	_ = p.Update(domain.UpdateProjectInput{IsFeatured: &isFeatured})
 	return nil
 }
 
