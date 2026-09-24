@@ -101,7 +101,7 @@ func TestUpdateProduct_ResendingPreExistingOverLongMetaTitle_NoError(t *testing.
 	overLongTitle := "This meta title is deliberately far longer than sixty characters allows"
 	now := time.Now()
 	legacy := domain.RehydrateProduct(
-		"legacy-1", "cat-1", "brand-1", "Legacy Product", "legacy-product",
+		"legacy-1", "cat-1", "brand-1", "Legacy Product", "", "legacy-product",
 		nil, nil,
 		false, domain.ProductStatusPublished, nil, 0,
 		&overLongTitle, nil,

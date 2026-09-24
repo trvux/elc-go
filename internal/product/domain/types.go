@@ -7,6 +7,7 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/media"
 	"github.com/trvux/elc-go/internal/platform/seo"
+	"github.com/trvux/elc-go/internal/platform/titlealign"
 )
 
 // ImageAsset re-exports the shared media type so callers outside this
@@ -114,6 +115,7 @@ type Product struct {
 	categoryID      string
 	brandID         string
 	name            string
+	nameAlign       string
 	slug            string
 	description     json.RawMessage
 	images          []ImageAsset
@@ -155,7 +157,9 @@ type Product struct {
 // caller-supplied value, so the approval workflow can't be bypassed by
 // passing status straight into create/update.
 func NewProduct(
-	categoryID, brandID, name, slug string,
+	categoryID, brandID, name string,
+	nameAlign string,
+	slug string,
 	description json.RawMessage,
 	images []ImageAsset,
 	isFeatured bool,
@@ -184,6 +188,10 @@ func NewProduct(
 	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
 		fields["metaDescription"] = errs
 	}
+	nameAlign = titlealign.OrDefault(nameAlign)
+	if !titlealign.Valid(nameAlign) {
+		fields["nameAlign"] = []string{"nameAlign must be 'left', 'center' or 'right'"}
+	}
 
 	if len(fields) > 0 {
 		return nil, apperr.NewValidationError("validation failed", fields)
@@ -194,6 +202,7 @@ func NewProduct(
 		categoryID:      categoryID,
 		brandID:         brandID,
 		name:            name,
+		nameAlign:       nameAlign,
 		slug:            slug,
 		description:     description,
 		images:          images,
@@ -212,7 +221,9 @@ func NewProduct(
 // RehydrateProduct reconstructs from a trusted DB row — no validation. Only
 // the infrastructure layer should call this.
 func RehydrateProduct(
-	id, categoryID, brandID, name, slug string,
+	id, categoryID, brandID, name string,
+	nameAlign string,
+	slug string,
 	description json.RawMessage,
 	images []ImageAsset,
 	isFeatured bool,
@@ -232,7 +243,7 @@ func RehydrateProduct(
 ) *Product {
 	return &Product{
 		id: id, categoryID: categoryID, brandID: brandID,
-		name: name, slug: slug,
+		name: name, nameAlign: nameAlign, slug: slug,
 		description: description,
 		images:      images,
 		isFeatured:  isFeatured, status: status, rejectionReason: rejectionReason,
@@ -250,6 +261,7 @@ func (p *Product) ID() string                   { return p.id }
 func (p *Product) CategoryID() string           { return p.categoryID }
 func (p *Product) BrandID() string              { return p.brandID }
 func (p *Product) Name() string                 { return p.name }
+func (p *Product) NameAlign() string            { return p.nameAlign }
 func (p *Product) Slug() string                 { return p.slug }
 func (p *Product) Description() json.RawMessage { return p.description }
 func (p *Product) Images() []ImageAsset         { return p.images }
@@ -280,6 +292,15 @@ func (p *Product) UpdateName(name string) error {
 		return apperr.NewValidationError("validation failed", map[string][]string{"name": errs})
 	}
 	p.name = name
+	p.updatedAt = time.Now()
+	return nil
+}
+
+func (p *Product) UpdateNameAlign(nameAlign string) error {
+	if !titlealign.Valid(nameAlign) {
+		return apperr.NewValidationError("validation failed", map[string][]string{"nameAlign": {"nameAlign must be 'left', 'center' or 'right'"}})
+	}
+	p.nameAlign = nameAlign
 	p.updatedAt = time.Now()
 	return nil
 }
@@ -478,6 +499,7 @@ type CreateProductInput struct {
 	CategoryID      string
 	BrandID         string
 	Name            string
+	NameAlign       string
 	Slug            string
 	Description     json.RawMessage
 	Images          []ImageAsset
@@ -506,6 +528,7 @@ type UpdateProductInput struct {
 	CategoryID      *string
 	BrandID         *string
 	Name            *string
+	NameAlign       *string
 	Slug            *string
 	Description     json.RawMessage
 	Images          []ImageAsset

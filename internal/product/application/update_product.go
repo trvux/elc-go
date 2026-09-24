@@ -34,6 +34,11 @@ func UpdateProduct(ctx context.Context, repo domain.ProductRepository, attribute
 			return nil, err
 		}
 	}
+	if input.NameAlign != nil {
+		if err := product.UpdateNameAlign(*input.NameAlign); err != nil {
+			return nil, err
+		}
+	}
 	if input.Slug != nil {
 		if err := product.UpdateSlug(*input.Slug); err != nil {
 			return nil, err

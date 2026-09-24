@@ -76,6 +76,7 @@ type productResponse struct {
 	CategoryID         string                    `json:"category_id"`
 	BrandID            string                    `json:"brand_id"`
 	Name               string                    `json:"name"`
+	NameAlign          string                    `json:"name_align"`
 	Slug               string                    `json:"slug"`
 	Description        json.RawMessage           `json:"description"`
 	Images             []imageAssetDTO           `json:"images"`
@@ -144,6 +145,7 @@ func toPlainProductResponse(p *domain.Product) productResponse {
 		CategoryID:         p.CategoryID(),
 		BrandID:            p.BrandID(),
 		Name:               p.Name(),
+		NameAlign:          p.NameAlign(),
 		Slug:               p.Slug(),
 		Description:        p.Description(),
 		Images:             toImageAssetDTOList(p.Images()),
@@ -520,6 +522,7 @@ type createProductRequest struct {
 	CategoryID      string                    `json:"category_id"`
 	BrandID         string                    `json:"brand_id"`
 	Name            string                    `json:"name"`
+	NameAlign       string                    `json:"name_align"`
 	Slug            string                    `json:"slug"`
 	Description     json.RawMessage           `json:"description"`
 	Images          []imageAssetDTO           `json:"images"`
@@ -543,6 +546,7 @@ type updateProductRequest struct {
 	CategoryID      *string         `json:"category_id"`
 	BrandID         *string         `json:"brand_id"`
 	Name            *string         `json:"name"`
+	NameAlign       *string         `json:"name_align"`
 	Slug            *string         `json:"slug"`
 	Description     json.RawMessage `json:"description"`
 	Images          []imageAssetDTO `json:"images"`

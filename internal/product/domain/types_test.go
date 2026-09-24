@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/titlealign"
 )
 
 func newTestProduct(t *testing.T) *Product {
 	t.Helper()
 	p, err := NewProduct(
-		"cat-1", "brand-1", "Máy lạnh Daikin", "may-lanh-daikin",
+		"cat-1", "brand-1", "Máy lạnh Daikin", "", "may-lanh-daikin",
 		nil, nil,
 		false, 0,
 		nil, nil,
@@ -37,22 +38,34 @@ func TestNewProduct(t *testing.T) {
 	})
 
 	t.Run("empty name fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "", "slug", nil, nil, false, 0, nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "brand-1", "", "", "slug", nil, nil, false, 0, nil, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty slug fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "brand-1", "name", "", nil, nil, false, 0, nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "brand-1", "name", "", "", nil, nil, false, 0, nil, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty category_id fails validation", func(t *testing.T) {
-		_, err := NewProduct("", "brand-1", "name", "slug", nil, nil, false, 0, nil, nil, nil, nil)
+		_, err := NewProduct("", "brand-1", "name", "", "slug", nil, nil, false, 0, nil, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 
 	t.Run("empty brand_id fails validation", func(t *testing.T) {
-		_, err := NewProduct("cat-1", "", "name", "slug", nil, nil, false, 0, nil, nil, nil, nil)
+		_, err := NewProduct("cat-1", "", "name", "", "slug", nil, nil, false, 0, nil, nil, nil, nil)
+		assertValidationError(t, err)
+	})
+
+	t.Run("nameAlign defaults to left", func(t *testing.T) {
+		p := newTestProduct(t)
+		if p.NameAlign() != titlealign.Left {
+			t.Errorf("expected nameAlign to default to left, got %s", p.NameAlign())
+		}
+	})
+
+	t.Run("invalid nameAlign fails validation", func(t *testing.T) {
+		_, err := NewProduct("cat-1", "brand-1", "name", "sideways", "slug", nil, nil, false, 0, nil, nil, nil, nil)
 		assertValidationError(t, err)
 	})
 }
@@ -79,6 +92,20 @@ func TestProduct_UpdateName(t *testing.T) {
 	}
 	if err := p.UpdateName(""); err == nil {
 		t.Fatal("expected validation error for empty name")
+	}
+}
+
+func TestProduct_UpdateNameAlign(t *testing.T) {
+	p := newTestProduct(t)
+
+	if err := p.UpdateNameAlign(titlealign.Center); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p.NameAlign() != titlealign.Center {
+		t.Errorf("expected nameAlign updated to center, got %s", p.NameAlign())
+	}
+	if err := p.UpdateNameAlign("sideways"); err == nil {
+		t.Fatal("expected validation error for invalid nameAlign")
 	}
 }
 

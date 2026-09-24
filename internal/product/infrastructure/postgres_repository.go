@@ -112,7 +112,7 @@ func insertProductTags(ctx context.Context, tx pgx.Tx, productID string, tagIDs 
 // NULL column, i.e. physically blocked, see docs/brand.md — but costs
 // nothing here and avoids silently dropping a product from list results if
 // it ever does).
-const productColumns = `p.id, p.category_id, p.brand_id, p.name, p.slug,
+const productColumns = `p.id, p.category_id, p.brand_id, p.name, p.name_align, p.slug,
 	p.description,
 	p.images,
 	p.is_featured, p.status, p.rejection_reason, p.order_index,
@@ -139,7 +139,7 @@ const productJoin = `FROM products p
 
 // plainProductColumns is used for Create/Update's RETURNING clause — no
 // joins, matches how brand/service's writes return a plain entity.
-const plainProductColumns = `id, category_id, brand_id, name, slug, description,
+const plainProductColumns = `id, category_id, brand_id, name, name_align, slug, description,
 	images,
 	is_featured, status, rejection_reason, order_index,
 	meta_title, meta_description,
@@ -574,13 +574,13 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 
 	query := `
 		INSERT INTO products (
-			category_id, brand_id, name, slug, description,
+			category_id, brand_id, name, name_align, slug, description,
 			images,
 			is_featured, status, rejection_reason, order_index,
 			meta_title, meta_description,
 			product_line_id, highlights
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 		RETURNING ` + plainProductColumns
 
 	imagesJSON, err := media.MarshalImages(product.Images())
@@ -589,7 +589,7 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 	}
 
 	row := tx.QueryRow(ctx, query,
-		product.CategoryID(), product.BrandID(), product.Name(), product.Slug(),
+		product.CategoryID(), product.BrandID(), product.Name(), product.NameAlign(), product.Slug(),
 		orEmptyJSON(product.Description()),
 		imagesJSON,
 		product.IsFeatured(), string(product.Status()), product.RejectionReason(), product.OrderIndex(),
@@ -641,13 +641,13 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 
 	query := `
 		UPDATE products
-		SET category_id = $1, brand_id = $2, name = $3, slug = $4,
-			description = $5,
-			images = $6,
-			is_featured = $7, status = $8, rejection_reason = $9, order_index = $10,
-			meta_title = $11, meta_description = $12,
-			product_line_id = $13, highlights = $14
-		WHERE id = $15
+		SET category_id = $1, brand_id = $2, name = $3, name_align = $4, slug = $5,
+			description = $6,
+			images = $7,
+			is_featured = $8, status = $9, rejection_reason = $10, order_index = $11,
+			meta_title = $12, meta_description = $13,
+			product_line_id = $14, highlights = $15
+		WHERE id = $16
 		RETURNING ` + plainProductColumns
 
 	imagesJSON, err := media.MarshalImages(product.Images())
@@ -656,7 +656,7 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 	}
 
 	row := tx.QueryRow(ctx, query,
-		product.CategoryID(), product.BrandID(), product.Name(), product.Slug(),
+		product.CategoryID(), product.BrandID(), product.Name(), product.NameAlign(), product.Slug(),
 		orEmptyJSON(product.Description()),
 		imagesJSON,
 		product.IsFeatured(), string(product.Status()), product.RejectionReason(), product.OrderIndex(),
@@ -780,25 +780,25 @@ func orEmptyStrings(s []string) []string {
 
 func scanProduct(row rowScanner) (*domain.Product, error) {
 	var (
-		id, categoryID, brandID, name, slug  string
-		description                          json.RawMessage
-		imagesRaw                            []byte
-		isFeatured                           bool
-		status                               string
-		rejectionReason                      *string
-		orderIndex                           int
-		metaTitle, metaDescription           *string
-		productLineID                        *string
-		highlights                           []string
-		defaultVariantID, displayStockStatus *string
-		displayPrice, priceMin, priceMax     *int64
-		variantMpns                          string
-		createdAt, updatedAt                 time.Time
-		deletedAt                            *time.Time
+		id, categoryID, brandID, name, nameAlign, slug string
+		description                                    json.RawMessage
+		imagesRaw                                      []byte
+		isFeatured                                     bool
+		status                                         string
+		rejectionReason                                *string
+		orderIndex                                     int
+		metaTitle, metaDescription                     *string
+		productLineID                                  *string
+		highlights                                     []string
+		defaultVariantID, displayStockStatus           *string
+		displayPrice, priceMin, priceMax               *int64
+		variantMpns                                    string
+		createdAt, updatedAt                           time.Time
+		deletedAt                                      *time.Time
 	)
 
 	if err := row.Scan(
-		&id, &categoryID, &brandID, &name, &slug,
+		&id, &categoryID, &brandID, &name, &nameAlign, &slug,
 		&description,
 		&imagesRaw,
 		&isFeatured, &status, &rejectionReason, &orderIndex,
@@ -816,7 +816,7 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 	}
 
 	return domain.RehydrateProduct(
-		id, categoryID, brandID, name, slug,
+		id, categoryID, brandID, name, nameAlign, slug,
 		description,
 		images,
 		isFeatured, domain.ProductStatus(status), rejectionReason, orderIndex,
@@ -830,21 +830,21 @@ func scanProduct(row rowScanner) (*domain.Product, error) {
 // scanProductWithRelationsRow scans the productColumns + productJoin shape.
 func scanProductWithRelationsRow(row rowScanner) (*domain.ProductWithRelations, error) {
 	var (
-		id, categoryID, brandID, name, slug  string
-		description                          json.RawMessage
-		imagesRaw                            []byte
-		isFeatured                           bool
-		status                               string
-		rejectionReason                      *string
-		orderIndex                           int
-		metaTitle, metaDescription           *string
-		productLineID                        *string
-		highlights                           []string
-		defaultVariantID, displayStockStatus *string
-		displayPrice, priceMin, priceMax     *int64
-		variantMpns                          string
-		createdAt, updatedAt                 time.Time
-		deletedAt                            *time.Time
+		id, categoryID, brandID, name, nameAlign, slug string
+		description                                    json.RawMessage
+		imagesRaw                                      []byte
+		isFeatured                                     bool
+		status                                         string
+		rejectionReason                                *string
+		orderIndex                                     int
+		metaTitle, metaDescription                     *string
+		productLineID                                  *string
+		highlights                                     []string
+		defaultVariantID, displayStockStatus           *string
+		displayPrice, priceMin, priceMax               *int64
+		variantMpns                                    string
+		createdAt, updatedAt                           time.Time
+		deletedAt                                      *time.Time
 
 		catID, catName, catSlug, catMetaTitle, catMetaDescription *string
 
@@ -854,7 +854,7 @@ func scanProductWithRelationsRow(row rowScanner) (*domain.ProductWithRelations, 
 	)
 
 	dest := []any{
-		&id, &categoryID, &brandID, &name, &slug,
+		&id, &categoryID, &brandID, &name, &nameAlign, &slug,
 		&description,
 		&imagesRaw,
 		&isFeatured, &status, &rejectionReason, &orderIndex,
@@ -876,7 +876,7 @@ func scanProductWithRelationsRow(row rowScanner) (*domain.ProductWithRelations, 
 	}
 
 	product := domain.RehydrateProduct(
-		id, categoryID, brandID, name, slug,
+		id, categoryID, brandID, name, nameAlign, slug,
 		description,
 		images,
 		isFeatured, domain.ProductStatus(status), rejectionReason, orderIndex,

@@ -11,7 +11,9 @@ import (
 
 func CreateProduct(ctx context.Context, repo domain.ProductRepository, attributeRepo attributedomain.AttributeDefinitionRepository, input domain.CreateProductInput) (*domain.Product, error) {
 	product, err := domain.NewProduct(
-		input.CategoryID, input.BrandID, input.Name, input.Slug,
+		input.CategoryID, input.BrandID, input.Name,
+		input.NameAlign,
+		input.Slug,
 		input.Description,
 		input.Images,
 		input.IsFeatured, input.OrderIndex,

@@ -263,7 +263,7 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	input := domain.CreateProductInput{
 		CategoryID: req.CategoryID, BrandID: req.BrandID,
-		Name: req.Name, Slug: req.Slug,
+		Name: req.Name, NameAlign: req.NameAlign, Slug: req.Slug,
 		Description: req.Description,
 		Images:      toImageAssetDomainList(req.Images),
 		IsFeatured:  req.IsFeatured, OrderIndex: req.OrderIndex,
@@ -297,7 +297,7 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 	input := domain.UpdateProductInput{
 		ID:         id,
 		CategoryID: req.CategoryID, BrandID: req.BrandID,
-		Name: req.Name, Slug: req.Slug,
+		Name: req.Name, NameAlign: req.NameAlign, Slug: req.Slug,
 		Description: req.Description,
 		Images:      toImageAssetDomainList(req.Images),
 		IsFeatured:  req.IsFeatured, OrderIndex: req.OrderIndex,

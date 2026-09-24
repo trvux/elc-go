@@ -129,7 +129,7 @@ func (r *fakeProductRepository) Create(ctx context.Context, product *domain.Prod
 	id := fmt.Sprintf("id-%d", len(r.items)+1)
 	now := time.Now()
 	created := domain.RehydrateProduct(
-		id, product.CategoryID(), product.BrandID(), product.Name(), product.Slug(),
+		id, product.CategoryID(), product.BrandID(), product.Name(), product.NameAlign(), product.Slug(),
 		product.Description(),
 		product.Images(),
 		product.IsFeatured(), product.Status(), product.RejectionReason(), product.OrderIndex(),
