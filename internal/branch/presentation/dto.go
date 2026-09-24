@@ -35,6 +35,7 @@ func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
 type branchResponse struct {
 	ID              string          `json:"id"`
 	Name            string          `json:"name"`
+	NameAlign       string          `json:"name_align"`
 	Slug            string          `json:"slug"`
 	Address         string          `json:"address"`
 	Phone           string          `json:"phone"`
@@ -61,6 +62,7 @@ func toBranchResponse(b *domain.Branch) branchResponse {
 	return branchResponse{
 		ID:              b.ID(),
 		Name:            b.Name(),
+		NameAlign:       b.NameAlign(),
 		Slug:            b.Slug(),
 		Address:         b.Address(),
 		Phone:           b.Phone(),
@@ -94,6 +96,7 @@ func toBranchResponseList(branches []*domain.Branch) []branchResponse {
 
 type createBranchRequest struct {
 	Name            string          `json:"name"`
+	NameAlign       string          `json:"name_align"`
 	Slug            string          `json:"slug"`
 	Address         string          `json:"address"`
 	Phone           string          `json:"phone"`
@@ -115,6 +118,7 @@ type createBranchRequest struct {
 
 type updateBranchRequest struct {
 	Name            *string         `json:"name"`
+	NameAlign       *string         `json:"name_align"`
 	Slug            *string         `json:"slug"`
 	Address         *string         `json:"address"`
 	Phone           *string         `json:"phone"`

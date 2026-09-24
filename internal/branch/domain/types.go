@@ -12,6 +12,7 @@ import (
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/media"
 	"github.com/trvux/elc-go/internal/platform/seo"
+	"github.com/trvux/elc-go/internal/platform/titlealign"
 )
 
 // ImageAsset re-exports the shared media type — see product/domain/types.go's
@@ -23,6 +24,7 @@ var slugRegex = regexp.MustCompile("^[a-z0-9-]+$")
 type Branch struct {
 	id              string
 	name            string
+	nameAlign       string
 	slug            string
 	address         string
 	phone           string
@@ -53,6 +55,7 @@ type Branch struct {
 // a runtime lookup to build a real PostalAddress.
 func NewBranch(
 	name, slug, address, phone, email, mapsURL, mapsEmbed string,
+	nameAlign string,
 	provinceCode, provinceName, wardCode, wardName, postalCode *string,
 	description json.RawMessage,
 	images []ImageAsset,
@@ -64,6 +67,10 @@ func NewBranch(
 
 	if errs := validateName(name); len(errs) > 0 {
 		fields["name"] = errs
+	}
+	nameAlign = titlealign.OrDefault(nameAlign)
+	if !titlealign.Valid(nameAlign) {
+		fields["nameAlign"] = []string{"nameAlign must be 'left', 'center' or 'right'"}
 	}
 	if errs := validateSlug(slug); len(errs) > 0 {
 		fields["slug"] = errs
@@ -97,6 +104,7 @@ func NewBranch(
 	now := time.Now()
 	return &Branch{
 		name:            name,
+		nameAlign:       nameAlign,
 		slug:            slug,
 		address:         address,
 		phone:           phone,
@@ -122,6 +130,7 @@ func NewBranch(
 // RehydrateBranch reconstructs a branch entity from a trusted DB row.
 func RehydrateBranch(
 	id, name, slug, address, phone, email, mapsURL, mapsEmbed string,
+	nameAlign string,
 	provinceCode, provinceName, wardCode, wardName, postalCode *string,
 	description json.RawMessage,
 	images []ImageAsset,
@@ -134,6 +143,7 @@ func RehydrateBranch(
 	return &Branch{
 		id:              id,
 		name:            name,
+		nameAlign:       nameAlign,
 		slug:            slug,
 		address:         address,
 		phone:           phone,
@@ -159,6 +169,7 @@ func RehydrateBranch(
 
 func (b *Branch) ID() string                   { return b.id }
 func (b *Branch) Name() string                 { return b.name }
+func (b *Branch) NameAlign() string            { return b.nameAlign }
 func (b *Branch) Slug() string                 { return b.slug }
 func (b *Branch) Address() string              { return b.address }
 func (b *Branch) Phone() string                { return b.phone }
@@ -211,6 +222,13 @@ func (b *Branch) Update(input UpdateBranchInput) error {
 			return apperr.NewValidationError("validation failed", map[string][]string{"name": errs})
 		}
 		b.name = *input.Name
+		changed = true
+	}
+	if input.NameAlign != nil {
+		if !titlealign.Valid(*input.NameAlign) {
+			return apperr.NewValidationError("validation failed", map[string][]string{"nameAlign": {"nameAlign must be 'left', 'center' or 'right'"}})
+		}
+		b.nameAlign = *input.NameAlign
 		changed = true
 	}
 	if input.Slug != nil {
@@ -454,6 +472,7 @@ func validateMapsEmbed(mapsEmbed string) []string {
 
 type CreateBranchInput struct {
 	Name            string
+	NameAlign       string
 	Slug            string
 	Address         string
 	Phone           string
@@ -476,6 +495,7 @@ type CreateBranchInput struct {
 type UpdateBranchInput struct {
 	ID              string
 	Name            *string
+	NameAlign       *string
 	Slug            *string
 	Address         *string
 	Phone           *string

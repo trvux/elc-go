@@ -23,7 +23,7 @@ func NewPostgresBranchRepository(pool *pgxpool.Pool) *PostgresBranchRepository {
 	return &PostgresBranchRepository{pool: pool}
 }
 
-const branchColumns = "id, name, slug, address, phone, email, maps_url, maps_embed, province_code, province_name, ward_code, ward_name, postal_code, description, images, is_published, order_index, meta_title, meta_description, created_at, updated_at, deleted_at"
+const branchColumns = "id, name, name_align, slug, address, phone, email, maps_url, maps_embed, province_code, province_name, ward_code, ward_name, postal_code, description, images, is_published, order_index, meta_title, meta_description, created_at, updated_at, deleted_at"
 
 func (r *PostgresBranchRepository) GetAll(ctx context.Context, filter domain.BranchFilter) ([]*domain.Branch, error) {
 	var conditions []string
@@ -151,15 +151,15 @@ func (r *PostgresBranchRepository) Create(ctx context.Context, branch *domain.Br
 
 	query := `
 		INSERT INTO branches (
-			name, slug, address, phone, email, maps_url, maps_embed,
+			name, name_align, slug, address, phone, email, maps_url, maps_embed,
 			province_code, province_name, ward_code, ward_name, postal_code,
 			description, images, is_published, order_index, meta_title, meta_description
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 		RETURNING ` + branchColumns
 
 	row := r.pool.QueryRow(ctx, query,
-		branch.Name(), branch.Slug(), branch.Address(), branch.Phone(), branch.Email(),
+		branch.Name(), branch.NameAlign(), branch.Slug(), branch.Address(), branch.Phone(), branch.Email(),
 		branch.MapsURL(), branch.MapsEmbed(),
 		branch.ProvinceCode(), branch.ProvinceName(), branch.WardCode(), branch.WardName(), branch.PostalCode(),
 		branch.Description(), imagesJSON,
@@ -180,17 +180,17 @@ func (r *PostgresBranchRepository) Update(ctx context.Context, branch *domain.Br
 
 	query := `
 		UPDATE branches
-		SET name = $1, slug = $2, address = $3, phone = $4, email = $5,
-			maps_url = $6, maps_embed = $7,
-			province_code = $8, province_name = $9, ward_code = $10, ward_name = $11, postal_code = $12,
-			description = $13, images = $14,
-			is_published = $15, order_index = $16, meta_title = $17, meta_description = $18,
-			updated_at = $19
-		WHERE id = $20
+		SET name = $1, name_align = $2, slug = $3, address = $4, phone = $5, email = $6,
+			maps_url = $7, maps_embed = $8,
+			province_code = $9, province_name = $10, ward_code = $11, ward_name = $12, postal_code = $13,
+			description = $14, images = $15,
+			is_published = $16, order_index = $17, meta_title = $18, meta_description = $19,
+			updated_at = $20
+		WHERE id = $21
 		RETURNING ` + branchColumns
 
 	row := r.pool.QueryRow(ctx, query,
-		branch.Name(), branch.Slug(), branch.Address(), branch.Phone(), branch.Email(),
+		branch.Name(), branch.NameAlign(), branch.Slug(), branch.Address(), branch.Phone(), branch.Email(),
 		branch.MapsURL(), branch.MapsEmbed(),
 		branch.ProvinceCode(), branch.ProvinceName(), branch.WardCode(), branch.WardName(), branch.PostalCode(),
 		branch.Description(), imagesJSON,
@@ -218,19 +218,19 @@ type rowScanner interface {
 
 func scanBranch(row rowScanner) (*domain.Branch, error) {
 	var (
-		id, name, slug, address, phone, email, mapsURL, mapsEmbed  string
-		provinceCode, provinceName, wardCode, wardName, postalCode *string
-		description                                                json.RawMessage
-		imagesRaw                                                  []byte
-		isPublished                                                bool
-		orderIndex                                                 int
-		metaTitle, metaDescription                                 *string
-		createdAt, updatedAt                                       time.Time
-		deletedAt                                                  *time.Time
+		id, name, nameAlign, slug, address, phone, email, mapsURL, mapsEmbed string
+		provinceCode, provinceName, wardCode, wardName, postalCode           *string
+		description                                                          json.RawMessage
+		imagesRaw                                                            []byte
+		isPublished                                                          bool
+		orderIndex                                                           int
+		metaTitle, metaDescription                                           *string
+		createdAt, updatedAt                                                 time.Time
+		deletedAt                                                            *time.Time
 	)
 
 	if err := row.Scan(
-		&id, &name, &slug, &address, &phone, &email, &mapsURL, &mapsEmbed,
+		&id, &name, &nameAlign, &slug, &address, &phone, &email, &mapsURL, &mapsEmbed,
 		&provinceCode, &provinceName, &wardCode, &wardName, &postalCode,
 		&description,
 		&imagesRaw, &isPublished, &orderIndex, &metaTitle, &metaDescription,
@@ -246,6 +246,7 @@ func scanBranch(row rowScanner) (*domain.Branch, error) {
 
 	return domain.RehydrateBranch(
 		id, name, slug, address, phone, email, mapsURL, mapsEmbed,
+		nameAlign,
 		provinceCode, provinceName, wardCode, wardName, postalCode,
 		description,
 		images, isPublished, orderIndex, metaTitle, metaDescription,

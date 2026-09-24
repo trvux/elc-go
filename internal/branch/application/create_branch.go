@@ -15,6 +15,7 @@ func CreateBranch(ctx context.Context, repo domain.BranchRepository, input domai
 		input.Email,
 		input.MapsURL,
 		input.MapsEmbed,
+		input.NameAlign,
 		input.ProvinceCode,
 		input.ProvinceName,
 		input.WardCode,

@@ -121,6 +121,7 @@ func (h *BranchHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	input := domain.CreateBranchInput{
 		Name:            req.Name,
+		NameAlign:       req.NameAlign,
 		Slug:            req.Slug,
 		Address:         req.Address,
 		Phone:           req.Phone,
@@ -161,6 +162,7 @@ func (h *BranchHandler) Update(w http.ResponseWriter, r *http.Request) {
 	input := domain.UpdateBranchInput{
 		ID:              id,
 		Name:            req.Name,
+		NameAlign:       req.NameAlign,
 		Slug:            req.Slug,
 		Address:         req.Address,
 		Phone:           req.Phone,

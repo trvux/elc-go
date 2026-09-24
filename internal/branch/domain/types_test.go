@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
+	"github.com/trvux/elc-go/internal/platform/titlealign"
 )
 
 func TestNewBranch(t *testing.T) {
@@ -16,6 +17,7 @@ func TestNewBranch(t *testing.T) {
 		b, err := NewBranch(
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
+			"",
 			nil, nil, nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
@@ -34,6 +36,7 @@ func TestNewBranch(t *testing.T) {
 		_, err := NewBranch(
 			"", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
+			"",
 			nil, nil, nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
@@ -53,6 +56,7 @@ func TestNewBranch(t *testing.T) {
 		_, err := NewBranch(
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"invalid-email", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
+			"",
 			nil, nil, nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
@@ -72,6 +76,7 @@ func TestNewBranch(t *testing.T) {
 		_, err := NewBranch(
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "not-a-valid-url", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
+			"",
 			nil, nil, nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
@@ -84,6 +89,42 @@ func TestNewBranch(t *testing.T) {
 		}
 		if _, ok := appErr.Fields["mapsUrl"]; !ok {
 			t.Errorf("expected validation field for mapsUrl, got: %+v", appErr.Fields)
+		}
+	})
+
+	t.Run("nameAlign defaults to left", func(t *testing.T) {
+		b, err := NewBranch(
+			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
+			"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
+			"",
+			nil, nil, nil, nil, nil,
+			desc, images, true, 1, nil, nil,
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if b.NameAlign() != titlealign.Left {
+			t.Errorf("expected nameAlign to default to left, got %s", b.NameAlign())
+		}
+	})
+
+	t.Run("invalid nameAlign fails validation", func(t *testing.T) {
+		_, err := NewBranch(
+			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
+			"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
+			"sideways",
+			nil, nil, nil, nil, nil,
+			desc, images, true, 1, nil, nil,
+		)
+		if err == nil {
+			t.Fatal("expected validation error")
+		}
+		var appErr *apperr.AppError
+		if !errors.As(err, &appErr) {
+			t.Fatalf("expected AppError, got %T", err)
+		}
+		if _, ok := appErr.Fields["nameAlign"]; !ok {
+			t.Errorf("expected validation field for nameAlign, got: %+v", appErr.Fields)
 		}
 	})
 }
@@ -128,6 +169,7 @@ func TestBranch_UpdateFields(t *testing.T) {
 	b, _ := NewBranch(
 		"ELC Q1", "elc-q1", "123 Le Loi", "0901234567",
 		"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
+		"",
 		nil, nil, nil, nil, nil,
 		desc, nil, true, 1, nil, nil,
 	)
@@ -145,6 +187,23 @@ func TestBranch_UpdateFields(t *testing.T) {
 	t.Run("update name with empty fails", func(t *testing.T) {
 		empty := ""
 		if err := b.Update(UpdateBranchInput{Name: &empty}); err == nil {
+			t.Fatal("expected error")
+		}
+	})
+
+	t.Run("update nameAlign succeeds", func(t *testing.T) {
+		center := titlealign.Center
+		if err := b.Update(UpdateBranchInput{NameAlign: &center}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if b.NameAlign() != titlealign.Center {
+			t.Errorf("expected center, got %s", b.NameAlign())
+		}
+	})
+
+	t.Run("update nameAlign with invalid value fails", func(t *testing.T) {
+		invalid := "sideways"
+		if err := b.Update(UpdateBranchInput{NameAlign: &invalid}); err == nil {
 			t.Fatal("expected error")
 		}
 	})
