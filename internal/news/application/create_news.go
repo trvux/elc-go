@@ -10,6 +10,7 @@ func CreateNews(ctx context.Context, repo domain.NewsRepository, input domain.Cr
 	news, err := domain.NewNews(
 		input.Title,
 		input.Slug,
+		input.TitleAlign,
 		input.Images,
 		input.Content,
 		input.Excerpt,

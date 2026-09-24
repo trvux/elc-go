@@ -17,9 +17,30 @@ type ImageAsset = media.ImageAsset
 
 var slugRegex = regexp.MustCompile("^[a-z0-9-]+$")
 
+// Mirrors the migration's CHECK constraint — kept in sync by hand since
+// Postgres CHECK constraints aren't introspectable at compile time. Same
+// left/center/right set as the image node's own `align` attribute
+// (shared/lib/tiptap-render.ts), so the two never drift into different
+// vocabularies for the same concept.
+const (
+	TitleAlignLeft   = "left"
+	TitleAlignCenter = "center"
+	TitleAlignRight  = "right"
+)
+
+func validTitleAlign(align string) bool {
+	switch align {
+	case TitleAlignLeft, TitleAlignCenter, TitleAlignRight:
+		return true
+	default:
+		return false
+	}
+}
+
 type News struct {
 	id              string
 	title           string
+	titleAlign      string
 	slug            string
 	images          []ImageAsset
 	content         json.RawMessage
@@ -54,9 +75,12 @@ func (n *News) Tags() []TagRef { return n.tags }
 
 func (n *News) SetTags(tags []TagRef) { n.tags = tags }
 
-// NewNews validates and creates a new entity from user input.
+// NewNews validates and creates a new entity from user input. An empty
+// titleAlign defaults to TitleAlignLeft — same default the DB column itself
+// falls back to — so existing callers that don't yet pass one keep working.
 func NewNews(
 	title, slug string,
+	titleAlign string,
 	images []ImageAsset,
 	content json.RawMessage,
 	excerpt string,
@@ -70,6 +94,11 @@ func NewNews(
 
 	if errs := validateTitle(title); len(errs) > 0 {
 		fields["title"] = errs
+	}
+	if titleAlign == "" {
+		titleAlign = TitleAlignLeft
+	} else if !validTitleAlign(titleAlign) {
+		fields["titleAlign"] = []string{"titleAlign must be one of: left, center, right"}
 	}
 	if errs := validateSlug(slug); len(errs) > 0 {
 		fields["slug"] = errs
@@ -92,6 +121,7 @@ func NewNews(
 	now := time.Now()
 	return &News{
 		title:           title,
+		titleAlign:      titleAlign,
 		slug:            slug,
 		images:          images,
 		content:         content,
@@ -110,7 +140,9 @@ func NewNews(
 // RehydrateNews reconstructs from a trusted DB row — no validation. Only the
 // infrastructure layer should call this.
 func RehydrateNews(
-	id, title, slug string,
+	id, title string,
+	titleAlign string,
+	slug string,
 	images []ImageAsset,
 	content json.RawMessage,
 	excerpt string,
@@ -125,6 +157,7 @@ func RehydrateNews(
 	return &News{
 		id:              id,
 		title:           title,
+		titleAlign:      titleAlign,
 		slug:            slug,
 		images:          images,
 		content:         content,
@@ -143,6 +176,7 @@ func RehydrateNews(
 
 func (n *News) ID() string               { return n.id }
 func (n *News) Title() string            { return n.title }
+func (n *News) TitleAlign() string       { return n.titleAlign }
 func (n *News) Slug() string             { return n.slug }
 func (n *News) Images() []ImageAsset     { return n.images }
 func (n *News) Content() json.RawMessage { return n.content }
@@ -166,6 +200,17 @@ func (n *News) UpdateTitle(title string) error {
 		return apperr.NewValidationError("validation failed", map[string][]string{"title": errs})
 	}
 	n.title = title
+	n.updatedAt = time.Now()
+	return nil
+}
+
+func (n *News) UpdateTitleAlign(titleAlign string) error {
+	if !validTitleAlign(titleAlign) {
+		return apperr.NewValidationError("validation failed", map[string][]string{
+			"titleAlign": {"titleAlign must be one of: left, center, right"},
+		})
+	}
+	n.titleAlign = titleAlign
 	n.updatedAt = time.Now()
 	return nil
 }
@@ -269,6 +314,7 @@ func validateSlug(slug string) []string {
 
 type CreateNewsInput struct {
 	Title           string
+	TitleAlign      string
 	Slug            string
 	Images          []ImageAsset
 	Content         json.RawMessage
@@ -285,6 +331,7 @@ type CreateNewsInput struct {
 type UpdateNewsInput struct {
 	ID              string
 	Title           *string
+	TitleAlign      *string
 	Slug            *string
 	Images          []ImageAsset
 	Content         json.RawMessage

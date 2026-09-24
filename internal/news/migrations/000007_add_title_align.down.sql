@@ -1,0 +1,2 @@
+ALTER TABLE news DROP CONSTRAINT IF EXISTS news_title_align_check;
+ALTER TABLE news DROP COLUMN IF EXISTS title_align;

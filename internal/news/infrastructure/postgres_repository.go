@@ -25,7 +25,7 @@ func NewPostgresNewsRepository(pool *pgxpool.Pool) *PostgresNewsRepository {
 	return &PostgresNewsRepository{pool: pool}
 }
 
-const newsColumns = "id, title, slug, images, content, excerpt, category_id, author_id, is_published, meta_title, meta_description, order_index, created_at, updated_at, deleted_at"
+const newsColumns = "id, title, title_align, slug, images, content, excerpt, category_id, author_id, is_published, meta_title, meta_description, order_index, created_at, updated_at, deleted_at"
 
 type rowScanner interface {
 	Scan(dest ...any) error
@@ -33,21 +33,21 @@ type rowScanner interface {
 
 func scanNews(row rowScanner) (*domain.News, error) {
 	var (
-		id, title, slug            string
-		imagesRaw                  []byte
-		content                    json.RawMessage
-		excerpt                    string
-		categoryID                 *string
-		authorID                   *string
-		isPublished                bool
-		metaTitle, metaDescription *string
-		orderIndex                 int
-		createdAt, updatedAt       time.Time
-		deletedAt                  *time.Time
+		id, title, titleAlign, slug string
+		imagesRaw                   []byte
+		content                     json.RawMessage
+		excerpt                     string
+		categoryID                  *string
+		authorID                    *string
+		isPublished                 bool
+		metaTitle, metaDescription  *string
+		orderIndex                  int
+		createdAt, updatedAt        time.Time
+		deletedAt                   *time.Time
 	)
 
 	if err := row.Scan(
-		&id, &title, &slug, &imagesRaw, &content, &excerpt, &categoryID, &authorID,
+		&id, &title, &titleAlign, &slug, &imagesRaw, &content, &excerpt, &categoryID, &authorID,
 		&isPublished, &metaTitle, &metaDescription, &orderIndex,
 		&createdAt, &updatedAt, &deletedAt,
 	); err != nil {
@@ -60,7 +60,7 @@ func scanNews(row rowScanner) (*domain.News, error) {
 	}
 
 	return domain.RehydrateNews(
-		id, title, slug, images, content, excerpt, categoryID, authorID,
+		id, title, titleAlign, slug, images, content, excerpt, categoryID, authorID,
 		isPublished, metaTitle, metaDescription, orderIndex,
 		createdAt, updatedAt, deletedAt,
 	), nil
@@ -314,23 +314,23 @@ func (r *PostgresNewsRepository) Create(ctx context.Context, news *domain.News, 
 	if isResurrect {
 		query := `
 			UPDATE news
-			SET title = $1, slug = $2, images = $3, content = $4, excerpt = $5, category_id = $6, author_id = $7,
-				is_published = $8, meta_title = $9, meta_description = $10, order_index = $11,
-				deleted_at = NULL, updated_at = $12
-			WHERE id = $13
+			SET title = $1, title_align = $2, slug = $3, images = $4, content = $5, excerpt = $6, category_id = $7, author_id = $8,
+				is_published = $9, meta_title = $10, meta_description = $11, order_index = $12,
+				deleted_at = NULL, updated_at = $13
+			WHERE id = $14
 			RETURNING ` + newsColumns
 		row = tx.QueryRow(ctx, query,
-			news.Title(), news.Slug(), imagesJSON, news.Content(), news.Excerpt(), news.CategoryID(), news.AuthorID(),
+			news.Title(), news.TitleAlign(), news.Slug(), imagesJSON, news.Content(), news.Excerpt(), news.CategoryID(), news.AuthorID(),
 			news.IsPublished(), news.MetaTitle(), news.MetaDescription(), news.OrderIndex(),
 			time.Now(), existingID,
 		)
 	} else {
 		query := `
-			INSERT INTO news (title, slug, images, content, excerpt, category_id, author_id, is_published, meta_title, meta_description, order_index)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			INSERT INTO news (title, title_align, slug, images, content, excerpt, category_id, author_id, is_published, meta_title, meta_description, order_index)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			RETURNING ` + newsColumns
 		row = tx.QueryRow(ctx, query,
-			news.Title(), news.Slug(), imagesJSON, news.Content(), news.Excerpt(), news.CategoryID(), news.AuthorID(),
+			news.Title(), news.TitleAlign(), news.Slug(), imagesJSON, news.Content(), news.Excerpt(), news.CategoryID(), news.AuthorID(),
 			news.IsPublished(), news.MetaTitle(), news.MetaDescription(), news.OrderIndex(),
 		)
 	}
@@ -372,10 +372,10 @@ func (r *PostgresNewsRepository) Update(ctx context.Context, news *domain.News, 
 
 	query := `
 		UPDATE news
-		SET title = $1, slug = $2, images = $3, content = $4, excerpt = $5, category_id = $6, author_id = $7,
-			is_published = $8, meta_title = $9, meta_description = $10, order_index = $11,
-			updated_at = $12
-		WHERE id = $13
+		SET title = $1, title_align = $2, slug = $3, images = $4, content = $5, excerpt = $6, category_id = $7, author_id = $8,
+			is_published = $9, meta_title = $10, meta_description = $11, order_index = $12,
+			updated_at = $13
+		WHERE id = $14
 		RETURNING ` + newsColumns
 
 	imagesJSON, err := media.MarshalImages(news.Images())
@@ -384,7 +384,7 @@ func (r *PostgresNewsRepository) Update(ctx context.Context, news *domain.News, 
 	}
 
 	row := tx.QueryRow(ctx, query,
-		news.Title(), news.Slug(), imagesJSON, news.Content(), news.Excerpt(), news.CategoryID(), news.AuthorID(),
+		news.Title(), news.TitleAlign(), news.Slug(), imagesJSON, news.Content(), news.Excerpt(), news.CategoryID(), news.AuthorID(),
 		news.IsPublished(), news.MetaTitle(), news.MetaDescription(), news.OrderIndex(),
 		news.UpdatedAt(), news.ID(),
 	)

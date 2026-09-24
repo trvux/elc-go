@@ -24,7 +24,7 @@ func TestPostgresNewsRepository_CRUD(t *testing.T) {
 	repo := NewPostgresNewsRepository(pool)
 
 	n, err := domain.NewNews(
-		"Integration Test News", "integration-test-news-xyz", nil,
+		"Integration Test News", "integration-test-news-xyz", "", nil,
 		nil, "", nil, nil, false, nil, nil, 999,
 	)
 	if err != nil {
@@ -105,7 +105,7 @@ func TestPostgresNewsRepository_ResurrectOnSlugReuse(t *testing.T) {
 
 	repo := NewPostgresNewsRepository(pool)
 
-	n1, _ := domain.NewNews("Resurrect Test", "integration-test-resurrect-news-xyz", nil, nil, "", nil, nil, false, nil, nil, 0)
+	n1, _ := domain.NewNews("Resurrect Test", "integration-test-resurrect-news-xyz", "", nil, nil, "", nil, nil, false, nil, nil, 0)
 	created1, err := repo.Create(ctx, n1, nil)
 	if err != nil {
 		t.Fatalf("first Create failed: %v", err)
@@ -118,7 +118,7 @@ func TestPostgresNewsRepository_ResurrectOnSlugReuse(t *testing.T) {
 		t.Fatalf("SoftDelete failed: %v", err)
 	}
 
-	n2, _ := domain.NewNews("Resurrect Test Again", "integration-test-resurrect-news-xyz", nil, nil, "", nil, nil, false, nil, nil, 0)
+	n2, _ := domain.NewNews("Resurrect Test Again", "integration-test-resurrect-news-xyz", "", nil, nil, "", nil, nil, false, nil, nil, 0)
 	created2, err := repo.Create(ctx, n2, nil)
 	if err != nil {
 		t.Fatalf("second Create (resurrect) failed: %v", err)

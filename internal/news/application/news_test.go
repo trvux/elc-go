@@ -91,3 +91,68 @@ func TestDeleteAndRestoreNews(t *testing.T) {
 		t.Error("expected restored news to be found again")
 	}
 }
+
+func TestCreateNews_TitleAlignDefaultsToLeft(t *testing.T) {
+	repo := newFakeNewsRepository()
+	ctx := context.Background()
+
+	n, err := CreateNews(ctx, repo, domain.CreateNewsInput{Title: "Tin tuc A", Slug: "tin-tuc-a"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if n.TitleAlign() != domain.TitleAlignLeft {
+		t.Errorf("expected titleAlign to default to %q, got %q", domain.TitleAlignLeft, n.TitleAlign())
+	}
+}
+
+func TestCreateNews_InvalidTitleAlign(t *testing.T) {
+	repo := newFakeNewsRepository()
+	ctx := context.Background()
+
+	_, err := CreateNews(ctx, repo, domain.CreateNewsInput{
+		Title: "Tin tuc A", Slug: "tin-tuc-a", TitleAlign: "diagonal",
+	})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != "VALIDATION_ERROR" {
+		t.Fatalf("expected VALIDATION_ERROR, got %v", err)
+	}
+	if len(appErr.Fields["titleAlign"]) == 0 {
+		t.Errorf("expected titleAlign field error, got %v", appErr.Fields)
+	}
+}
+
+func TestUpdateNews_TitleAlign(t *testing.T) {
+	repo := newFakeNewsRepository()
+	ctx := context.Background()
+
+	created, _ := CreateNews(ctx, repo, domain.CreateNewsInput{Title: "Tin tuc A", Slug: "tin-tuc-a"})
+
+	center := domain.TitleAlignCenter
+	updated, err := UpdateNews(ctx, repo, domain.UpdateNewsInput{ID: created.ID(), TitleAlign: &center})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if updated.TitleAlign() != domain.TitleAlignCenter {
+		t.Errorf("expected titleAlign %q, got %q", domain.TitleAlignCenter, updated.TitleAlign())
+	}
+}
+
+func TestUpdateNews_InvalidTitleAlign(t *testing.T) {
+	repo := newFakeNewsRepository()
+	ctx := context.Background()
+
+	created, _ := CreateNews(ctx, repo, domain.CreateNewsInput{Title: "Tin tuc A", Slug: "tin-tuc-a"})
+
+	invalid := "diagonal"
+	_, err := UpdateNews(ctx, repo, domain.UpdateNewsInput{ID: created.ID(), TitleAlign: &invalid})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	var appErr *apperr.AppError
+	if !errors.As(err, &appErr) || appErr.Code != "VALIDATION_ERROR" {
+		t.Fatalf("expected VALIDATION_ERROR, got %v", err)
+	}
+}

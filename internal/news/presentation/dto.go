@@ -49,6 +49,7 @@ func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
 type newsResponse struct {
 	ID              string           `json:"id"`
 	Title           string           `json:"title"`
+	TitleAlign      string           `json:"title_align"`
 	Slug            string           `json:"slug"`
 	Images          []imageAssetDTO  `json:"images"`
 	Content         json.RawMessage  `json:"content"`
@@ -69,6 +70,7 @@ func toNewsResponse(n *domain.News) newsResponse {
 	return newsResponse{
 		ID:              n.ID(),
 		Title:           n.Title(),
+		TitleAlign:      n.TitleAlign(),
 		Slug:            n.Slug(),
 		Images:          toImageAssetDTOList(n.Images()),
 		Content:         n.Content(),
@@ -96,6 +98,7 @@ func toNewsResponseList(items []*domain.News) []newsResponse {
 
 type createNewsRequest struct {
 	Title           string          `json:"title"`
+	TitleAlign      string          `json:"title_align"`
 	Slug            string          `json:"slug"`
 	Images          []imageAssetDTO `json:"images"`
 	Content         json.RawMessage `json:"content"`
@@ -111,6 +114,7 @@ type createNewsRequest struct {
 
 type updateNewsRequest struct {
 	Title           *string         `json:"title"`
+	TitleAlign      *string         `json:"title_align"`
 	Slug            *string         `json:"slug"`
 	Images          []imageAssetDTO `json:"images"`
 	Content         json.RawMessage `json:"content"`

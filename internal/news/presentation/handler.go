@@ -121,6 +121,7 @@ func (h *NewsHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	input := domain.CreateNewsInput{
 		Title:           req.Title,
+		TitleAlign:      req.TitleAlign,
 		Slug:            req.Slug,
 		Images:          toImageAssetDomainList(req.Images),
 		Content:         req.Content,
@@ -155,6 +156,7 @@ func (h *NewsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	input := domain.UpdateNewsInput{
 		ID:              id,
 		Title:           req.Title,
+		TitleAlign:      req.TitleAlign,
 		Slug:            req.Slug,
 		Images:          toImageAssetDomainList(req.Images),
 		Content:         req.Content,

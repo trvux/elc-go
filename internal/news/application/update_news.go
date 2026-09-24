@@ -21,6 +21,11 @@ func UpdateNews(ctx context.Context, repo domain.NewsRepository, input domain.Up
 			return nil, err
 		}
 	}
+	if input.TitleAlign != nil {
+		if err := news.UpdateTitleAlign(*input.TitleAlign); err != nil {
+			return nil, err
+		}
+	}
 	if input.Slug != nil {
 		if err := news.UpdateSlug(*input.Slug); err != nil {
 			return nil, err
