@@ -22,22 +22,29 @@ func Valid(v string) bool {
 	}
 }
 
-// OrDefault returns Center when v is empty (the "not specified" case),
+// OrDefault returns fallback when v is empty (the "not specified" case),
 // otherwise v unchanged. Callers must still call Valid on the result —
 // OrDefault does not validate.
 //
-// Was Left until 2026-09-25: many already-published articles/titles that
-// predate this feature (created back when every title was hardcoded
-// left-aligned, before titleAlign existed at all) read as visually "off"
-// once every other page in the same section is deliberately centered —
-// readers assumed it was a layout bug, not a per-record choice. Center is
-// now the fallback everywhere titleAlign isn't explicitly set. Existing
-// rows already stored as 'left' are a separate, explicit choice (not "not
-// specified") and are handled by a one-time data backfill instead — see
-// each module's own migration.
-func OrDefault(v string) string {
+// The right fallback depends on how the module renders its title, not on
+// the module itself:
+//   - news/project/page/branch render the title as a standalone, full-width
+//     hero heading (see the Linear-style article header work, 2026-09-25) —
+//     Center reads better there, and many already-published titles predate
+//     titleAlign entirely (created back when every title was hardcoded
+//     left-aligned), so readers mistook their left alignment for a layout
+//     bug once every other page in the section was deliberately centered.
+//   - product/service render the title beside a price/spec sidebar in a
+//     two-column detail layout (ProductDetailModule/ServiceDetailModule) —
+//     centering it there looks broken (confirmed against production
+//     screenshots, 2026-09-25), so Left stays the fallback for these two.
+//
+// Existing rows already stored as a specific value are a separate, explicit
+// choice (not "not specified") and are handled by a one-time data backfill
+// instead — see each module's own migration.
+func OrDefault(v, fallback string) string {
 	if v == "" {
-		return Center
+		return fallback
 	}
 	return v
 }

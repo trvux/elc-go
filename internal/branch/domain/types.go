@@ -68,7 +68,7 @@ func NewBranch(
 	if errs := validateName(name); len(errs) > 0 {
 		fields["name"] = errs
 	}
-	nameAlign = titlealign.OrDefault(nameAlign)
+	nameAlign = titlealign.OrDefault(nameAlign, titlealign.Center)
 	if !titlealign.Valid(nameAlign) {
 		fields["nameAlign"] = []string{"nameAlign must be 'left', 'center' or 'right'"}
 	}

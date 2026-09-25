@@ -89,7 +89,7 @@ func NewNews(
 	if errs := validateTitle(title); len(errs) > 0 {
 		fields["title"] = errs
 	}
-	titleAlign = titlealign.OrDefault(titleAlign)
+	titleAlign = titlealign.OrDefault(titleAlign, titlealign.Center)
 	if !titlealign.Valid(titleAlign) {
 		fields["titleAlign"] = []string{"titleAlign must be one of: left, center, right"}
 	}

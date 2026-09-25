@@ -104,7 +104,7 @@ func NewService(
 	if errs := validatePricing(originalPrice, discountPercent); len(errs) > 0 {
 		fields["discountPercent"] = errs
 	}
-	titleAlign = titlealign.OrDefault(titleAlign)
+	titleAlign = titlealign.OrDefault(titleAlign, titlealign.Left)
 	if !titlealign.Valid(titleAlign) {
 		fields["titleAlign"] = []string{"titleAlign must be 'left', 'center' or 'right'"}
 	}

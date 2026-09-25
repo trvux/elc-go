@@ -161,7 +161,7 @@ func NewProject(
 	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
 		fields["metaDescription"] = errs
 	}
-	titleAlign = titlealign.OrDefault(titleAlign)
+	titleAlign = titlealign.OrDefault(titleAlign, titlealign.Center)
 	if !titlealign.Valid(titleAlign) {
 		fields["titleAlign"] = []string{"titleAlign must be 'left', 'center' or 'right'"}
 	}

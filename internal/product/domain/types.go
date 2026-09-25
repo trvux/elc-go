@@ -188,7 +188,7 @@ func NewProduct(
 	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
 		fields["metaDescription"] = errs
 	}
-	nameAlign = titlealign.OrDefault(nameAlign)
+	nameAlign = titlealign.OrDefault(nameAlign, titlealign.Left)
 	if !titlealign.Valid(nameAlign) {
 		fields["nameAlign"] = []string{"nameAlign must be 'left', 'center' or 'right'"}
 	}

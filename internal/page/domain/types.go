@@ -53,7 +53,7 @@ func NewPage(
 	if errs := seo.ValidateMetaDescription(metaDescription); len(errs) > 0 {
 		fieldErrors["metaDescription"] = errs
 	}
-	titleAlign = titlealign.OrDefault(titleAlign)
+	titleAlign = titlealign.OrDefault(titleAlign, titlealign.Center)
 	if !titlealign.Valid(titleAlign) {
 		fieldErrors["titleAlign"] = []string{"titleAlign must be 'left', 'center' or 'right'"}
 	}
@@ -133,7 +133,7 @@ func (p *Page) Update(
 	if slug == "" {
 		fieldErrors["slug"] = []string{"slug cannot be empty"}
 	}
-	titleAlign = titlealign.OrDefault(titleAlign)
+	titleAlign = titlealign.OrDefault(titleAlign, titlealign.Center)
 	if !titlealign.Valid(titleAlign) {
 		fieldErrors["titleAlign"] = []string{"titleAlign must be 'left', 'center' or 'right'"}
 	}
