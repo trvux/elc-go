@@ -19,8 +19,8 @@ func TestNewPage(t *testing.T) {
 		if p.Title() != title || p.Slug() != slug || p.IsPublished() != true || p.OrderIndex() != 1 {
 			t.Errorf("unexpected page state: %+v", p)
 		}
-		if p.TitleAlign() != TitleAlignLeft {
-			t.Errorf("expected titleAlign to default to left, got %s", p.TitleAlign())
+		if p.TitleAlign() != TitleAlignCenter {
+			t.Errorf("expected titleAlign to default to center, got %s", p.TitleAlign())
 		}
 	})
 

@@ -92,7 +92,7 @@ func TestNewBranch(t *testing.T) {
 		}
 	})
 
-	t.Run("nameAlign defaults to left", func(t *testing.T) {
+	t.Run("nameAlign defaults to center", func(t *testing.T) {
 		b, err := NewBranch(
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
@@ -103,8 +103,8 @@ func TestNewBranch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if b.NameAlign() != titlealign.Left {
-			t.Errorf("expected nameAlign to default to left, got %s", b.NameAlign())
+		if b.NameAlign() != titlealign.Center {
+			t.Errorf("expected nameAlign to default to center, got %s", b.NameAlign())
 		}
 	})
 

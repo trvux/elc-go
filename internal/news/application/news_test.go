@@ -92,7 +92,7 @@ func TestDeleteAndRestoreNews(t *testing.T) {
 	}
 }
 
-func TestCreateNews_TitleAlignDefaultsToLeft(t *testing.T) {
+func TestCreateNews_TitleAlignDefaultsToCenter(t *testing.T) {
 	repo := newFakeNewsRepository()
 	ctx := context.Background()
 
@@ -100,8 +100,8 @@ func TestCreateNews_TitleAlignDefaultsToLeft(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if n.TitleAlign() != domain.TitleAlignLeft {
-		t.Errorf("expected titleAlign to default to %q, got %q", domain.TitleAlignLeft, n.TitleAlign())
+	if n.TitleAlign() != domain.TitleAlignCenter {
+		t.Errorf("expected titleAlign to default to %q, got %q", domain.TitleAlignCenter, n.TitleAlign())
 	}
 }
 

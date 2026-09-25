@@ -24,7 +24,7 @@ func TestCreateProject(t *testing.T) {
 	}
 }
 
-func TestCreateProject_TitleAlignDefaultsToLeft(t *testing.T) {
+func TestCreateProject_TitleAlignDefaultsToCenter(t *testing.T) {
 	repo := newFakeProjectRepository()
 	ctx := context.Background()
 
@@ -34,8 +34,8 @@ func TestCreateProject_TitleAlignDefaultsToLeft(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if p.TitleAlign() != domain.TitleAlignLeft {
-		t.Errorf("expected titleAlign to default to left, got %s", p.TitleAlign())
+	if p.TitleAlign() != domain.TitleAlignCenter {
+		t.Errorf("expected titleAlign to default to center, got %s", p.TitleAlign())
 	}
 }
 

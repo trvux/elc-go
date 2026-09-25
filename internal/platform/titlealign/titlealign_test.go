@@ -21,8 +21,8 @@ func TestValid(t *testing.T) {
 }
 
 func TestOrDefault(t *testing.T) {
-	if got := OrDefault(""); got != Left {
-		t.Errorf("OrDefault(\"\") = %q, want %q", got, Left)
+	if got := OrDefault(""); got != Center {
+		t.Errorf("OrDefault(\"\") = %q, want %q", got, Center)
 	}
 	if got := OrDefault(Right); got != Right {
 		t.Errorf("OrDefault(%q) = %q, want %q", Right, got, Right)

@@ -32,8 +32,8 @@ func TestPageUseCases(t *testing.T) {
 	if created.ID() == "" || created.Title() != "Test Page" || created.Slug() != "test-page" {
 		t.Errorf("unexpected created page state: %+v", created)
 	}
-	if created.TitleAlign() != domain.TitleAlignLeft {
-		t.Errorf("expected titleAlign to default to left, got %s", created.TitleAlign())
+	if created.TitleAlign() != domain.TitleAlignCenter {
+		t.Errorf("expected titleAlign to default to center, got %s", created.TitleAlign())
 	}
 
 	// 2. Get pages

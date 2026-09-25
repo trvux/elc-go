@@ -57,10 +57,10 @@ func TestNewProduct(t *testing.T) {
 		assertValidationError(t, err)
 	})
 
-	t.Run("nameAlign defaults to left", func(t *testing.T) {
+	t.Run("nameAlign defaults to center", func(t *testing.T) {
 		p := newTestProduct(t)
-		if p.NameAlign() != titlealign.Left {
-			t.Errorf("expected nameAlign to default to left, got %s", p.NameAlign())
+		if p.NameAlign() != titlealign.Center {
+			t.Errorf("expected nameAlign to default to center, got %s", p.NameAlign())
 		}
 	})
 

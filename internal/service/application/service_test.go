@@ -32,7 +32,7 @@ func TestCreateService(t *testing.T) {
 	}
 }
 
-func TestCreateService_TitleAlignDefaultsToLeft(t *testing.T) {
+func TestCreateService_TitleAlignDefaultsToCenter(t *testing.T) {
 	repo := newFakeServiceRepository()
 	ctx := context.Background()
 
@@ -42,8 +42,8 @@ func TestCreateService_TitleAlignDefaultsToLeft(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if s.TitleAlign() != domain.TitleAlignLeft {
-		t.Errorf("expected titleAlign to default to left, got %s", s.TitleAlign())
+	if s.TitleAlign() != domain.TitleAlignCenter {
+		t.Errorf("expected titleAlign to default to center, got %s", s.TitleAlign())
 	}
 }
 
