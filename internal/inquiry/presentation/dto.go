@@ -197,15 +197,24 @@ type createClickRequest struct {
 	UTMTerm     *string `json:"utm_term"`
 	UTMContent  *string `json:"utm_content"`
 	GAClientID  *string `json:"ga_client_id"`
+	// Reverse-geocoded "Phường X, Quận Y, Thành phố Z" from the browser's
+	// Geolocation API, resolved server-side in elc-temp (proxy has
+	// GEOCODING_API_KEY, this module never talks to Google directly) — nil
+	// whenever the visitor denied/ignored the permission prompt or the
+	// lookup failed, same best-effort posture as ga_client_id.
+	Location *string `json:"location"`
 }
 
-func buildClickQualifyData(pagePath, entityName *string) json.RawMessage {
+func buildClickQualifyData(pagePath, entityName, location *string) json.RawMessage {
 	fields := map[string]string{}
 	if pagePath != nil && *pagePath != "" {
 		fields["pagePath"] = *pagePath
 	}
 	if entityName != nil && *entityName != "" {
 		fields["entityName"] = *entityName
+	}
+	if location != nil && *location != "" {
+		fields["location"] = *location
 	}
 	if len(fields) == 0 {
 		return json.RawMessage("{}")
