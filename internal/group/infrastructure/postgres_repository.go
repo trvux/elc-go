@@ -3,15 +3,31 @@ package infrastructure
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/trvux/elc-go/internal/group/domain"
+	"github.com/trvux/elc-go/internal/platform/apperr"
 )
+
+// mapSlugConflict maps the group_categories slug-uniqueness trigger's raised
+// exception (SQLSTATE P0001, message already in user-facing Vietnamese) to a
+// 409 instead of leaking it as a raw 500 — same "map a known DB condition to
+// an apperr here" convention as auth's unique-constraint mapping and page's
+// Update TOCTOU fix.
+func mapSlugConflict(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "P0001" {
+		return apperr.NewConflictError(pgErr.Message)
+	}
+	return nil
+}
 
 type PostgresGroupRepository struct {
 	pool *pgxpool.Pool
@@ -159,6 +175,9 @@ func (r *PostgresGroupRepository) Create(ctx context.Context, group *domain.Grou
 		)
 		created, err := scanGroup(row)
 		if err != nil {
+			if appErr := mapSlugConflict(err); appErr != nil {
+				return nil, appErr
+			}
 			return nil, fmt.Errorf("group repository create: %w", err)
 		}
 		result = created
@@ -185,6 +204,9 @@ func (r *PostgresGroupRepository) Update(ctx context.Context, group *domain.Grou
 	)
 	updated, err := scanGroup(row)
 	if err != nil {
+		if appErr := mapSlugConflict(err); appErr != nil {
+			return nil, appErr
+		}
 		return nil, fmt.Errorf("group repository update: %w", err)
 	}
 	return updated, nil
