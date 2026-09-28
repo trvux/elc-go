@@ -24,12 +24,13 @@ const (
 	OwnerTypeNews       OwnerType = "news"
 	OwnerTypeBranch     OwnerType = "branch"
 	OwnerTypePage       OwnerType = "page"
+	OwnerTypeBrand      OwnerType = "brand"
 )
 
 func (o OwnerType) IsValid() bool {
 	switch o {
 	case OwnerTypeSystemPage, OwnerTypeProduct, OwnerTypeProject, OwnerTypeService,
-		OwnerTypeNews, OwnerTypeBranch, OwnerTypePage:
+		OwnerTypeNews, OwnerTypeBranch, OwnerTypePage, OwnerTypeBrand:
 		return true
 	default:
 		return false
