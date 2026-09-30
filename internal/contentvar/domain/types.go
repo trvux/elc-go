@@ -13,11 +13,22 @@ const (
 	MetricCount    Metric = "count"
 	MetricPriceMin Metric = "priceMin"
 	MetricPriceMax Metric = "priceMax"
+	// MetricBrandCount is the number of DISTINCT brands with at least one
+	// product in scope (e.g. "2 thương hiệu" for the máy lạnh group) —
+	// computed from the products table, so a brand with zero products in
+	// this scope never counts, unlike a plain lookup of the brands table.
+	MetricBrandCount Metric = "brandCount"
+	// MetricCategoryCount is the number of categories under a group scope
+	// (e.g. "5 loại lắp đặt") — a catalog-structure fact (how many
+	// installation types this group offers), not stock-dependent, so it's
+	// just the resolved category slug count, no products query needed.
+	// Meaningless (always 1) for a plain CategorySlug scope.
+	MetricCategoryCount Metric = "categoryCount"
 )
 
 func (m Metric) IsValid() bool {
 	switch m {
-	case MetricCount, MetricPriceMin, MetricPriceMax:
+	case MetricCount, MetricPriceMin, MetricPriceMax, MetricBrandCount, MetricCategoryCount:
 		return true
 	default:
 		return false

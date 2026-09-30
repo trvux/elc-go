@@ -24,6 +24,11 @@ type ProductRepository interface {
 	// (content variable resolution) that only need the min/max under a
 	// filter, not a full product listing.
 	PriceRange(ctx context.Context, filter ProductFilter) (PriceFacet, error)
+	// BrandCount is the number of DISTINCT brands with at least one
+	// product matching filter — a dedicated COUNT(DISTINCT brand_id),
+	// cheaper than computing the full brand facet (names/logos/per-brand
+	// counts) when a caller only needs how many brands, not which ones.
+	BrandCount(ctx context.Context, filter ProductFilter) (int, error)
 	GetByID(ctx context.Context, id string) (*ProductWithRelations, error)
 	GetBySlug(ctx context.Context, slug string) (*ProductWithRelations, error)
 	GetByIDs(ctx context.Context, ids []string) ([]*ProductWithRelations, error)

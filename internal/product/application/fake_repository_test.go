@@ -98,6 +98,10 @@ func (r *fakeProductRepository) PriceRange(ctx context.Context, filter domain.Pr
 	return domain.PriceFacet{}, nil
 }
 
+func (r *fakeProductRepository) BrandCount(ctx context.Context, filter domain.ProductFilter) (int, error) {
+	return 0, nil
+}
+
 func (r *fakeProductRepository) GetByID(ctx context.Context, id string) (*domain.ProductWithRelations, error) {
 	p, ok := r.items[id]
 	if !ok || p.IsDeleted() {

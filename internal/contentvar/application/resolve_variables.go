@@ -39,8 +39,13 @@ func NewResolver(
 // instead of once per requested variable.
 type filterScope struct {
 	filter productdomain.ProductFilter
-	count  *int
-	price  *productdomain.PriceFacet
+	// categorySlugs is the resolved scope's category slugs — kept
+	// alongside filter so MetricCategoryCount can read its length without
+	// a products query (see resolveMetric).
+	categorySlugs []string
+	count         *int
+	price         *productdomain.PriceFacet
+	brandCount    *int
 }
 
 // Resolve returns one value per request, keyed by VariableRequest.ID — a
@@ -72,7 +77,7 @@ func (s *Resolver) Resolve(ctx context.Context, requests []domain.VariableReques
 			if brandID != "" {
 				filter.BrandID = &brandID
 			}
-			scope = &filterScope{filter: filter}
+			scope = &filterScope{filter: filter, categorySlugs: categorySlugs}
 			scopes[scopeKey] = scope
 		}
 
@@ -109,6 +114,17 @@ func (s *Resolver) resolveMetric(ctx context.Context, scope *filterScope, metric
 			return scope.price.Min, nil
 		}
 		return scope.price.Max, nil
+	case domain.MetricBrandCount:
+		if scope.brandCount == nil {
+			count, err := s.products.BrandCount(ctx, scope.filter)
+			if err != nil {
+				return nil, fmt.Errorf("contentvar resolver brand count: %w", err)
+			}
+			scope.brandCount = &count
+		}
+		return *scope.brandCount, nil
+	case domain.MetricCategoryCount:
+		return len(scope.categorySlugs), nil
 	default:
 		return nil, apperr.NewValidationError("invalid metric", map[string][]string{
 			"metric": {string(metric)},

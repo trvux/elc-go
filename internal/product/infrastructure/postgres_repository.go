@@ -367,6 +367,24 @@ func (r *PostgresProductRepository) PriceRange(ctx context.Context, filter domai
 	return r.computePriceFacets(ctx, filter)
 }
 
+// BrandCount counts distinct brands with at least one product matching
+// filter, excluding the filter's own brand dimension — same "exclude own
+// dimension" semantics as computeBrandFacets, just a plain count instead
+// of per-brand names/logos.
+func (r *PostgresProductRepository) BrandCount(ctx context.Context, filter domain.ProductFilter) (int, error) {
+	conditions, args := buildFilterConditions(filter, facetExclude{Brand: true})
+	query := "SELECT COUNT(DISTINCT p.brand_id) FROM products p"
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	var count int
+	if err := r.pool.QueryRow(ctx, query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("product repository brandCount: %w", err)
+	}
+	return count, nil
+}
+
 // GetAll runs the main list query, total count, and every facet dimension
 // (brand/category/price/attribute) concurrently via errgroup — independent
 // queries against the same pgxpool, each facet excluding its own filter
