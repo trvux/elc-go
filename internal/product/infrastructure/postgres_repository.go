@@ -361,10 +361,18 @@ func (r *PostgresProductRepository) Count(ctx context.Context, filter domain.Pro
 	return count, nil
 }
 
+// PriceRange exposes computePriceFacets standalone — same query GetAll's
+// Price facet uses.
+func (r *PostgresProductRepository) PriceRange(ctx context.Context, filter domain.ProductFilter) (domain.PriceFacet, error) {
+	return r.computePriceFacets(ctx, filter)
+}
+
 // GetAll runs the main list query, total count, and every facet dimension
-// (brand/price/attribute) concurrently via errgroup — independent queries
-// against the same pgxpool, each facet excluding its own filter dimension
-// (see facetExclude).
+// (brand/category/price/attribute) concurrently via errgroup — independent
+// queries against the same pgxpool, each facet excluding its own filter
+// dimension (see facetExclude) except category, which is the scope-defining
+// dimension for group/brand pages rather than a toggleable option (see
+// computeCategoryFacets).
 func (r *PostgresProductRepository) GetAll(ctx context.Context, filter domain.ProductFilter) (*domain.ProductListResult, error) {
 	var (
 		products   []*domain.ProductWithRelations
@@ -390,6 +398,11 @@ func (r *PostgresProductRepository) GetAll(ctx context.Context, filter domain.Pr
 	g.Go(func() error {
 		var err error
 		facets.Brands, err = r.computeBrandFacets(gctx, filter)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		facets.Categories, err = r.computeCategoryFacets(gctx, filter)
 		return err
 	})
 	g.Go(func() error {

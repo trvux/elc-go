@@ -20,6 +20,10 @@ type ProductListResult struct {
 type ProductRepository interface {
 	GetAll(ctx context.Context, filter ProductFilter) (*ProductListResult, error)
 	Count(ctx context.Context, filter ProductFilter) (int, error)
+	// PriceRange is GetAll's Price facet exposed standalone, for callers
+	// (content variable resolution) that only need the min/max under a
+	// filter, not a full product listing.
+	PriceRange(ctx context.Context, filter ProductFilter) (PriceFacet, error)
 	GetByID(ctx context.Context, id string) (*ProductWithRelations, error)
 	GetBySlug(ctx context.Context, slug string) (*ProductWithRelations, error)
 	GetByIDs(ctx context.Context, ids []string) ([]*ProductWithRelations, error)

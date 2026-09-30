@@ -35,6 +35,8 @@ import (
 	categorypresentation "github.com/trvux/elc-go/internal/category/presentation"
 	contactinfra "github.com/trvux/elc-go/internal/contact/infrastructure"
 	contactpresentation "github.com/trvux/elc-go/internal/contact/presentation"
+	contentvarApplication "github.com/trvux/elc-go/internal/contentvar/application"
+	contentvarPresentation "github.com/trvux/elc-go/internal/contentvar/presentation"
 	eventinfra "github.com/trvux/elc-go/internal/event/infrastructure"
 	eventpresentation "github.com/trvux/elc-go/internal/event/presentation"
 	faqinfra "github.com/trvux/elc-go/internal/faq/infrastructure"
@@ -333,6 +335,10 @@ func main() {
 	categoryRepo := categoryinfra.NewPostgresCategoryRepository(pool)
 	categoryHandler := categorypresentation.NewCategoryHandler(categoryRepo)
 	categorypresentation.RegisterRoutes(router, categoryHandler, tokenIssuer)
+
+	contentVarResolver := contentvarApplication.NewResolver(productRepo, categoryRepo, groupRepo, brandRepo)
+	contentVarHandler := contentvarPresentation.NewContentVarHandler(contentVarResolver)
+	contentvarPresentation.RegisterRoutes(router, contentVarHandler)
 
 	settingsRepo := settingsinfra.NewPostgresSettingsRepository(pool)
 	settingsHandler := settingspresentation.NewSettingsHandler(settingsRepo)

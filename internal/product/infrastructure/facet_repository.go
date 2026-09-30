@@ -77,6 +77,45 @@ func (r *PostgresProductRepository) computeBrandFacets(ctx context.Context, filt
 	return facets, rows.Err()
 }
 
+// computeCategoryFacets counts published-under-filter products per category,
+// for group/brand pages whose filter.CategoryIDs spans more than one
+// category (e.g. every installation-type category under the "máy lạnh"
+// group). Unlike computeBrandFacets/computePriceFacets, this does NOT
+// exclude its own filter dimension: category is the scope that defines
+// which products the page is about, not a toggleable facet option, so the
+// breakdown is computed *within* filter.CategoryIDs rather than across
+// every category in the catalog. Returns nil when the filter targets zero
+// or one category — nothing to break down (see domain.ProductFacets.Categories).
+func (r *PostgresProductRepository) computeCategoryFacets(ctx context.Context, filter domain.ProductFilter) ([]domain.CategoryFacet, error) {
+	if len(filter.CategoryIDs) == 0 {
+		return nil, nil
+	}
+	conditions, args := buildFilterConditions(filter, facetExclude{})
+	query := `SELECT c.id, c.name, c.slug, COUNT(*)
+		FROM products p
+		JOIN categories c ON c.id = p.category_id`
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += " GROUP BY c.id, c.name, c.slug ORDER BY c.name"
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("product repository computeCategoryFacets: %w", err)
+	}
+	defer rows.Close()
+
+	var facets []domain.CategoryFacet
+	for rows.Next() {
+		var f domain.CategoryFacet
+		if err := rows.Scan(&f.ID, &f.Name, &f.Slug, &f.Count); err != nil {
+			return nil, fmt.Errorf("product repository computeCategoryFacets scan: %w", err)
+		}
+		facets = append(facets, f)
+	}
+	return facets, rows.Err()
+}
+
 // computePriceFacets returns the min/max display_price under the filter
 // (excluding the filter's own price dimension) plus ready-to-click bucket
 // suggestions built from every matching product's actual price — see
