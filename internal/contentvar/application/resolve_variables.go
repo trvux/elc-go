@@ -70,12 +70,15 @@ func (s *Resolver) Resolve(ctx context.Context, requests []domain.VariableReques
 			continue
 		}
 
-		scopeKey := fmt.Sprintf("%v|%s", categorySlugs, brandID)
+		scopeKey := fmt.Sprintf("%v|%s|%s:%s", categorySlugs, brandID, req.Filter.AttributeCode, req.Filter.AttributeValue)
 		scope, ok := scopes[scopeKey]
 		if !ok {
 			filter := productdomain.ProductFilter{CategorySlugs: categorySlugs}
 			if brandID != "" {
 				filter.BrandID = &brandID
+			}
+			if req.Filter.AttributeCode != "" && req.Filter.AttributeValue != "" {
+				filter.AttributeTokens = []string{req.Filter.AttributeCode + ":" + req.Filter.AttributeValue}
 			}
 			scope = &filterScope{filter: filter, categorySlugs: categorySlugs}
 			scopes[scopeKey] = scope

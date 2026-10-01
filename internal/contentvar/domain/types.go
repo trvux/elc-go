@@ -41,10 +41,20 @@ func (m Metric) IsValid() bool {
 // under that group (e.g. every installation-type category under
 // "may-lanh"); CategorySlug narrows to one. BrandSlug further narrows
 // either to one brand. At least one of GroupSlug/CategorySlug is required.
+//
+// AttributeCode/AttributeValue optionally narrow further to products whose
+// select/multiselect/boolean attribute (e.g. "xuat_xu") equals a specific
+// value (e.g. "Thái Lan") — only meaningful with MetricCount, folded
+// straight into ProductFilter.AttributeTokens (the same discrete-facet
+// mechanism /products already uses). Both must be set together or both
+// left empty; number-type attributes aren't supported (not
+// token-facetable — see ProductFilter.AttributeTokens's own doc comment).
 type VariableFilter struct {
-	GroupSlug    string
-	CategorySlug string
-	BrandSlug    string
+	GroupSlug      string
+	CategorySlug   string
+	BrandSlug      string
+	AttributeCode  string
+	AttributeValue string
 }
 
 // VariableRequest is one {id, metric, filter} entry in a batch resolve

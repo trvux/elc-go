@@ -29,9 +29,11 @@ type variableRequestDTO struct {
 }
 
 type variableFilterDTO struct {
-	GroupSlug    string `json:"groupSlug"`
-	CategorySlug string `json:"categorySlug"`
-	BrandSlug    string `json:"brandSlug"`
+	GroupSlug      string `json:"groupSlug"`
+	CategorySlug   string `json:"categorySlug"`
+	BrandSlug      string `json:"brandSlug"`
+	AttributeCode  string `json:"attributeCode"`
+	AttributeValue string `json:"attributeValue"`
 }
 
 type resolveVariablesResponse struct {
@@ -74,9 +76,11 @@ func (h *ContentVarHandler) ResolveVariables(w http.ResponseWriter, r *http.Requ
 			ID:     v.ID,
 			Metric: metric,
 			Filter: domain.VariableFilter{
-				GroupSlug:    v.Filter.GroupSlug,
-				CategorySlug: v.Filter.CategorySlug,
-				BrandSlug:    v.Filter.BrandSlug,
+				GroupSlug:      v.Filter.GroupSlug,
+				CategorySlug:   v.Filter.CategorySlug,
+				BrandSlug:      v.Filter.BrandSlug,
+				AttributeCode:  v.Filter.AttributeCode,
+				AttributeValue: v.Filter.AttributeValue,
 			},
 		}
 	}
