@@ -324,6 +324,16 @@ Trường `bytes` của access log cho thấy vài endpoint trả payload rất 
 
 Code (G1, G4-stats): `internal/platform/metrics` (registry riêng; counter/histogram theo **route pattern**, method chuẩn hóa về danh sách cố định để scanner không tạo series vô hạn; kích thước response; in-flight; collector cho `pgxpool.Stat()`; Go runtime/process/build-info). `httpserver.New(logger, extra...)` đặt middleware metrics NGOÀI `recoverer` nên panic vẫn được đếm là 500. `/metrics` nằm ở listener riêng `:9091` (không đi qua router công khai, không qua nginx), compose publish `127.0.0.1:9091` cho Prometheus scrape. Test: cardinality (3 id khác nhau -> 1 series), không rò token/email vào output, panic = 500, method lạ -> `OTHER`, SSE giữ Flusher; đã thử phá code (nhãn bằng raw path, bỏ chuẩn hóa method) thì test fail.
 
-Hạ tầng (`monitoring/`, compose project riêng `elc-monitoring`, tất cả `network_mode: host` + bind `127.0.0.1`): Prometheus v3.15.0 (256MB, giữ 15 ngày / 1GB), Grafana 13.2.3 (256MB, truy cập qua SSH tunnel cổng 3001), node-exporter v1.12.1 (64MB), process-exporter 0.8.7 (64MB). Mỗi service có `mem_limit` = `memswap_limit` để vượt giới hạn thì chỉ nó chết và restart, không kéo cả máy. Dashboard `ELC overview` (16 panel) và 9 luật cảnh báo (RAM, swap, đĩa, 5xx, p95, restart Go, DB pool, RSS Next, target down) được provision từ file. `promtool` xác nhận config và rule hợp lệ.
+Hạ tầng (`monitoring/`, compose project riêng `elc-monitoring`, tất cả `network_mode: host` + bind `127.0.0.1`): Prometheus v3.15.0 (256MB, giữ 15 ngày / 1GB), Grafana 13.2.3 (512MB + GOMEMLIMIT 400MiB: lúc rảnh ~190MB nhưng nạp dashboard 16 panel lên ~326MB nên 256MB và 384MB đều bị OOM kill; truy cập qua SSH tunnel cổng 3001), node-exporter v1.12.1 (64MB), process-exporter 0.8.7 (64MB). Mỗi service có `mem_limit` = `memswap_limit` để vượt giới hạn thì chỉ nó chết và restart, không kéo cả máy. Dashboard `ELC overview` (16 panel) và 9 luật cảnh báo (RAM, swap, đĩa, 5xx, p95, restart Go, DB pool, RSS Next, target down) được provision từ file. `promtool` xác nhận config và rule hợp lệ.
 
 Chưa có kênh gửi cảnh báo (Alertmanager/Telegram/email): hiện chỉ xem được trên UI Prometheus/Grafana. Là một quyết định còn mở.
+
+### Phát hiện đầu tiên từ metrics: pool DB 4 kết nối là nút cổ chai (2026-10-08)
+
+Luật `DbPoolSaturated` kích hoạt ngay buổi đầu. Pool mặc định của pgx là `max(4, NumCPU)` = 4 trên VPS 2 nhân, không ai chọn con số đó. Đo trong 30 phút trước khi đổi (pool = 4, 1.13 request/s): **66% lần lấy kết nối phải chờ** (2.58 lần chờ/giây), p50 32ms, p95 414ms, p99 500ms; tới 13 request chạy đồng thời dùng chung 4 kết nối. Postgres `max_connections = 100`, đang dùng ~10.
+
+Thay đổi (nhánh `ops/db-pool-size`): `internal/platform/db` đọc cỡ pool theo thứ tự `pool_max_conns` trong DSN, rồi `DB_MAX_CONNS` (1-100, giá trị sai thì báo lỗi chứ không lặng lẽ dùng mặc định), rồi mặc định **12**. Hành vi `QueryExecModeSimpleProtocol` giữ nguyên (có test). Test ghim đúng số 12 và đã thử phá code (mặc định về 4) để xác nhận test bắt được.
+
+Cách kiểm chứng sau khi deploy: so các số trên với cùng cửa sổ 30 phút sau khi đổi (tỉ lệ chờ, lần chờ/giây, p95). Mất mát có thể xảy ra cần theo dõi: tải CPU/RAM của Postgres tăng khi nhiều truy vấn chạy song song trên 2 vCPU.
+
+Dashboard: panel "5xx rate" hiện `n/a` khi chưa có lỗi 5xx nào (chuỗi chưa tồn tại); sửa bằng `or vector(0)`.

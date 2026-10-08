@@ -89,7 +89,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(http_requests_total{job=\"elc-go\",code=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"elc-go\"}[5m]))",
+          "expr": "(sum(rate(http_requests_total{job=\"elc-go\",code=~\"5..\"}[5m])) or vector(0)) / sum(rate(http_requests_total{job=\"elc-go\"}[5m]))",
           "legendFormat": "",
           "refId": "A"
         }

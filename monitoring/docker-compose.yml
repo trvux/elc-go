@@ -103,12 +103,21 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
       GF_SECURITY_DISABLE_GRAVATAR: "true"
+      # Grafana is a Go program: without a soft limit its GC lets the heap grow
+      # until the container's hard limit kills it. GOMEMLIMIT makes the runtime
+      # collect harder as it approaches 400MiB, well under mem_limit.
+      GOMEMLIMIT: 400MiB
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana-dashboards:ro
-    mem_limit: 256m
-    memswap_limit: 256m
+    # Measured, not guessed: idle it sits at ~190MB, but opening the 16-panel
+    # dashboard pushed anon memory to ~326MB (+106MB file cache) and the 384m
+    # limit OOM-killed it (2026-10-08 18:55). 256m was worse still. 512m with
+    # the GOMEMLIMIT soft limit above leaves headroom; the limit is per
+    # container, so a Grafana OOM never touches the site, Postgres or Redis.
+    mem_limit: 512m
+    memswap_limit: 512m
     logging: *logging
 
 volumes:
