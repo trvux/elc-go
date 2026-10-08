@@ -145,3 +145,10 @@ jobs:
             ( crontab -l 2>/dev/null | grep -v 'backup-postgres.sh' || true ; \
               echo "0 3 * * * /var/www/elc-go/scripts/backup-postgres.sh >> /var/www/elc-go/backups/backup.log 2>&1" \
             ) | crontab -
+
+            # Don image dangling + build cache cu sau moi deploy. Build chay ngay
+            # tren VPS nen moi lan deploy de lai image Go cu + cache; khong don
+            # thi /var/lib/containerd phinh tuyen tinh (da tung 37GB, 2026-10-08).
+            # `|| true`: don dep that bai khong duoc lam deploy that bai.
+            docker image prune -f || true
+            docker builder prune -f --filter until=72h || true

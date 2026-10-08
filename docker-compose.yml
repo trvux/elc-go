@@ -19,8 +19,18 @@ services:
       # merely still starting up here.
       redis:
         condition: service_healthy
+    # Bound to loopback on purpose: Docker's published ports bypass UFW
+    # (DNAT in PREROUTING, never reaches the INPUT chain), so "8090:8090"
+    # exposed the API to the whole internet, skipping nginx. Next.js reaches
+    # it via GO_API_URL=http://localhost:8090 on the same host. See
+    # docs/rfc/2026-10-08-vps-observability-hardening.md (V2).
     ports:
-      - "8090:8090"
+      - "127.0.0.1:8090:8090"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     env_file:
       - .env
 
@@ -28,6 +38,11 @@ services:
     image: redis:7-alpine
     container_name: elc-redis
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     # No `ports:`/volume on purpose: only reachable over the internal
     # Compose network (`redis:6379`, same reasoning as postgres below), and
     # holds only rate-limit counters + AI response caches — ephemeral by
@@ -49,6 +64,11 @@ services:
     image: postgres:17-alpine
     container_name: elc-postgres
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       POSTGRES_DB: elc
       POSTGRES_USER: elc
