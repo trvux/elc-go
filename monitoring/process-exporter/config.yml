@@ -1,0 +1,20 @@
+# Which processes to track individually. Everything else is ignored, which
+# keeps the series count (and Prometheus RAM) tiny.
+process_names:
+  # next-server sets its process title to "next-server (v16.x)", so match on
+  # the command line rather than comm (comm is truncated to 15 chars).
+  - name: next
+    cmdline:
+      - 'next-server'
+  - name: elc-go
+    comm:
+      - server
+  - name: postgres
+    comm:
+      - postgres
+  - name: nginx
+    comm:
+      - nginx
+  - name: dockerd
+    comm:
+      - dockerd

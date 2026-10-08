@@ -1,0 +1,74 @@
+groups:
+  - name: host
+    rules:
+      - alert: HostMemoryAvailableLow
+        expr: node_memory_MemAvailable_bytes < 400 * 1024 * 1024
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "Under 400MB RAM available for 5m"
+          description: "No swap headroom to rely on; the kernel OOM killer is next. Check process_resident memory for next-server first."
+
+      - alert: HostSwapHeavilyUsed
+        expr: (node_memory_SwapTotal_bytes - node_memory_SwapFree_bytes) > 1024 * 1024 * 1024
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "More than 1GB of swap in use for 15m"
+
+      - alert: HostDiskAlmostFull
+        expr: node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} < 0.15
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Root filesystem under 15% free"
+
+  - name: api
+    rules:
+      - alert: ApiHigh5xxRate
+        expr: |
+          sum(rate(http_requests_total{job="elc-go",code=~"5.."}[5m]))
+            / sum(rate(http_requests_total{job="elc-go"}[5m])) > 0.02
+          and sum(rate(http_requests_total{job="elc-go"}[5m])) > 0.05
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "More than 2% of API responses are 5xx"
+
+      - alert: ApiLatencyP95High
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job="elc-go"}[5m]))) > 1
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "API p95 latency above 1s for 10m"
+
+      - alert: ApiRestarted
+        expr: changes(process_start_time_seconds{job="elc-go"}[15m]) > 0
+        labels: {severity: info}
+        annotations:
+          summary: "The Go API process restarted in the last 15m"
+
+      - alert: DbPoolSaturated
+        expr: rate(db_pool_empty_acquires_total{job="elc-go"}[5m]) > 1
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Requests are regularly waiting for a free DB connection"
+
+  - name: processes
+    rules:
+      # Starting threshold only. The RFC (V1) says to pick the real ceiling
+      # from 48-72h of measurements; revisit once the dashboard has that data.
+      - alert: NextServerMemoryHigh
+        expr: namedprocess_namegroup_memory_bytes{groupname="next",memtype="resident"} > 1.8 * 1024 * 1024 * 1024
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "next-server resident memory above 1.8GB for 10m"
+
+      - alert: ScrapeTargetDown
+        expr: up == 0
+        for: 3m
+        labels: {severity: warning}
+        annotations:
+          summary: "Scrape target {{ $labels.job }} is down"

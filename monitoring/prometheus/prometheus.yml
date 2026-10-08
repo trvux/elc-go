@@ -1,0 +1,29 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+# No Alertmanager yet: alerts are evaluated and visible in the Prometheus and
+# Grafana UIs, but nothing is sent anywhere. Choosing a delivery channel
+# (email / Telegram) is an open item in the RFC.
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["127.0.0.1:9090"]
+
+  # The Go API's private metrics listener (published on host loopback only).
+  - job_name: elc-go
+    static_configs:
+      - targets: ["127.0.0.1:9091"]
+
+  - job_name: node
+    static_configs:
+      - targets: ["127.0.0.1:9100"]
+
+  # Per-process RSS/CPU for next-server, postgres, nginx, the Go binary.
+  - job_name: process
+    static_configs:
+      - targets: ["127.0.0.1:9256"]

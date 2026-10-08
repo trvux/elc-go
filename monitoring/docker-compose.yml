@@ -1,0 +1,116 @@
+# Monitoring stack for the VPS: Prometheus + Grafana + node-exporter +
+# process-exporter. Separate compose project ("elc-monitoring") from the app
+# stack on purpose: deploying or breaking this must never block or restart the
+# API, Postgres or Redis. See docs/rfc/2026-10-08-vps-observability-hardening.md §5.
+#
+# Everything uses network_mode: host and binds 127.0.0.1 explicitly:
+#   - Prometheus then scrapes every target on the host loopback (elc-go
+#     publishes its metrics port on 127.0.0.1:9091, node-exporter and
+#     process-exporter need the host's /proc and network anyway);
+#   - nothing here is reachable from outside the VPS. Docker-published ports
+#     bypass UFW (the :8090 incident), and a host-network service listening on
+#     127.0.0.1 can't be reached externally no matter what the firewall says.
+# Grafana is reached through an SSH tunnel:
+#     ssh -N -L 3001:127.0.0.1:3001 vps-elc    then open http://localhost:3001
+#
+# RAM is the binding constraint on this 4GB box: every service has a hard
+# mem_limit, with memswap_limit equal to it so a container can't quietly spill
+# into swap and thrash. If one hits its limit it dies and restarts alone,
+# instead of dragging Postgres or the site down with it.
+
+name: elc-monitoring
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    container_name: elc-prometheus
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=1GB
+      - --web.listen-address=127.0.0.1:9090
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    mem_limit: 256m
+    memswap_limit: 256m
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/-/healthy"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    container_name: elc-node-exporter
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=127.0.0.1:9100
+      # Docker/containerd overlay mounts would otherwise show up as dozens of
+      # near-identical filesystems.
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+|var/lib/containerd/.+)($|/)
+    volumes:
+      - /:/host:ro,rslave
+    mem_limit: 64m
+    memswap_limit: 64m
+    logging: *logging
+
+  process-exporter:
+    image: ncabatoff/process-exporter:0.8.7
+    container_name: elc-process-exporter
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    command:
+      - --procfs=/host/proc
+      - --config.path=/config/config.yml
+      - --web.listen-address=127.0.0.1:9256
+    volumes:
+      - /proc:/host/proc:ro
+      - ./process-exporter:/config:ro
+    mem_limit: 64m
+    memswap_limit: 64m
+    logging: *logging
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    container_name: elc-grafana
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      GF_SERVER_HTTP_ADDR: 127.0.0.1
+      GF_SERVER_HTTP_PORT: "3001"
+      GF_SECURITY_ADMIN_USER: admin
+      # Lives in monitoring/.env on the VPS only (never in git). The deploy's
+      # rsync excludes any file named .env, so --delete leaves it alone.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in monitoring/.env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana-dashboards:ro
+    mem_limit: 256m
+    memswap_limit: 256m
+    logging: *logging
+
+volumes:
+  prometheus-data:
+  grafana-data:

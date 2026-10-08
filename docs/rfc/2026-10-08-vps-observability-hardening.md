@@ -1,6 +1,6 @@
 # RFC: Hạ tầng VPS, Next.js, Go API: các vấn đề đã xác nhận + kế hoạch fix
 
-- **Status**: In progress — Phase 0 xong và đã deploy; Phase 1 (G2, G3, G5) đã code xong, chờ review/push (xem mục 9). Phase 2-4 chưa bắt đầu. Cập nhật Status trong cùng commit/PR khi làm xong từng phase (xem `CLAUDE.md`).
+- **Status**: In progress — Phase 0 (V1-V3, V5 một phần), Phase 1 (G2, G3, G5) và G7 (IP khách) đã xong và deploy (xem mục 9). Phase 2 (metrics, Prometheus, Grafana, process-exporter) đang làm (xem cuối mục 9), Phase 3 (Next RAM/pm2) và Phase 4 chưa bắt đầu. Cập nhật Status trong cùng commit/PR khi làm xong từng phase (xem `CLAUDE.md`).
 - **Date**: 2026-10-08
 - **Phạm vi**: VPS `vps-elc` (103.179.189.179), `elc-go` (repo này), `elc-temp` (Next.js frontend)
 - **Cách dùng file này**: mỗi vấn đề có mã (V/G/N/F) + bằng chứng + hướng fix + cách kiểm tra. Phần "Kế hoạch" ở cuối tham chiếu lại các mã này.
@@ -195,7 +195,12 @@ Phát hiện khi chuẩn bị access log (2026-10-08), xác nhận bằng dữ l
 - Hậu quả: mọi giới hạn theo IP dùng chung một xô cho toàn bộ khách: `inquiry` (tạo, click, upload), đăng nhập Google, magic link (`email|ip`), `ai/chat`, event. Một vài khách đủ để chặn tất cả người còn lại; và `source_ip` lưu trong DB vô nghĩa.
 - Hướng fix (cần phối hợp 3 chỗ, làm riêng, không gộp vào Phase 1): (1) nginx dùng `real_ip` với dải IP Cloudflare hoặc chuyển `CF-Connecting-IP`; (2) Next đọc header đó ở server action/route handler và gắn `X-Forwarded-For` khi gọi Go; (3) `ClientIP()` chỉ tin header khi request đến từ loopback/Docker gateway. Rà các `limiter` xem ngưỡng có hợp lý khi đã tách theo IP thật.
 - Thứ tự triển khai (bắt buộc, vì lý do bảo mật): (1) Go: `ClientIP()` chỉ tin `X-Forwarded-For` khi peer là loopback/mạng riêng và giá trị là IP hợp lệ; access log ghi `client_ip` (an toàn khi deploy: chưa ai gửi header). (2) nginx ghi đè `X-Forwarded-For` bằng IP thật TRƯỚC khi (3) Next chuyển tiếp nó; nếu Next chuyển tiếp trước, header do khách tự gửi sẽ lọt xuyên tới Go và vượt giới hạn tốc độ. (4) Kiểm tra `client_ip` trong access log ra nhiều IP thật khác nhau.
-- Tiến độ: bước (1) đã code + test (2026-10-08). Bước (2), (3), (4) chưa làm.
+- **Tiến độ: XONG và đã kiểm chứng đầu-cuối trên production (2026-10-08).**
+  - (1) Go `ad3e8ec`: `ClientIP()` + `client_ip` trong access log.
+  - (2) nginx: `/etc/nginx/conf.d/cloudflare-realip.conf` (22 dải IP Cloudflare, `real_ip_header CF-Connecting-IP`) + `proxy_set_header X-Forwarded-For $remote_addr;` trong `sites-enabled/dienmayelc.com.vn`. Bản sao lưu: `/root/nginx-backups/g7-20261008-180148/`. `nginx -t` + reload, không downtime.
+  - (3) Next `418abaa`: `clientIpHeaders()` trong `shared/lib/go-api.ts`, gắn vào inquiry create/upload/click, Google login, magic link, review create, events, và wishlist/recently-viewed (qua `forwardVisitorCookieHeader`).
+  - (4) Kiểm chứng: `GET /api/wishlist` qua site -> Go ghi `client_ip` đúng IP Cloudflare báo cho cùng kết nối; thử giả mạo `X-Forwarded-For: 9.9.9.9` qua Cloudflare và gọi thẳng IP gốc kèm `CF-Connecting-IP`/`X-Forwarded-For` giả -> Go luôn thấy IP thật, không bao giờ thấy địa chỉ giả.
+  - Còn lại / lưu ý: (a) 40 inquiry cũ có chung một `source_ip`, không backfill được. (b) Endpoint `ai/chat` cũng giới hạn theo IP nhưng không tìm thấy nơi nào trong `elc-temp` gọi nó nên chưa gắn header; nếu sau này frontend gọi thì phải dùng `clientIpHeaders()`. (c) Dải IP Cloudflare trong file nginx là danh sách tĩnh, cần làm mới nếu Cloudflare đổi (https://www.cloudflare.com/ips-v4, /ips-v6). (d) Sau khi giới hạn tách theo IP thật, ngưỡng của các limiter nên được rà lại vì trước đây không bao giờ phản ánh tải theo từng khách. (e) 3 test sẵn có trong `elc-temp` `modules/catalog/__tests__/domain/validators.test.ts` đang fail trên `main` từ trước (không do thay đổi này).
 
 ## 4. Vấn đề Next.js (`elc-temp`)
 
@@ -247,11 +252,11 @@ Mọi container mới có `mem_limit`, để nếu thiếu RAM thì nó chết t
 ```
 Phase 0  VPS + deploy config    V1(swap) V2 V3 V5      <- rủi ro thấp; V2/V5 sửa deploy.yml
                                                           của elc-temp, không chỉ sửa tay VPS
-Phase 1  Go: health + log       G3 G2 G5   (code xong, chờ push)
+Phase 1  Go: health + log       G3 G2 G5   (XONG, deployed)
 Phase 2  Go: metrics + stack    G1 G4(stats) + Prometheus/Grafana/node_exporter
 Phase 3  Next                   V1(đo, trần, MALLOC) V4 N1 N2 N3
 Phase 4  Dài hạn / tùy chọn     G6 (build trên CI), traces, F1 (feature flag)
-Song song G7 (IP khách) và TODO sau observability: workflow Sync AI pricing fail
+G7 (IP khách): XONG, deployed. TODO sau observability: workflow Sync AI pricing fail
 ```
 
 Phụ thuộc:
@@ -300,7 +305,7 @@ Việc user cần tự làm (tool bị chặn hoặc ngoài tầm): xóa API key
 
 Quan sát mới: code xin quyền vị trí trình duyệt (`elc-temp/shared/lib/geolocation.ts`) vẫn chạy nên khách vẫn thấy popup xin vị trí, nhưng không còn reverse-geocode nên không có lợi ích. **TODO (làm sau, thay đổi riêng):** gỡ `geolocation.ts` và các chỗ gọi (ZaloContactModal, LeadFormScreen, ContactLink), cùng phần `lat`/`lng` gửi lên `contact-click` và `createInquiryAction`.
 
-### Phase 1 (cập nhật 2026-10-08, branch `feat/health-accesslog`, chưa push)
+### Phase 1 (cập nhật 2026-10-08, commit `02f6e38`, deployed và kiểm chứng trên production)
 
 - G3: `internal/platform/httpserver/health.go`: `/healthz` (liveness, không đụng DB) và `/readyz` (ping DB, timeout 2s, 503 không lộ lỗi). `Dockerfile` HEALTHCHECK đổi từ `/brands` sang `/healthz`. Còn lại: đổi vòng chờ Go trong `elc-temp/.github/workflows/deploy.yml` sang `/healthz` (làm SAU khi Go đã deploy).
 - G2: `accesslog.go`: một dòng log mỗi request (request_id, method, route pattern, status, duration, bytes). Không ghi path/query (token magic-link, email); `client_ip` được thêm ở G7. 5xx -> Error, còn lại Info. Bỏ qua `/healthz`, `/readyz`. Đặt NGOÀI `recoverer` để panic vẫn thành dòng 500. Giữ `http.Flusher` cho SSE của AI chat.
@@ -310,4 +315,15 @@ Quan sát mới: code xin quyền vị trí trình duyệt (`elc-temp/shared/lib
 ### Việc sau khi xong observability
 
 - Điều tra workflow `Sync AI provider pricing` đang fail (run `37758819980`, head `c09e526`, trước các thay đổi của RFC này).
-- G7 (IP khách) nếu chưa làm trong lúc đó.
+
+### Quan sát cho Phase 2
+
+Trường `bytes` của access log cho thấy vài endpoint trả payload rất lớn mỗi lần gọi: `/news` ~1.7MB, `/products` ~2MB (một lần 58KB, một lần 1.98MB tùy tham số), `/projects` ~610KB, `/brands` ~135KB. Đáng đo bằng histogram kích thước/độ trễ khi có metrics, vì chúng vừa tốn băng thông nội bộ vừa góp vào bộ nhớ của Next (xem V1).
+
+### Phase 2 (đang làm, 2026-10-08)
+
+Code (G1, G4-stats): `internal/platform/metrics` (registry riêng; counter/histogram theo **route pattern**, method chuẩn hóa về danh sách cố định để scanner không tạo series vô hạn; kích thước response; in-flight; collector cho `pgxpool.Stat()`; Go runtime/process/build-info). `httpserver.New(logger, extra...)` đặt middleware metrics NGOÀI `recoverer` nên panic vẫn được đếm là 500. `/metrics` nằm ở listener riêng `:9091` (không đi qua router công khai, không qua nginx), compose publish `127.0.0.1:9091` cho Prometheus scrape. Test: cardinality (3 id khác nhau -> 1 series), không rò token/email vào output, panic = 500, method lạ -> `OTHER`, SSE giữ Flusher; đã thử phá code (nhãn bằng raw path, bỏ chuẩn hóa method) thì test fail.
+
+Hạ tầng (`monitoring/`, compose project riêng `elc-monitoring`, tất cả `network_mode: host` + bind `127.0.0.1`): Prometheus v3.15.0 (256MB, giữ 15 ngày / 1GB), Grafana 13.2.3 (256MB, truy cập qua SSH tunnel cổng 3001), node-exporter v1.12.1 (64MB), process-exporter 0.8.7 (64MB). Mỗi service có `mem_limit` = `memswap_limit` để vượt giới hạn thì chỉ nó chết và restart, không kéo cả máy. Dashboard `ELC overview` (16 panel) và 9 luật cảnh báo (RAM, swap, đĩa, 5xx, p95, restart Go, DB pool, RSS Next, target down) được provision từ file. `promtool` xác nhận config và rule hợp lệ.
+
+Chưa có kênh gửi cảnh báo (Alertmanager/Telegram/email): hiện chỉ xem được trên UI Prometheus/Grafana. Là một quyết định còn mở.

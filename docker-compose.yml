@@ -26,6 +26,9 @@ services:
     # docs/rfc/2026-10-08-vps-observability-hardening.md (V2).
     ports:
       - "127.0.0.1:8090:8090"
+      # Prometheus (host network) scrapes the private metrics listener here.
+      # Loopback only: /metrics must never be reachable from outside.
+      - "127.0.0.1:9091:9091"
     logging:
       driver: json-file
       options:

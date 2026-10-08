@@ -14,13 +14,20 @@ import (
 // New builds the shared chi router with the middleware every module's routes
 // are mounted onto in cmd/server/main.go. logger is injected explicitly
 // (composition root owns it) rather than accessed as a package global.
-func New(logger *zap.Logger) *chi.Mux {
+//
+// extra middleware (the metrics recorder) is installed after accessLog and
+// BEFORE recoverer, i.e. outside it, so a panic turned into a 500 by
+// recoverer is still seen — and counted — as a 500.
+func New(logger *zap.Logger, extra ...func(http.Handler) http.Handler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	// accessLog sits OUTSIDE recoverer on purpose: recoverer turns a panic
 	// into a normal 500 response, so accessLog then records that 500 instead
 	// of never seeing the request finish.
 	r.Use(accessLog(logger))
+	for _, mw := range extra {
+		r.Use(mw)
+	}
 	r.Use(recoverer(logger))
 	return r
 }
