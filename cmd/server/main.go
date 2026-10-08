@@ -112,6 +112,7 @@ func main() {
 	defer pool.Close()
 
 	router := httpserver.New(log)
+	httpserver.RegisterHealthRoutes(router, pool, log)
 
 	authUserRepo := authinfra.NewPostgresUserRepository(pool)
 	authTokenRepo := authinfra.NewPostgresVerificationTokenRepository(pool)
@@ -382,9 +383,15 @@ func main() {
 		port = "8080"
 	}
 
+	// Only ReadHeaderTimeout and IdleTimeout, on purpose: ReadTimeout would cut
+	// off slow 10MB image uploads and WriteTimeout would kill long AI chat SSE
+	// streams mid-answer. ReadHeaderTimeout still stops a client from holding a
+	// connection open by dribbling headers forever.
 	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: router,
+		Addr:              ":" + port,
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// ListenAndServe blocks, so it runs in its own goroutine — otherwise the

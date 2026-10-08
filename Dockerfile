@@ -23,6 +23,9 @@ EXPOSE 8090
 # Cho phep "docker compose up --wait" / deploy pipeline biet khi nao container
 # moi thuc su san sang nhan request, thay vi coi swap la xong ngay khi tien
 # trinh khoi dong (co the con dang ket noi DB, chua nhan request duoc).
+# Dung /healthz (khong cham DB) thay vi /brands: truoc day moi 5 giay la mot
+# query DB that (~17k/ngay) va lam nhieu so lieu request. main() da Ping DB
+# luc khoi dong nen khi server lang nghe duoc la da san sang.
 HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=5 \
-  CMD curl -sf http://localhost:${PORT:-8090}/brands || exit 1
+  CMD curl -sf http://localhost:${PORT:-8090}/healthz || exit 1
 ENTRYPOINT ["/bin/server"]

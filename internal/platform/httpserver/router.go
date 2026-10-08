@@ -17,6 +17,10 @@ import (
 func New(logger *zap.Logger) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
+	// accessLog sits OUTSIDE recoverer on purpose: recoverer turns a panic
+	// into a normal 500 response, so accessLog then records that 500 instead
+	// of never seeing the request finish.
+	r.Use(accessLog(logger))
 	r.Use(recoverer(logger))
 	return r
 }

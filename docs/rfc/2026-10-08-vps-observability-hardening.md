@@ -1,6 +1,6 @@
 # RFC: Hạ tầng VPS, Next.js, Go API: các vấn đề đã xác nhận + kế hoạch fix
 
-- **Status**: In progress — Phase 0 làm một phần (xem mục 9). Phase 1-4 chưa bắt đầu. Cập nhật Status trong cùng commit/PR khi làm xong từng phase (xem `CLAUDE.md`).
+- **Status**: In progress — Phase 0 xong và đã deploy; Phase 1 (G2, G3, G5) đã code xong, chờ review/push (xem mục 9). Phase 2-4 chưa bắt đầu. Cập nhật Status trong cùng commit/PR khi làm xong từng phase (xem `CLAUDE.md`).
 - **Date**: 2026-10-08
 - **Phạm vi**: VPS `vps-elc` (103.179.189.179), `elc-go` (repo này), `elc-temp` (Next.js frontend)
 - **Cách dùng file này**: mỗi vấn đề có mã (V/G/N/F) + bằng chứng + hướng fix + cách kiểm tra. Phần "Kế hoạch" ở cuối tham chiếu lại các mã này.
@@ -187,6 +187,15 @@ Hướng fix: thêm `/healthz` (chỉ báo process sống, không đụng DB) v�
 - Mỗi push `main` -> rsync + `docker compose build` trên VPS 4GB, tranh RAM/CPU với Next, và là nguồn gốc của V3.
 - Hướng fix: build image trên GitHub Actions, push lên GHCR, VPS chỉ `docker compose pull && up -d`. Tách riêng, không chặn các phase đầu.
 
+### G7. Go không bao giờ thấy IP thật của khách: rate limit theo IP đang dùng chung một "xô" [Cao, có sẵn từ trước]
+
+Phát hiện khi chuẩn bị access log (2026-10-08), xác nhận bằng dữ liệu thật:
+- Bảng `inquiries`: 40 dòng, **1 giá trị `source_ip` duy nhất (100%)**. Chỉ đếm tổng hợp, không đọc IP.
+- Nguyên nhân: nginx (`/etc/nginx/sites-enabled/dienmayelc.com.vn`) không đặt `X-Forwarded-For`/`X-Real-IP`; code Next (`app`, `modules`, `shared`, `proxy.ts`) không đọc hay chuyển tiếp header IP nào; Go gọi qua `localhost:8090` nên `ClientIP()` rơi về `r.RemoteAddr`, luôn là một địa chỉ nội bộ giống nhau. Trước nginx còn có Cloudflare (IP kết nối tới nginx là dải Cloudflare), nên IP thật nằm ở `CF-Connecting-IP`.
+- Hậu quả: mọi giới hạn theo IP dùng chung một xô cho toàn bộ khách: `inquiry` (tạo, click, upload), đăng nhập Google, magic link (`email|ip`), `ai/chat`, event. Một vài khách đủ để chặn tất cả người còn lại; và `source_ip` lưu trong DB vô nghĩa.
+- Hướng fix (cần phối hợp 3 chỗ, làm riêng, không gộp vào Phase 1): (1) nginx dùng `real_ip` với dải IP Cloudflare hoặc chuyển `CF-Connecting-IP`; (2) Next đọc header đó ở server action/route handler và gắn `X-Forwarded-For` khi gọi Go; (3) `ClientIP()` chỉ tin header khi request đến từ loopback/Docker gateway. Rà các `limiter` xem ngưỡng có hợp lý khi đã tách theo IP thật.
+- Hiện tại access log vì thế **chưa ghi IP** (xem comment trong `accesslog.go`).
+
 ## 4. Vấn đề Next.js (`elc-temp`)
 
 ### N1. Image optimizer: 803MB cache, timeout từ R2
@@ -237,10 +246,11 @@ Mọi container mới có `mem_limit`, để nếu thiếu RAM thì nó chết t
 ```
 Phase 0  VPS + deploy config    V1(swap) V2 V3 V5      <- rủi ro thấp; V2/V5 sửa deploy.yml
                                                           của elc-temp, không chỉ sửa tay VPS
-Phase 1  Go: health + log       G3 G2 (+G5)
+Phase 1  Go: health + log       G3 G2 G5   (code xong, chờ push)
 Phase 2  Go: metrics + stack    G1 G4(stats) + Prometheus/Grafana/node_exporter
 Phase 3  Next                   V1(đo, trần, MALLOC) V4 N1 N2 N3
 Phase 4  Dài hạn / tùy chọn     G6 (build trên CI), traces, F1 (feature flag)
+Song song G7 (IP khách) và TODO sau observability: workflow Sync AI pricing fail
 ```
 
 Phụ thuộc:
@@ -288,3 +298,15 @@ Còn lại của Phase 0: deploy các thay đổi trên để đóng cổng 8090
 Việc user cần tự làm (tool bị chặn hoặc ngoài tầm): xóa API key trong Google Cloud Console (project `dien-may-elc`); xóa file local `ads-api/geocoding-api-config.json`.
 
 Quan sát mới: code xin quyền vị trí trình duyệt (`elc-temp/shared/lib/geolocation.ts`) vẫn chạy nên khách vẫn thấy popup xin vị trí, nhưng không còn reverse-geocode nên không có lợi ích. **TODO (làm sau, thay đổi riêng):** gỡ `geolocation.ts` và các chỗ gọi (ZaloContactModal, LeadFormScreen, ContactLink), cùng phần `lat`/`lng` gửi lên `contact-click` và `createInquiryAction`.
+
+### Phase 1 (cập nhật 2026-10-08, branch `feat/health-accesslog`, chưa push)
+
+- G3: `internal/platform/httpserver/health.go`: `/healthz` (liveness, không đụng DB) và `/readyz` (ping DB, timeout 2s, 503 không lộ lỗi). `Dockerfile` HEALTHCHECK đổi từ `/brands` sang `/healthz`. Còn lại: đổi vòng chờ Go trong `elc-temp/.github/workflows/deploy.yml` sang `/healthz` (làm SAU khi Go đã deploy).
+- G2: `accesslog.go`: một dòng log mỗi request (request_id, method, route pattern, status, duration, bytes). Không ghi path/query (token magic-link, email), không ghi IP (xem G7). 5xx -> Error, còn lại Info. Bỏ qua `/healthz`, `/readyz`. Đặt NGOÀI `recoverer` để panic vẫn thành dòng 500. Giữ `http.Flusher` cho SSE của AI chat.
+- G5: `http.Server` thêm `ReadHeaderTimeout 10s`, `IdleTimeout 120s`. Cố ý KHÔNG đặt Read/WriteTimeout (upload 10MB chậm, SSE AI chat dài).
+- Test: `go build`, `go vet`, `go test ./...` xanh; test mới chạy `-race`; đã thử đảo thứ tự middleware thì test panic fail như mong đợi.
+
+### Việc sau khi xong observability
+
+- Điều tra workflow `Sync AI provider pricing` đang fail (run `37758819980`, head `c09e526`, trước các thay đổi của RFC này).
+- G7 (IP khách) nếu chưa làm trong lúc đó.
