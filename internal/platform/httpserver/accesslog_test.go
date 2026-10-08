@@ -136,3 +136,21 @@ func TestAccessLog_PreservesFlusherForSSE(t *testing.T) {
 		t.Fatal("http.Flusher lost through the access log wrapper; AI chat SSE would buffer until the end")
 	}
 }
+
+func TestAccessLog_RecordsClientIPFromTrustedProxyHeader(t *testing.T) {
+	core, logs := observer.New(zapcore.InfoLevel)
+	r := New(zap.New(core))
+	r.Get("/x", func(http.ResponseWriter, *http.Request) {})
+
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	req.RemoteAddr = "172.18.0.1:4000" // Docker gateway, as seen in production
+	req.Header.Set("X-Forwarded-For", "198.51.100.23")
+	r.ServeHTTP(httptest.NewRecorder(), req)
+
+	if logs.Len() != 1 {
+		t.Fatalf("logged %d entries, want 1", logs.Len())
+	}
+	if got := fieldMap(logs.All()[0])["client_ip"]; got != "198.51.100.23" {
+		t.Errorf("client_ip = %v, want 198.51.100.23", got)
+	}
+}

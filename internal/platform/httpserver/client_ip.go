@@ -6,34 +6,50 @@ import (
 	"strings"
 )
 
-// ClientIP prefers X-Forwarded-For (set by the Nginx reverse proxy in front
-// of this service per ARCHITECTURE.md §12) since r.RemoteAddr would
-// otherwise always be Nginx's own address. Shared by every module that rate
-// limits public endpoints keyed by IP (auth, inquiry, event, ...).
+// ClientIP returns the visitor's address for per-IP rate limiting and for the
+// source_ip stored on inquiries/reviews.
 //
-// Reads the LAST entry of the header, not the first — this deployment has
-// exactly one reverse proxy in front of it (Nginx), so exactly one hop of
-// X-Forwarded-For is trusted, standard "trust N proxies, read the Nth from
-// the right" practice (same idea as Express's `trust proxy` count or
-// Django's SECURE_PROXY_SSL_HEADER guidance). Nginx's own
-// proxy_add_x_forwarded_for APPENDS the address it directly observed to
-// whatever the incoming request already carried, so the last entry is
-// always what Nginx itself saw and can't be forged by the client — only
-// entries before it can be arbitrary client-supplied text. Reading the
-// FIRST entry (the previous behavior) let a client spoof its IP outright to
-// dodge per-IP rate limiting (login, ai/chat, inquiry, event) by simply
-// prepending a fake address of its choosing. If Nginx instead overwrites
-// (rather than appends to) this header, there is only ever one entry, so
-// first and last are identical and this change is a no-op for that case.
-// See docs/rfc/2026-09-02-backend-code-review-round2.md §3.7.
+// Production path: Cloudflare -> nginx -> Next.js -> this service. nginx
+// resolves the real visitor (CF-Connecting-IP, accepted only from Cloudflare's
+// ranges) and OVERWRITES X-Forwarded-For with that single address; Next.js
+// forwards it on its server-side calls; this service sees only Next.js, via
+// the Docker gateway. Before this was wired (RFC 2026-10-08, G7) no hop passed
+// the address on, every request looked like the gateway, and every per-IP
+// limiter was one shared bucket for all visitors.
+//
+// X-Forwarded-For is honored ONLY when the direct peer is loopback or a
+// private address (Next.js on the same host, or the Docker gateway). The
+// service is published on 127.0.0.1 only, so a public peer should never
+// appear; if one does, the header is attacker-controlled and is ignored. The
+// header is also ignored unless its value parses as an IP, so garbage can't
+// reach the VARCHAR(64) source_ip columns or become a limiter key.
+//
+// Reads the LAST entry, not the first: with one trusted proxy chain,
+// "trust N hops, read the Nth from the right" means anything before the last
+// entry is client-suppliable text. nginx overwrites the header, so there is
+// exactly one entry and first == last; reading the last is the safe choice if
+// that ever changes to appending. See
+// docs/rfc/2026-09-02-backend-code-review-round2.md §3.7 for the original
+// spoofing fix.
 func ClientIP(r *http.Request) string {
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+	peer := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		peer = host
+	}
+
+	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" && isInternalPeer(peer) {
 		parts := strings.Split(fwd, ",")
-		return strings.TrimSpace(parts[len(parts)-1])
+		if ip := net.ParseIP(strings.TrimSpace(parts[len(parts)-1])); ip != nil {
+			return ip.String()
+		}
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
+	return peer
+}
+
+// isInternalPeer reports whether the connecting address is one we can trust to
+// have set X-Forwarded-For: loopback, or a private range (Docker bridge
+// gateway, RFC 1918). An unparsable peer is not trusted.
+func isInternalPeer(peer string) bool {
+	ip := net.ParseIP(peer)
+	return ip != nil && (ip.IsLoopback() || ip.IsPrivate())
 }

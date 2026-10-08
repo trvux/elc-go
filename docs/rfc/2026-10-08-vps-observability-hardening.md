@@ -194,7 +194,8 @@ Phát hiện khi chuẩn bị access log (2026-10-08), xác nhận bằng dữ l
 - Nguyên nhân: nginx (`/etc/nginx/sites-enabled/dienmayelc.com.vn`) không đặt `X-Forwarded-For`/`X-Real-IP`; code Next (`app`, `modules`, `shared`, `proxy.ts`) không đọc hay chuyển tiếp header IP nào; Go gọi qua `localhost:8090` nên `ClientIP()` rơi về `r.RemoteAddr`, luôn là một địa chỉ nội bộ giống nhau. Trước nginx còn có Cloudflare (IP kết nối tới nginx là dải Cloudflare), nên IP thật nằm ở `CF-Connecting-IP`.
 - Hậu quả: mọi giới hạn theo IP dùng chung một xô cho toàn bộ khách: `inquiry` (tạo, click, upload), đăng nhập Google, magic link (`email|ip`), `ai/chat`, event. Một vài khách đủ để chặn tất cả người còn lại; và `source_ip` lưu trong DB vô nghĩa.
 - Hướng fix (cần phối hợp 3 chỗ, làm riêng, không gộp vào Phase 1): (1) nginx dùng `real_ip` với dải IP Cloudflare hoặc chuyển `CF-Connecting-IP`; (2) Next đọc header đó ở server action/route handler và gắn `X-Forwarded-For` khi gọi Go; (3) `ClientIP()` chỉ tin header khi request đến từ loopback/Docker gateway. Rà các `limiter` xem ngưỡng có hợp lý khi đã tách theo IP thật.
-- Hiện tại access log vì thế **chưa ghi IP** (xem comment trong `accesslog.go`).
+- Thứ tự triển khai (bắt buộc, vì lý do bảo mật): (1) Go: `ClientIP()` chỉ tin `X-Forwarded-For` khi peer là loopback/mạng riêng và giá trị là IP hợp lệ; access log ghi `client_ip` (an toàn khi deploy: chưa ai gửi header). (2) nginx ghi đè `X-Forwarded-For` bằng IP thật TRƯỚC khi (3) Next chuyển tiếp nó; nếu Next chuyển tiếp trước, header do khách tự gửi sẽ lọt xuyên tới Go và vượt giới hạn tốc độ. (4) Kiểm tra `client_ip` trong access log ra nhiều IP thật khác nhau.
+- Tiến độ: bước (1) đã code + test (2026-10-08). Bước (2), (3), (4) chưa làm.
 
 ## 4. Vấn đề Next.js (`elc-temp`)
 
@@ -302,7 +303,7 @@ Quan sát mới: code xin quyền vị trí trình duyệt (`elc-temp/shared/lib
 ### Phase 1 (cập nhật 2026-10-08, branch `feat/health-accesslog`, chưa push)
 
 - G3: `internal/platform/httpserver/health.go`: `/healthz` (liveness, không đụng DB) và `/readyz` (ping DB, timeout 2s, 503 không lộ lỗi). `Dockerfile` HEALTHCHECK đổi từ `/brands` sang `/healthz`. Còn lại: đổi vòng chờ Go trong `elc-temp/.github/workflows/deploy.yml` sang `/healthz` (làm SAU khi Go đã deploy).
-- G2: `accesslog.go`: một dòng log mỗi request (request_id, method, route pattern, status, duration, bytes). Không ghi path/query (token magic-link, email), không ghi IP (xem G7). 5xx -> Error, còn lại Info. Bỏ qua `/healthz`, `/readyz`. Đặt NGOÀI `recoverer` để panic vẫn thành dòng 500. Giữ `http.Flusher` cho SSE của AI chat.
+- G2: `accesslog.go`: một dòng log mỗi request (request_id, method, route pattern, status, duration, bytes). Không ghi path/query (token magic-link, email); `client_ip` được thêm ở G7. 5xx -> Error, còn lại Info. Bỏ qua `/healthz`, `/readyz`. Đặt NGOÀI `recoverer` để panic vẫn thành dòng 500. Giữ `http.Flusher` cho SSE của AI chat.
 - G5: `http.Server` thêm `ReadHeaderTimeout 10s`, `IdleTimeout 120s`. Cố ý KHÔNG đặt Read/WriteTimeout (upload 10MB chậm, SSE AI chat dài).
 - Test: `go build`, `go vet`, `go test ./...` xanh; test mới chạy `-race`; đã thử đảo thứ tự middleware thì test panic fail như mong đợi.
 

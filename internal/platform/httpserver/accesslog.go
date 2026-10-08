@@ -13,13 +13,13 @@ import (
 // pattern, status, duration, bytes and request_id (the same ID recoverer logs
 // on a panic, so the two can be joined).
 //
-// Deliberately NOT logged:
-//   - the raw URL path and query string — routes carry secrets and PII
-//     (magic-link tokens, emails), so only the chi route pattern
-//     ("/products/{id}") is recorded. Unmatched requests log "unmatched".
-//   - the client IP — behind nginx + Docker every request currently arrives
-//     from the same address, so the field would be misleading. Add it once the
-//     real client IP is forwarded end to end (RFC 2026-10-08, G7).
+// Deliberately NOT logged: the raw URL path and query string — routes carry
+// secrets and PII (magic-link tokens, emails), so only the chi route pattern
+// ("/products/{id}") is recorded. Unmatched requests log "unmatched".
+//
+// client_ip comes from ClientIP (the same value the rate limiters key on). It
+// is logged for abuse investigation and to verify the nginx -> Next.js -> Go
+// forwarding chain; nginx's own access log already records visitor IPs.
 //
 // 5xx logs at Error, everything else at Info (a 404 is a normal answer here:
 // the Next.js frontend probes for slugs that may not exist).
@@ -59,6 +59,7 @@ func accessLog(log *zap.Logger) func(http.Handler) http.Handler {
 				zap.String("request_id", middleware.GetReqID(r.Context())),
 				zap.String("method", r.Method),
 				zap.String("route", route),
+				zap.String("client_ip", ClientIP(r)),
 				zap.Int("status", status),
 				zap.Duration("duration", time.Since(start)),
 				zap.Int("bytes", ww.BytesWritten()),
