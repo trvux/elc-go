@@ -24,5 +24,5 @@ func CreateNews(ctx context.Context, repo domain.NewsRepository, input domain.Cr
 		return nil, err
 	}
 
-	return repo.Create(ctx, news, input.TagIDs)
+	return repo.Create(ctx, news)
 }

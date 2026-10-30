@@ -27,5 +27,5 @@ func UpdateProject(ctx context.Context, repo domain.ProjectRepository, input dom
 		}
 	}
 
-	return repo.Update(ctx, project, input.Categories, input.ServiceIDs, input.TagIDs)
+	return repo.Update(ctx, project, input.Categories, input.ServiceIDs)
 }

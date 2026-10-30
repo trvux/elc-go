@@ -15,8 +15,8 @@ type ProjectRepository interface {
 	Count(ctx context.Context, filter ProjectFilter) (int, error)
 	GetByID(ctx context.Context, id string) (*ProjectWithRelations, error)
 	GetBySlug(ctx context.Context, slug string) (*ProjectWithRelations, error)
-	Create(ctx context.Context, project *Project, categories []CategoryCondition, serviceIDs []string, tagIDs []string) (*Project, error)
-	Update(ctx context.Context, project *Project, categories *[]CategoryCondition, serviceIDs *[]string, tagIDs *[]string) (*Project, error)
+	Create(ctx context.Context, project *Project, categories []CategoryCondition, serviceIDs []string) (*Project, error)
+	Update(ctx context.Context, project *Project, categories *[]CategoryCondition, serviceIDs *[]string) (*Project, error)
 	SoftDelete(ctx context.Context, id string) error
 	Restore(ctx context.Context, id string) error
 	UpdateOrder(ctx context.Context, id string, orderIndex int) error

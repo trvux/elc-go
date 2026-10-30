@@ -38,20 +38,6 @@ func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
 	return result
 }
 
-type tagRefResponse struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-}
-
-func toTagRefResponseList(tags []domain.TagRef) []tagRefResponse {
-	result := make([]tagRefResponse, len(tags))
-	for i, t := range tags {
-		result[i] = tagRefResponse{ID: t.ID, Name: t.Name, Slug: t.Slug}
-	}
-	return result
-}
-
 type categoryRefResponse struct {
 	ID              string  `json:"id"`
 	Name            string  `json:"name"`
@@ -98,7 +84,6 @@ type productResponse struct {
 	DeletedAt          *time.Time                `json:"deleted_at"`
 	Category           *categoryRefResponse      `json:"category"`
 	Brand              *brandRefResponse         `json:"brand"`
-	Tags               []tagRefResponse          `json:"tags"`
 	Options            []productOptionResponse   `json:"options,omitempty"`
 	Variants           []productVariantResponse  `json:"variants,omitempty"`
 	AttributeValues    []attributeValueResponse  `json:"attribute_values,omitempty"`
@@ -120,7 +105,6 @@ func toProductResponse(p *domain.ProductWithRelations) productResponse {
 			IsFeatured: p.Brand.IsFeatured, OrderIndex: p.Brand.OrderIndex,
 		}
 	}
-	resp.Tags = toTagRefResponseList(p.Tags)
 	if p.Options != nil {
 		resp.Options = toProductOptionResponseList(p.Options)
 	}
@@ -541,7 +525,6 @@ type createProductRequest struct {
 	OrderIndex      int                       `json:"order_index"`
 	MetaTitle       *string                   `json:"meta_title"`
 	MetaDescription *string                   `json:"meta_description"`
-	TagIDs          []string                  `json:"tag_ids"`
 	ProductLineID   *string                   `json:"product_line_id,omitempty"`
 	Highlights      []string                  `json:"highlights,omitempty"`
 	Options         []productOptionRequestDTO `json:"options,omitempty"`
@@ -565,7 +548,6 @@ type updateProductRequest struct {
 	OrderIndex      *int            `json:"order_index"`
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
-	TagIDs          *[]string       `json:"tag_ids"`
 	ProductLineID   *string         `json:"product_line_id"`
 	Highlights      []string        `json:"highlights"`
 	// Options/Variants: absent from the JSON body (nil) leaves the variant

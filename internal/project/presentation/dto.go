@@ -32,20 +32,6 @@ func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
 	return result
 }
 
-type tagRefResponse struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-}
-
-func toTagRefResponseList(tags []domain.TagRef) []tagRefResponse {
-	result := make([]tagRefResponse, len(tags))
-	for i, t := range tags {
-		result[i] = tagRefResponse{ID: t.ID, Name: t.Name, Slug: t.Slug}
-	}
-	return result
-}
-
 type projectTypeRefResponse struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -103,7 +89,6 @@ type projectResponse struct {
 	ProjectType       *projectTypeRefResponse   `json:"project_type"`
 	Categories        []projectCategoryResponse `json:"categories"`
 	Services          []projectServiceResponse  `json:"services"`
-	Tags              []tagRefResponse          `json:"tags"`
 }
 
 func toProjectResponse(p *domain.ProjectWithRelations) projectResponse {
@@ -157,7 +142,6 @@ func toProjectResponse(p *domain.ProjectWithRelations) projectResponse {
 		ProjectType:       projectType,
 		Categories:        categories,
 		Services:          services,
-		Tags:              toTagRefResponseList(p.Tags),
 	}
 }
 
@@ -217,7 +201,6 @@ type createProjectRequest struct {
 	ProjectTypeID     *string                `json:"project_type_id"`
 	ServiceIDs        []string               `json:"service_ids"`
 	Categories        []categoryConditionDTO `json:"categories"`
-	TagIDs            []string               `json:"tag_ids"`
 	ClientName        string                 `json:"client_name"`
 	Location          string                 `json:"location"`
 	CompletedAt       *time.Time             `json:"completed_at"`
@@ -239,7 +222,6 @@ type updateProjectRequest struct {
 	ProjectTypeID     *string                 `json:"project_type_id"`
 	ServiceIDs        *[]string               `json:"service_ids"`
 	Categories        *[]categoryConditionDTO `json:"categories"`
-	TagIDs            *[]string               `json:"tag_ids"`
 	ClientName        *string                 `json:"client_name"`
 	Location          *string                 `json:"location"`
 	CompletedAt       *time.Time              `json:"completed_at"`

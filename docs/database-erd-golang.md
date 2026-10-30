@@ -25,8 +25,6 @@ erDiagram
     PRODUCTS ||--o{ PRODUCT_ATTRIBUTE_VALUES : "product_id"
     ATTRIBUTE_DEFINITIONS ||--o{ PRODUCT_ATTRIBUTE_VALUES : "attribute_definition_id"
 
-    PRODUCTS ||--o{ PRODUCT_TAGS : "product_id"
-    TAGS ||--o{ PRODUCT_TAGS : "tag_id"
 
     CATEGORIES ||--o{ SERVICES : "category_id"
     SERVICE_GROUPS ||--o{ SERVICES : "group_id"
@@ -38,13 +36,9 @@ erDiagram
     CATEGORIES ||--o{ PROJECT_CATEGORY : "category_id"
     PROJECTS ||--o{ PROJECT_SERVICE : "project_id"
     SERVICES ||--o{ PROJECT_SERVICE : "service_id"
-    PROJECTS ||--o{ PROJECT_TAGS : "project_id"
-    TAGS ||--o{ PROJECT_TAGS : "tag_id"
 
     CATEGORIES ||--o{ NEWS : "category_id"
     AUTHORS ||--o{ NEWS : "author_id"
-    NEWS ||--o{ NEWS_TAGS : "news_id"
-    TAGS ||--o{ NEWS_TAGS : "tag_id"
 
     PRODUCTS ||--o{ REVIEWS : "product_id"
     PRODUCTS ||--o{ RECENTLY_VIEWED_ITEMS : "product_id"
@@ -79,16 +73,14 @@ erDiagram
    - Phân nhóm dịch vụ lắp đặt, bảo trì, sửa chữa.
 2. **`project_type` -> `projects` (1 - N)**
    - Phân loại công trình / dự án thi công.
-3. **`project_category`, `project_service`, `project_tags` (N - N Join Tables)**
-   - Liên kết dự án với danh mục sản phẩm liên quan, các dịch vụ đã triển khai và thẻ tag dự án.
+3. **`project_category`, `project_service` (N - N Join Tables)**
+   - Liên kết dự án với danh mục sản phẩm liên quan và các dịch vụ đã triển khai.
 
 ### Module Tin tức & Tác giả (`internal/news`, `internal/author`)
 1. **`authors` -> `news` (1 - N)**
    - Thông tin tác giả bài viết (Avatar, Bio, Meta SEO).
 2. **`categories` -> `news` (1 - N)**
    - Danh mục phân loại bài viết.
-3. **`news_tags` (N - N Join Table)**
-   - Gán thẻ tag cho các bài viết.
 
 ### Module Tương tác & Khách hàng (`internal/review`, `internal/recently-viewed`, `internal/inquiry`)
 1. **`products` -> `reviews` (1 - N)**

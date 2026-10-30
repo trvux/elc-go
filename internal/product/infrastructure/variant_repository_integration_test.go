@@ -75,7 +75,7 @@ func TestPostgresProductRepository_VariantTree(t *testing.T) {
 		},
 	}
 
-	created, err := repo.Create(ctx, p, nil, options, variants, nil)
+	created, err := repo.Create(ctx, p, options, variants, nil)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestPostgresProductRepository_VariantTree(t *testing.T) {
 		{MPN: "ZZTEST-SET-SIMPLE", OriginalPrice: 9000000, IsActive: true},
 	}
 	emptyOptions := []domain.ProductOptionInput{}
-	updated, err := repo.Update(ctx, fetched.Product, nil, &emptyOptions, &singleVariant, nil)
+	updated, err := repo.Update(ctx, fetched.Product, &emptyOptions, &singleVariant, nil)
 	if err != nil {
 		t.Fatalf("Update (replace variant tree) failed: %v", err)
 	}

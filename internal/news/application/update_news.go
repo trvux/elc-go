@@ -60,5 +60,5 @@ func UpdateNews(ctx context.Context, repo domain.NewsRepository, input domain.Up
 		news.Reorder(*input.OrderIndex)
 	}
 
-	return repo.Update(ctx, news, input.TagIDs)
+	return repo.Update(ctx, news)
 }

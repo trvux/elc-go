@@ -131,7 +131,6 @@ func (h *NewsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		MetaTitle:       req.MetaTitle,
 		MetaDescription: req.MetaDescription,
 		OrderIndex:      req.OrderIndex,
-		TagIDs:          req.TagIDs,
 	}
 
 	n, err := application.CreateNews(r.Context(), h.repo, input)
@@ -165,7 +164,6 @@ func (h *NewsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		MetaTitle:       req.MetaTitle,
 		MetaDescription: req.MetaDescription,
 		OrderIndex:      req.OrderIndex,
-		TagIDs:          req.TagIDs,
 	}
 
 	n, err := application.UpdateNews(r.Context(), h.repo, input)

@@ -20,7 +20,7 @@ import (
 // single-table scan on products — see docs/product-v2-design.md's
 // performance section and productJoin's doc comment. Separate queries per
 // child collection (not one big JOIN) for the same row-multiplication reason
-// fetchTagsForProducts is separate from the category/brand JOIN.
+// the category/brand JOIN is kept separate from child collections.
 func fetchOptionsForProduct(ctx context.Context, pool *pgxpool.Pool, productID string) ([]domain.ProductOption, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT po.id, po.name, po.order_index, pov.id, pov.value, pov.order_index

@@ -1,7 +1,6 @@
-CREATE TABLE IF NOT EXISTS project_tags (
-    project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    tag_id      uuid NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
-    PRIMARY KEY (project_id, tag_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_project_tags_tag_id ON project_tags (tag_id);
+-- Originally created project_tags (join to the `tags` table). The tags feature was
+-- removed (2026-10-31) and its tables are dropped by a later migration; this
+-- file is kept as a no-op so the version number stays valid on databases that
+-- already applied it, and so a fresh database no longer fails on
+-- `REFERENCES tags` now that the tags table is never created.
+SELECT 1;

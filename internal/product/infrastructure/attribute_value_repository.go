@@ -11,9 +11,8 @@ import (
 )
 
 // insertProductAttributeValues writes the structured spec values for a
-// product — same "one INSERT with multiple VALUES rows" shape as
-// insertProductTags. Called from both Create and Update (Update
-// delete-then-reinserts, same convention as tags/variants).
+// product as one INSERT with multiple VALUES rows. Called from both Create
+// and Update (Update delete-then-reinserts, same convention as variants).
 func insertProductAttributeValues(ctx context.Context, tx pgx.Tx, productID string, values []domain.ProductAttributeValueInput) error {
 	if len(values) == 0 {
 		return nil
@@ -37,7 +36,7 @@ func insertProductAttributeValues(ctx context.Context, tx pgx.Tx, productID stri
 // reasoning as attachVariantTree, see productJoin's doc comment). Joins
 // directly into attribute_definitions (owned by the sibling internal/
 // attribute module) for the display fields — same cross-module SQL-join
-// pattern already used for CategoryRef/BrandRef/TagRef, not a call into
+// pattern already used for CategoryRef/BrandRef, not a call into
 // attribute's Go code.
 func attachAttributeValuesToProducts(ctx context.Context, pool *pgxpool.Pool, products []*domain.ProductWithRelations) error {
 	ids := make([]string, len(products))

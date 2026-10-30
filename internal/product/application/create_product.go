@@ -37,7 +37,7 @@ func CreateProduct(ctx context.Context, repo domain.ProductRepository, attribute
 		return nil, err
 	}
 
-	return repo.Create(ctx, product, input.TagIDs, input.Options, variants, input.AttributeValues)
+	return repo.Create(ctx, product, input.Options, variants, input.AttributeValues)
 }
 
 // resolveDefaultVariant applies the "exactly one default variant" rule

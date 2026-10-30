@@ -24,5 +24,5 @@ func RejectProduct(ctx context.Context, repo domain.ProductRepository, id string
 		return nil, err
 	}
 
-	return repo.Update(ctx, product, nil, nil, nil, nil)
+	return repo.Update(ctx, product, nil, nil, nil)
 }

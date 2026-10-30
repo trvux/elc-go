@@ -18,7 +18,6 @@ type fakeProjectRepository struct {
 	items      map[string]*domain.Project
 	categories map[string][]domain.CategoryCondition
 	serviceIDs map[string][]string
-	tagIDs     map[string][]string
 }
 
 func newFakeProjectRepository() *fakeProjectRepository {
@@ -26,7 +25,6 @@ func newFakeProjectRepository() *fakeProjectRepository {
 		items:      map[string]*domain.Project{},
 		categories: map[string][]domain.CategoryCondition{},
 		serviceIDs: map[string][]string{},
-		tagIDs:     map[string][]string{},
 	}
 }
 
@@ -81,7 +79,7 @@ func (r *fakeProjectRepository) GetBySlug(ctx context.Context, slug string) (*do
 	return nil, nil
 }
 
-func (r *fakeProjectRepository) Create(ctx context.Context, project *domain.Project, categories []domain.CategoryCondition, serviceIDs []string, tagIDs []string) (*domain.Project, error) {
+func (r *fakeProjectRepository) Create(ctx context.Context, project *domain.Project, categories []domain.CategoryCondition, serviceIDs []string) (*domain.Project, error) {
 	id := fmt.Sprintf("id-%d", len(r.items)+1)
 	now := time.Now()
 	created := domain.RehydrateProject(
@@ -95,20 +93,16 @@ func (r *fakeProjectRepository) Create(ctx context.Context, project *domain.Proj
 	r.items[id] = created
 	r.categories[id] = categories
 	r.serviceIDs[id] = serviceIDs
-	r.tagIDs[id] = tagIDs
 	return created, nil
 }
 
-func (r *fakeProjectRepository) Update(ctx context.Context, project *domain.Project, categories *[]domain.CategoryCondition, serviceIDs *[]string, tagIDs *[]string) (*domain.Project, error) {
+func (r *fakeProjectRepository) Update(ctx context.Context, project *domain.Project, categories *[]domain.CategoryCondition, serviceIDs *[]string) (*domain.Project, error) {
 	r.items[project.ID()] = project
 	if categories != nil {
 		r.categories[project.ID()] = *categories
 	}
 	if serviceIDs != nil {
 		r.serviceIDs[project.ID()] = *serviceIDs
-	}
-	if tagIDs != nil {
-		r.tagIDs[project.ID()] = *tagIDs
 	}
 	return project, nil
 }

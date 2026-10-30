@@ -30,79 +30,6 @@ type pgxQuerier interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
-// fetchTagsForProducts batch-loads product_tags rows (+ tag name/slug) for
-// every product id in one round trip, keyed by product id — same pattern as
-// project's fetchCategoriesForProjects / news's fetchTagsForNews.
-func fetchTagsForProducts(ctx context.Context, q pgxQuerier, productIDs []string) (map[string][]domain.TagRef, error) {
-	if len(productIDs) == 0 {
-		return map[string][]domain.TagRef{}, nil
-	}
-
-	query := `
-		SELECT pt.product_id, t.id, t.name, t.slug
-		FROM product_tags pt
-		JOIN tags t ON t.id = pt.tag_id AND t.deleted_at IS NULL
-		WHERE pt.product_id = ANY($1)
-		ORDER BY t.name ASC`
-
-	rows, err := q.Query(ctx, query, productIDs)
-	if err != nil {
-		return nil, fmt.Errorf("product repository fetchTags: %w", err)
-	}
-	defer rows.Close()
-
-	result := map[string][]domain.TagRef{}
-	for rows.Next() {
-		var productID string
-		var tag domain.TagRef
-		if err := rows.Scan(&productID, &tag.ID, &tag.Name, &tag.Slug); err != nil {
-			return nil, fmt.Errorf("product repository fetchTags scan: %w", err)
-		}
-		result[productID] = append(result[productID], tag)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("product repository fetchTags rows: %w", err)
-	}
-	return result, nil
-}
-
-func attachTagsToProducts(ctx context.Context, q pgxQuerier, products []*domain.ProductWithRelations) error {
-	ids := make([]string, len(products))
-	for i, p := range products {
-		ids[i] = p.ID()
-	}
-	tagsByProduct, err := fetchTagsForProducts(ctx, q, ids)
-	if err != nil {
-		return err
-	}
-	for _, p := range products {
-		p.Tags = tagsByProduct[p.ID()]
-	}
-	return nil
-}
-
-func insertProductTags(ctx context.Context, tx pgx.Tx, productID string, tagIDs []string) error {
-	if len(tagIDs) == 0 {
-		return nil
-	}
-	var sb strings.Builder
-	sb.WriteString("INSERT INTO product_tags (product_id, tag_id) VALUES ")
-	args := make([]any, 0, len(tagIDs)*2)
-	argN := 1
-	for i, tagID := range tagIDs {
-		if i > 0 {
-			sb.WriteString(", ")
-		}
-		sb.WriteString(fmt.Sprintf("($%d, $%d)", argN, argN+1))
-		args = append(args, productID, tagID)
-		argN += 2
-	}
-	if _, err := tx.Exec(ctx, sb.String(), args...); err != nil {
-		return fmt.Errorf("product repository insertTags: %w", err)
-	}
-	return nil
-}
-
 // productColumns/productJoin are shared by every read query that needs the
 // joined category/brand display refs — GetAll, GetByID, GetBySlug, GetByIDs.
 // LEFT JOIN (not INNER) on purpose: category_id/brand_id are NOT NULL on
@@ -438,9 +365,6 @@ func (r *PostgresProductRepository) GetAll(ctx context.Context, filter domain.Pr
 		return nil, fmt.Errorf("product repository getAll: %w", err)
 	}
 
-	if err := attachTagsToProducts(ctx, r.pool, products); err != nil {
-		return nil, err
-	}
 	if err := attachDefaultVariants(ctx, r.pool, products); err != nil {
 		return nil, err
 	}
@@ -499,9 +423,6 @@ func (r *PostgresProductRepository) GetByID(ctx context.Context, id string) (*do
 		}
 		return nil, fmt.Errorf("product repository getById: %w", err)
 	}
-	if err := attachTagsToProducts(ctx, r.pool, []*domain.ProductWithRelations{p}); err != nil {
-		return nil, err
-	}
 	if err := r.attachVariantTree(ctx, p); err != nil {
 		return nil, err
 	}
@@ -524,9 +445,6 @@ func (r *PostgresProductRepository) GetBySlug(ctx context.Context, slug string) 
 			return nil, nil
 		}
 		return nil, fmt.Errorf("product repository getBySlug: %w", err)
-	}
-	if err := attachTagsToProducts(ctx, r.pool, []*domain.ProductWithRelations{p}); err != nil {
-		return nil, err
 	}
 	if err := r.attachVariantTree(ctx, p); err != nil {
 		return nil, err
@@ -564,9 +482,6 @@ func (r *PostgresProductRepository) GetByIDs(ctx context.Context, ids []string) 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("product repository getByIds rows: %w", err)
 	}
-	if err := attachTagsToProducts(ctx, r.pool, products); err != nil {
-		return nil, err
-	}
 	if err := attachDefaultVariants(ctx, r.pool, products); err != nil {
 		return nil, err
 	}
@@ -580,7 +495,7 @@ func (r *PostgresProductRepository) GetByIDs(ctx context.Context, ids []string) 
 // it must be marshaled to json.RawMessage by hand first. images is a plain
 // text[]-backed column pgx encodes/decodes natively from/to []string with
 // no special handling.
-func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.Product, tagIDs []string, options []domain.ProductOptionInput, variants []domain.ProductVariantInput, attributeValues []domain.ProductAttributeValueInput) (*domain.Product, error) {
+func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.Product, options []domain.ProductOptionInput, variants []domain.ProductVariantInput, attributeValues []domain.ProductAttributeValueInput) (*domain.Product, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("product repository create (begin tx): %w", err)
@@ -616,10 +531,6 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 		return nil, fmt.Errorf("product repository create: %w", err)
 	}
 
-	if err := insertProductTags(ctx, tx, created.ID(), tagIDs); err != nil {
-		return nil, err
-	}
-
 	if err := writeProductVariantTree(ctx, tx, created.ID(), options, variants); err != nil {
 		return nil, err
 	}
@@ -647,7 +558,7 @@ func (r *PostgresProductRepository) Create(ctx context.Context, product *domain.
 // update_products_modtime BEFORE UPDATE trigger sets it automatically on
 // every UPDATE (unlike brand's Update, written before that trigger's
 // presence was confirmed on this table). See docs/catalog.md.
-func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.Product, tagIDs *[]string, options *[]domain.ProductOptionInput, variants *[]domain.ProductVariantInput, attributeValues *[]domain.ProductAttributeValueInput) (*domain.Product, error) {
+func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.Product, options *[]domain.ProductOptionInput, variants *[]domain.ProductVariantInput, attributeValues *[]domain.ProductAttributeValueInput) (*domain.Product, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("product repository update (begin tx): %w", err)
@@ -684,17 +595,8 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 		return nil, fmt.Errorf("product repository update: %w", err)
 	}
 
-	if tagIDs != nil {
-		if _, err := tx.Exec(ctx, "DELETE FROM product_tags WHERE product_id = $1", updated.ID()); err != nil {
-			return nil, fmt.Errorf("product repository update (clear tags): %w", err)
-		}
-		if err := insertProductTags(ctx, tx, updated.ID(), *tagIDs); err != nil {
-			return nil, err
-		}
-	}
-
-	// options/variants: nil means "leave the variant tree untouched" — same
-	// convention as tagIDs. Non-nil replaces the whole tree wholesale
+	// options/variants: nil means "leave the variant tree untouched".
+	// Non-nil replaces the whole tree wholesale
 	// (delete-then-reinsert options/variants/components together), same
 	// convention project-type already uses for project_type_category. This
 	// means variant IDs are NOT stable across an update that touches the
@@ -718,7 +620,7 @@ func (r *PostgresProductRepository) Update(ctx context.Context, product *domain.
 	}
 
 	// attributeValues: nil means "leave untouched" — same convention as
-	// tagIDs/options/variants.
+	// options/variants.
 	if attributeValues != nil {
 		if _, err := tx.Exec(ctx, "DELETE FROM product_attribute_values WHERE product_id = $1", updated.ID()); err != nil {
 			return nil, fmt.Errorf("product repository update (clear attribute values): %w", err)

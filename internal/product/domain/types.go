@@ -42,15 +42,6 @@ type BrandRef struct {
 	OrderIndex      int
 }
 
-// TagRef is a lightweight read-only reference to a tag owned by the tag
-// module — resolved via a direct SQL join into `tags`/`product_tags`, same
-// cross-module read pattern as CategoryRef/BrandRef above.
-type TagRef struct {
-	ID   string
-	Name string
-	Slug string
-}
-
 // ProductWithRelations is what read queries (GetAll/GetByID/GetBySlug/
 // GetByIDs/GetAdjacent's siblings) return — a Product plus the joined
 // category/brand display refs. Create/Update only ever deal with a plain
@@ -59,7 +50,6 @@ type ProductWithRelations struct {
 	*Product
 	Category    *CategoryRef
 	Brand       *BrandRef
-	Tags        []TagRef
 	ProductLine *ProductLine
 	Options     []ProductOption
 	Variants    []*ProductVariant
@@ -507,7 +497,6 @@ type CreateProductInput struct {
 	OrderIndex      int
 	MetaTitle       *string
 	MetaDescription *string
-	TagIDs          []string
 	ProductLineID   *string
 	Highlights      []string
 	Options         []ProductOptionInput
@@ -536,14 +525,13 @@ type UpdateProductInput struct {
 	OrderIndex      *int
 	MetaTitle       *string
 	MetaDescription *string
-	TagIDs          *[]string
 	ProductLineID   *string
 	// Highlights: nil = leave untouched, non-nil (even []) = replace —
 	// same convention as Images.
 	Highlights []string
 	// Options/Variants: nil = leave the whole variant tree untouched,
 	// non-nil = replace wholesale — same *[]T "replace if present" convention
-	// as TagIDs. Options and Variants are always sent together (a variant's
+	// as Images. Options and Variants are always sent together (a variant's
 	// OptionSelections reference the Options in the same request). A
 	// non-nil Variants must contain at least one entry — same rule as
 	// CreateProductInput.Variants.

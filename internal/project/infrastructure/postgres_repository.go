@@ -274,10 +274,6 @@ func (r *PostgresProjectRepository) GetAll(ctx context.Context, filter domain.Pr
 	if err != nil {
 		return nil, err
 	}
-	tagsByProject, err := fetchTagsForProjects(ctx, r.pool, ids)
-	if err != nil {
-		return nil, err
-	}
 
 	result := make([]*domain.ProjectWithRelations, 0, len(projects))
 	for _, p := range projects {
@@ -286,7 +282,6 @@ func (r *PostgresProjectRepository) GetAll(ctx context.Context, filter domain.Pr
 			ProjectType: projectTypes[p.ID()],
 			Categories:  categoriesByProject[p.ID()],
 			Services:    servicesByProject[p.ID()],
-			Tags:        tagsByProject[p.ID()],
 		})
 	}
 	return result, nil
@@ -351,16 +346,11 @@ func (r *PostgresProjectRepository) attachRelations(ctx context.Context, p *doma
 	if err != nil {
 		return nil, err
 	}
-	tagsByProject, err := fetchTagsForProjects(ctx, r.pool, []string{p.ID()})
-	if err != nil {
-		return nil, err
-	}
 	return &domain.ProjectWithRelations{
 		Project:     p,
 		ProjectType: pt,
 		Categories:  categoriesByProject[p.ID()],
 		Services:    servicesByProject[p.ID()],
-		Tags:        tagsByProject[p.ID()],
 	}, nil
 }
 
@@ -369,67 +359,6 @@ type pgxQuerier interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
-// fetchTagsForProjects batch-loads project_tags rows (+ tag name/slug) for
-// every project id in one round trip, keyed by project id — same pattern as
-// fetchCategoriesForProjects/fetchServicesForProjects above.
-func fetchTagsForProjects(ctx context.Context, q pgxQuerier, projectIDs []string) (map[string][]domain.TagRef, error) {
-	if len(projectIDs) == 0 {
-		return map[string][]domain.TagRef{}, nil
-	}
-
-	query := `
-		SELECT pt.project_id, t.id, t.name, t.slug
-		FROM project_tags pt
-		JOIN tags t ON t.id = pt.tag_id AND t.deleted_at IS NULL
-		WHERE pt.project_id = ANY($1)
-		ORDER BY t.name ASC`
-
-	rows, err := q.Query(ctx, query, projectIDs)
-	if err != nil {
-		return nil, fmt.Errorf("project repository fetchTags: %w", err)
-	}
-	defer rows.Close()
-
-	result := map[string][]domain.TagRef{}
-	for rows.Next() {
-		var projectID string
-		var tag domain.TagRef
-		if err := rows.Scan(&projectID, &tag.ID, &tag.Name, &tag.Slug); err != nil {
-			return nil, fmt.Errorf("project repository fetchTags scan: %w", err)
-		}
-		result[projectID] = append(result[projectID], tag)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("project repository fetchTags rows: %w", err)
-	}
-	return result, nil
-}
-
-func insertProjectTags(ctx context.Context, tx pgx.Tx, projectID string, tagIDs []string) error {
-	if len(tagIDs) == 0 {
-		return nil
-	}
-	var sb strings.Builder
-	sb.WriteString("INSERT INTO project_tags (project_id, tag_id) VALUES ")
-	args := make([]any, 0, len(tagIDs)*2)
-	argN := 1
-	for i, tagID := range tagIDs {
-		if i > 0 {
-			sb.WriteString(", ")
-		}
-		sb.WriteString(fmt.Sprintf("($%d, $%d)", argN, argN+1))
-		args = append(args, projectID, tagID)
-		argN += 2
-	}
-	if _, err := tx.Exec(ctx, sb.String(), args...); err != nil {
-		return fmt.Errorf("project repository insertTags: %w", err)
-	}
-	return nil
-}
-
-// fetchCategoriesForProjects batch-loads project_category rows (+ category +
-// its group) for every project id in one round trip, keyed by project id —
-// avoids the N+1 the naive per-project version would cause.
 func (r *PostgresProjectRepository) fetchCategoriesForProjects(ctx context.Context, projectIDs []string) (map[string][]domain.ProjectCategory, error) {
 	if len(projectIDs) == 0 {
 		return map[string][]domain.ProjectCategory{}, nil
@@ -535,7 +464,7 @@ func (r *PostgresProjectRepository) fetchServicesForProjects(ctx context.Context
 // relations, insert new relations) — a real partial-failure risk this fixes,
 // same spirit as service-group/group's transactional SoftDelete. See
 // docs/project.md.
-func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.Project, categories []domain.CategoryCondition, serviceIDs []string, tagIDs []string) (*domain.Project, error) {
+func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.Project, categories []domain.CategoryCondition, serviceIDs []string) (*domain.Project, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("project repository create (begin tx): %w", err)
@@ -590,9 +519,6 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 		if _, err := tx.Exec(ctx, "DELETE FROM project_service WHERE project_id = $1", createdID); err != nil {
 			return nil, fmt.Errorf("project repository create (clear services): %w", err)
 		}
-		if _, err := tx.Exec(ctx, "DELETE FROM project_tags WHERE project_id = $1", createdID); err != nil {
-			return nil, fmt.Errorf("project repository create (clear tags): %w", err)
-		}
 	} else {
 		query := `
 			INSERT INTO projects (title, title_align, description, images, is_published, order_index, slug, is_featured, meta_title, meta_description, project_type_id, client_name, location, completed_at, testimonial_quote, testimonial_author)
@@ -615,9 +541,6 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 	if err := insertProjectServices(ctx, tx, createdID, serviceIDs); err != nil {
 		return nil, err
 	}
-	if err := insertProjectTags(ctx, tx, createdID, tagIDs); err != nil {
-		return nil, err
-	}
 
 	row := tx.QueryRow(ctx, "SELECT "+projectColumns+" FROM projects p WHERE p.id = $1", createdID)
 	created, err := scanProject(row)
@@ -633,7 +556,7 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 
 // Update runs the row update + full relation replace in one transaction,
 // same atomicity fix as Create — see its doc comment.
-func (r *PostgresProjectRepository) Update(ctx context.Context, project *domain.Project, categories *[]domain.CategoryCondition, serviceIDs *[]string, tagIDs *[]string) (*domain.Project, error) {
+func (r *PostgresProjectRepository) Update(ctx context.Context, project *domain.Project, categories *[]domain.CategoryCondition, serviceIDs *[]string) (*domain.Project, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("project repository update (begin tx): %w", err)
@@ -680,14 +603,6 @@ func (r *PostgresProjectRepository) Update(ctx context.Context, project *domain.
 			return nil, fmt.Errorf("project repository update (clear services): %w", err)
 		}
 		if err := insertProjectServices(ctx, tx, project.ID(), *serviceIDs); err != nil {
-			return nil, err
-		}
-	}
-	if tagIDs != nil {
-		if _, err := tx.Exec(ctx, "DELETE FROM project_tags WHERE project_id = $1", project.ID()); err != nil {
-			return nil, fmt.Errorf("project repository update (clear tags): %w", err)
-		}
-		if err := insertProjectTags(ctx, tx, project.ID(), *tagIDs); err != nil {
 			return nil, err
 		}
 	}

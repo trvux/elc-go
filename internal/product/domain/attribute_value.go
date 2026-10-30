@@ -8,8 +8,7 @@ package domain
 // `options`, not a single scalar). Validated against the definition's actual
 // data_type in application.validateAttributeValues, not by the frontend
 // form alone. AttributeDefinitionID references a row owned by the sibling
-// internal/attribute module — same cross-module-by-ID reference pattern as
-// TagIDs on CreateProductInput.
+// internal/attribute module (cross-module reference by ID).
 type ProductAttributeValueInput struct {
 	AttributeDefinitionID string
 	ValueText             *string
@@ -21,7 +20,7 @@ type ProductAttributeValueInput struct {
 // AttributeValueRef is the read-shape, denormalized with the attribute
 // definition's display fields (name/unit/data_type/options/group) via a
 // direct SQL join in product's own infrastructure layer — same cross-module
-// read pattern as CategoryRef/BrandRef/TagRef (see ProductWithRelations),
+// read pattern as CategoryRef/BrandRef (see ProductWithRelations),
 // not a call into internal/attribute's Go code.
 type AttributeValueRef struct {
 	ID                    string

@@ -164,9 +164,7 @@ func (a *AttributeDefinition) Restore() {
 
 // CreateAttributeDefinitionInput deliberately carries no category
 // association — attaching to a category is its own use case (see
-// AttachCategories), same "create, then relate" split as
-// product.CreateProductInput.TagIDs vs. product's own separate tag-management
-// use cases.
+// AttachCategories) — "create, then relate" as separate use cases.
 type CreateAttributeDefinitionInput struct {
 	Code       string
 	Name       string

@@ -67,8 +67,6 @@ import (
 	slugregistrypresentation "github.com/trvux/elc-go/internal/slug-registry/presentation"
 	systempageinfra "github.com/trvux/elc-go/internal/system-page/infrastructure"
 	systempagepresentation "github.com/trvux/elc-go/internal/system-page/presentation"
-	taginfra "github.com/trvux/elc-go/internal/tag/infrastructure"
-	tagpresentation "github.com/trvux/elc-go/internal/tag/presentation"
 	uploaddomain "github.com/trvux/elc-go/internal/upload/domain"
 	uploadinfra "github.com/trvux/elc-go/internal/upload/infrastructure"
 	uploadpresentation "github.com/trvux/elc-go/internal/upload/presentation"
@@ -222,10 +220,6 @@ func main() {
 	hpPageRepo := hppageinfra.NewPostgresHpPageRepository(pool)
 	hpPageHandler := hppagepresentation.NewHpPageHandler(hpPageRepo)
 	hppagepresentation.RegisterRoutes(router, hpPageHandler, tokenIssuer)
-
-	tagRepo := taginfra.NewPostgresTagRepository(pool)
-	tagHandler := tagpresentation.NewTagHandler(tagRepo)
-	tagpresentation.RegisterRoutes(router, tagHandler, tokenIssuer)
 
 	attributeDefinitionRepo := attributeinfra.NewPostgresAttributeDefinitionRepository(pool)
 	attributeDefinitionHandler := attributepresentation.NewAttributeDefinitionHandler(attributeDefinitionRepo)

@@ -44,29 +44,10 @@ type News struct {
 	metaTitle       *string
 	metaDescription *string
 	orderIndex      int
-	tags            []TagRef
 	createdAt       time.Time
 	updatedAt       time.Time
 	deletedAt       *time.Time
 }
-
-// TagRef is a lightweight read-only reference to a tag owned by the tag
-// module — resolved via a direct SQL join into `tags`/`news_tags`, same
-// cross-module read pattern project's fetchCategoriesForProjects uses for
-// `categories`.
-type TagRef struct {
-	ID   string
-	Name string
-	Slug string
-}
-
-// Tags is populated by the infrastructure layer after scanning the base
-// row (GetAll/GetByID/GetBySlug) — not part of NewNews/RehydrateNews since
-// tag membership is a separate junction write, same split as Project's
-// Categories/Services relations.
-func (n *News) Tags() []TagRef { return n.tags }
-
-func (n *News) SetTags(tags []TagRef) { n.tags = tags }
 
 // NewNews validates and creates a new entity from user input. An empty
 // titleAlign defaults to TitleAlignLeft — same default the DB column itself
@@ -306,7 +287,6 @@ type CreateNewsInput struct {
 	MetaTitle       *string
 	MetaDescription *string
 	OrderIndex      int
-	TagIDs          []string
 }
 
 type UpdateNewsInput struct {
@@ -322,7 +302,6 @@ type UpdateNewsInput struct {
 	MetaTitle       *string
 	MetaDescription *string
 	OrderIndex      *int
-	TagIDs          *[]string
 }
 
 type NewsFilter struct {

@@ -24,5 +24,5 @@ func UnarchiveProduct(ctx context.Context, repo domain.ProductRepository, id str
 		return nil, err
 	}
 
-	return repo.Update(ctx, product, nil, nil, nil, nil)
+	return repo.Update(ctx, product, nil, nil, nil)
 }

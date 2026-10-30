@@ -31,7 +31,7 @@ func TestPostgresNewsRepository_CRUD(t *testing.T) {
 		t.Fatalf("NewNews failed: %v", err)
 	}
 
-	created, err := repo.Create(ctx, n, nil)
+	created, err := repo.Create(ctx, n)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestPostgresNewsRepository_CRUD(t *testing.T) {
 	if err := fetched.UpdateTitle("Integration Test News Updated"); err != nil {
 		t.Fatalf("UpdateTitle failed: %v", err)
 	}
-	updated, err := repo.Update(ctx, fetched, nil)
+	updated, err := repo.Update(ctx, fetched)
 	if err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestPostgresNewsRepository_ResurrectOnSlugReuse(t *testing.T) {
 	repo := NewPostgresNewsRepository(pool)
 
 	n1, _ := domain.NewNews("Resurrect Test", "integration-test-resurrect-news-xyz", "", nil, nil, "", nil, nil, false, nil, nil, 0)
-	created1, err := repo.Create(ctx, n1, nil)
+	created1, err := repo.Create(ctx, n1)
 	if err != nil {
 		t.Fatalf("first Create failed: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestPostgresNewsRepository_ResurrectOnSlugReuse(t *testing.T) {
 	}
 
 	n2, _ := domain.NewNews("Resurrect Test Again", "integration-test-resurrect-news-xyz", "", nil, nil, "", nil, nil, false, nil, nil, 0)
-	created2, err := repo.Create(ctx, n2, nil)
+	created2, err := repo.Create(ctx, n2)
 	if err != nil {
 		t.Fatalf("second Create (resurrect) failed: %v", err)
 	}

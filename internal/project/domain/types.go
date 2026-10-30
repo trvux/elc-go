@@ -105,16 +105,6 @@ type ProjectWithRelations struct {
 	ProjectType *ProjectTypeRef
 	Categories  []ProjectCategory
 	Services    []ProjectServiceRef
-	Tags        []TagRef
-}
-
-// TagRef is a lightweight read-only reference to a tag owned by the tag
-// module — resolved via a direct SQL join into `tags`/`project_tags`, same
-// cross-module read pattern as CategoryGroupRef/ServiceGroupRef above.
-type TagRef struct {
-	ID   string
-	Name string
-	Slug string
 }
 
 // CategoryCondition is one entry of the project_category join table's
@@ -432,7 +422,6 @@ type CreateProjectInput struct {
 	ProjectTypeID     *string
 	ServiceIDs        []string
 	Categories        []CategoryCondition
-	TagIDs            []string
 	ClientName        string
 	Location          string
 	CompletedAt       *time.Time
@@ -461,7 +450,6 @@ type UpdateProjectInput struct {
 	// empty" exactly (see modules/project/infrastructure/projectRepo.ts).
 	ServiceIDs        *[]string
 	Categories        *[]CategoryCondition
-	TagIDs            *[]string
 	ClientName        *string
 	Location          *string
 	CompletedAt       *time.Time

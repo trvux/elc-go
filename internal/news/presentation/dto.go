@@ -7,20 +7,6 @@ import (
 	"github.com/trvux/elc-go/internal/news/domain"
 )
 
-type tagRefResponse struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-}
-
-func toTagRefResponseList(tags []domain.TagRef) []tagRefResponse {
-	result := make([]tagRefResponse, len(tags))
-	for i, t := range tags {
-		result[i] = tagRefResponse{ID: t.ID, Name: t.Name, Slug: t.Slug}
-	}
-	return result
-}
-
 type imageAssetDTO struct {
 	URL     string `json:"url"`
 	Alt     string `json:"alt,omitempty"`
@@ -47,22 +33,21 @@ func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
 }
 
 type newsResponse struct {
-	ID              string           `json:"id"`
-	Title           string           `json:"title"`
-	TitleAlign      string           `json:"title_align"`
-	Slug            string           `json:"slug"`
-	Images          []imageAssetDTO  `json:"images"`
-	Content         json.RawMessage  `json:"content"`
-	Excerpt         string           `json:"excerpt"`
-	CategoryID      *string          `json:"category_id"`
-	IsPublished     bool             `json:"is_published"`
-	MetaTitle       *string          `json:"meta_title"`
-	MetaDescription *string          `json:"meta_description"`
-	OrderIndex      int              `json:"order_index"`
-	Tags            []tagRefResponse `json:"tags"`
-	CreatedAt       time.Time        `json:"created_at"`
-	UpdatedAt       time.Time        `json:"updated_at"`
-	DeletedAt       *time.Time       `json:"deleted_at"`
+	ID              string          `json:"id"`
+	Title           string          `json:"title"`
+	TitleAlign      string          `json:"title_align"`
+	Slug            string          `json:"slug"`
+	Images          []imageAssetDTO `json:"images"`
+	Content         json.RawMessage `json:"content"`
+	Excerpt         string          `json:"excerpt"`
+	CategoryID      *string         `json:"category_id"`
+	IsPublished     bool            `json:"is_published"`
+	MetaTitle       *string         `json:"meta_title"`
+	MetaDescription *string         `json:"meta_description"`
+	OrderIndex      int             `json:"order_index"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	DeletedAt       *time.Time      `json:"deleted_at"`
 }
 
 func toNewsResponse(n *domain.News) newsResponse {
@@ -79,7 +64,6 @@ func toNewsResponse(n *domain.News) newsResponse {
 		MetaTitle:       n.MetaTitle(),
 		MetaDescription: n.MetaDescription(),
 		OrderIndex:      n.OrderIndex(),
-		Tags:            toTagRefResponseList(n.Tags()),
 		CreatedAt:       n.CreatedAt(),
 		UpdatedAt:       n.UpdatedAt(),
 		DeletedAt:       n.DeletedAt(),
@@ -106,7 +90,6 @@ type createNewsRequest struct {
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
 	OrderIndex      int             `json:"order_index"`
-	TagIDs          []string        `json:"tag_ids"`
 }
 
 type updateNewsRequest struct {
@@ -121,7 +104,6 @@ type updateNewsRequest struct {
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
 	OrderIndex      *int            `json:"order_index"`
-	TagIDs          *[]string       `json:"tag_ids"`
 }
 
 type countResponse struct {

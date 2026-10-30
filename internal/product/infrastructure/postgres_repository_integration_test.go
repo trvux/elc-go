@@ -46,7 +46,7 @@ func TestPostgresProductRepository_CRUD(t *testing.T) {
 	variants := []domain.ProductVariantInput{
 		{MPN: "integration-test-mpn-xyz", OriginalPrice: 100000, IsActive: true, IsDefault: true},
 	}
-	created, err := repo.Create(ctx, p, nil, nil, variants, nil)
+	created, err := repo.Create(ctx, p, nil, variants, nil)
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestPostgresProductRepository_CRUD(t *testing.T) {
 	if err := fetched.Product.UpdateName("Integration Test Product 1.5HP Updated"); err != nil {
 		t.Fatalf("UpdateName failed: %v", err)
 	}
-	updated, err := repo.Update(ctx, fetched.Product, nil, nil, nil, nil)
+	updated, err := repo.Update(ctx, fetched.Product, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Update failed: %v", err)
 	}

@@ -8,7 +8,7 @@ type AttributeDefinitionRepository interface {
 	// GetByIDs batch-loads plain definitions (no category association) for
 	// a set of ids — used by product's application layer to validate
 	// attribute value shapes and is_required on create/update, without an
-	// N+1. Same cross-module read pattern as tag.GetByIDs.
+	// N+1.
 	GetByIDs(ctx context.Context, ids []string) ([]*AttributeDefinition, error)
 	Create(ctx context.Context, definition *AttributeDefinition) (*AttributeDefinition, error)
 	Update(ctx context.Context, definition *AttributeDefinition) (*AttributeDefinition, error)

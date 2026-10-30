@@ -32,11 +32,9 @@ type ProductRepository interface {
 	GetByID(ctx context.Context, id string) (*ProductWithRelations, error)
 	GetBySlug(ctx context.Context, slug string) (*ProductWithRelations, error)
 	GetByIDs(ctx context.Context, ids []string) ([]*ProductWithRelations, error)
-	// tagIDs on Create is the initial tag set; on Update, nil means "leave
-	// tags untouched", a non-nil pointer means "replace all tags with this
-	// set" — same convention as project's Categories/ServiceIDs. options/
-	// variants follow the same nil-vs-non-nil convention on Update (nil =
-	// leave the variant tree untouched); on Create they're the initial tree.
+	// options/variants: on Update nil = leave the variant tree untouched, a
+	// non-nil pointer replaces it wholesale; on Create they're the initial
+	// tree.
 	// attributeValues follows the same nil-vs-non-nil convention as options/
 	// variants on Update: nil leaves existing product_attribute_values
 	// untouched, a non-nil pointer replaces the whole set. Unlike options/
@@ -44,8 +42,8 @@ type ProductRepository interface {
 	// reads (GetByID/GetBySlug) — see attachAttributeValuesToProducts's doc
 	// comment — never on GetAll/GetByIDs, since specs aren't needed for list/
 	// card rendering.
-	Create(ctx context.Context, product *Product, tagIDs []string, options []ProductOptionInput, variants []ProductVariantInput, attributeValues []ProductAttributeValueInput) (*Product, error)
-	Update(ctx context.Context, product *Product, tagIDs *[]string, options *[]ProductOptionInput, variants *[]ProductVariantInput, attributeValues *[]ProductAttributeValueInput) (*Product, error)
+	Create(ctx context.Context, product *Product, options []ProductOptionInput, variants []ProductVariantInput, attributeValues []ProductAttributeValueInput) (*Product, error)
+	Update(ctx context.Context, product *Product, options *[]ProductOptionInput, variants *[]ProductVariantInput, attributeValues *[]ProductAttributeValueInput) (*Product, error)
 	SoftDelete(ctx context.Context, id string) error
 	Restore(ctx context.Context, id string) error
 }
