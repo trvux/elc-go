@@ -1,0 +1,3 @@
+ALTER TABLE branches
+    ADD COLUMN IF NOT EXISTS province_code TEXT,
+    ADD COLUMN IF NOT EXISTS ward_code TEXT;
