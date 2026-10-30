@@ -117,9 +117,7 @@ func resolveDefaultVariant(variants []domain.ProductVariantInput) ([]domain.Prod
 // permanent price for those, not a data-entry gap to chase down. 0 is
 // already the established sentinel for that everywhere else in the system
 // (modules/catalog/domain/price.ts's formatPrice renders any price <= 0 as
-// "Liên hệ", and internal/ai's product_search_tool already nils out
-// PriceFrom/PriceTo <= 0 so the AI chat tool never cites it as a real
-// number) — so 0 on write should match 0's meaning on read. Only negative
+// "Liên hệ") — so 0 on write should match 0's meaning on read. Only negative
 // prices are still rejected; those are never valid under any
 // interpretation. Doesn't check SalePrice against OriginalPrice or
 // anything else — out of this RFC's scope.

@@ -1,1 +1,0 @@
-ALTER TABLE ai_messages DROP COLUMN IF EXISTS incomplete;

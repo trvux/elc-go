@@ -1,6 +1,6 @@
 # RFC: Redis cho AI chat — rate limit dùng chung + cache classifier/search_products
 
-- **Status**: Completed — merged `2488bd5` (Redis-backed rate limiting + AI response cache).
+- **Status**: **Removed 2026-10-30** — module `internal/ai`, its CLIs, the 4 `ai_*` prod tables and Redis were deleted (feature unused). Kept as history only. Original: Completed — merged `2488bd5` (Redis-backed rate limiting + AI response cache).
 - **Date**: 2026-08-18
 - **Tác giả**: Trần Vũ (với hỗ trợ Claude Code)
 - **Scope**: Redis mới hoàn toàn trong hạ tầng elc-go — chỉ áp dụng cho `internal/ai`, không đụng rate limiter của module khác (auth, inquiry, review, event, wishlist vẫn dùng in-memory như cũ)

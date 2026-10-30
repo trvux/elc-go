@@ -133,7 +133,7 @@ func TestAccessLog_PreservesFlusherForSSE(t *testing.T) {
 	serve(t, r, http.MethodGet, "/stream")
 
 	if !flushable {
-		t.Fatal("http.Flusher lost through the access log wrapper; AI chat SSE would buffer until the end")
+		t.Fatal("http.Flusher lost through the access log wrapper; SSE would buffer until the end")
 	}
 }
 

@@ -26,7 +26,7 @@ import (
 //
 // Probe paths (/healthz, /readyz) are skipped. The response writer is wrapped
 // with chi's NewWrapResponseWriter, which preserves http.Flusher/Hijacker, so
-// the AI chat's SSE streaming keeps flushing through it.
+// streaming (SSE) responses keep flushing through it.
 func accessLog(log *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

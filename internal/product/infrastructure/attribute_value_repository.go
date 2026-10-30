@@ -48,7 +48,7 @@ func attachAttributeValuesToProducts(ctx context.Context, pool *pgxpool.Pool, pr
 
 	rows, err := pool.Query(ctx, `
 		SELECT pav.id, pav.product_id, ad.id, ad.code, ad.name, ad.group_label, ad.data_type, ad.unit, ad.options,
-		       pav.value_text, pav.value_number, pav.value_boolean, pav.value_options, pav.flagged_anomaly
+		       pav.value_text, pav.value_number, pav.value_boolean, pav.value_options
 		FROM product_attribute_values pav
 		JOIN attribute_definitions ad ON ad.id = pav.attribute_definition_id AND ad.deleted_at IS NULL
 		WHERE pav.product_id = ANY($1) AND pav.deleted_at IS NULL
@@ -68,11 +68,10 @@ func attachAttributeValuesToProducts(ctx context.Context, pool *pgxpool.Pool, pr
 			valueNumber                                                *float64
 			valueBoolean                                               *bool
 			valueOptions                                               []string
-			flaggedAnomaly                                             bool
 		)
 		if err := rows.Scan(
 			&id, &productID, &attributeDefinitionID, &code, &name, &groupLabel, &dataType, &unit, &options,
-			&valueText, &valueNumber, &valueBoolean, &valueOptions, &flaggedAnomaly,
+			&valueText, &valueNumber, &valueBoolean, &valueOptions,
 		); err != nil {
 			return fmt.Errorf("product repository attachAttributeValues scan: %w", err)
 		}
@@ -80,7 +79,7 @@ func attachAttributeValuesToProducts(ctx context.Context, pool *pgxpool.Pool, pr
 			ID: id, AttributeDefinitionID: attributeDefinitionID, Code: code, Name: name,
 			GroupLabel: groupLabel, DataType: dataType, Unit: unit, Options: options,
 			ValueText: valueText, ValueNumber: valueNumber, ValueBoolean: valueBoolean,
-			ValueOptions: valueOptions, FlaggedAnomaly: flaggedAnomaly,
+			ValueOptions: valueOptions,
 		})
 	}
 	if err := rows.Err(); err != nil {

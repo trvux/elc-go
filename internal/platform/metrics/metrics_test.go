@@ -146,7 +146,7 @@ func TestMiddleware_PreservesFlusherForSSE(t *testing.T) {
 	})
 	do(r, http.MethodGet, "/stream")
 	if !flushable {
-		t.Fatal("http.Flusher lost through the metrics wrapper; AI chat SSE would buffer")
+		t.Fatal("http.Flusher lost through the metrics wrapper; SSE would buffer")
 	}
 }
 

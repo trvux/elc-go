@@ -11,15 +11,10 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	adsconversiondomain "github.com/trvux/elc-go/internal/adsconversion/domain"
 	adsconversioninfra "github.com/trvux/elc-go/internal/adsconversion/infrastructure"
-	aiApplication "github.com/trvux/elc-go/internal/ai/application"
-	aiDomain "github.com/trvux/elc-go/internal/ai/domain"
-	aiInfra "github.com/trvux/elc-go/internal/ai/infrastructure"
-	aiPresentation "github.com/trvux/elc-go/internal/ai/presentation"
 	attributeinfra "github.com/trvux/elc-go/internal/attribute/infrastructure"
 	attributepresentation "github.com/trvux/elc-go/internal/attribute/presentation"
 	authdomain "github.com/trvux/elc-go/internal/auth/domain"
@@ -55,7 +50,6 @@ import (
 	"github.com/trvux/elc-go/internal/platform/httpserver"
 	"github.com/trvux/elc-go/internal/platform/logger"
 	"github.com/trvux/elc-go/internal/platform/metrics"
-	"github.com/trvux/elc-go/internal/platform/ratelimit"
 	productInfra "github.com/trvux/elc-go/internal/product/infrastructure"
 	productPresentation "github.com/trvux/elc-go/internal/product/presentation"
 	projecttypeinfra "github.com/trvux/elc-go/internal/project-type/infrastructure"
@@ -258,55 +252,10 @@ func main() {
 	productHandler := productPresentation.NewProductHandler(productRepo, attributeDefinitionRepo)
 	productPresentation.RegisterRoutes(router, productHandler, tokenIssuer)
 
-	// secureCookies also gates the AI chat and wishlist/recently-viewed
-	// visitor_id cookie's Secure flag — same production-only rule as
+	// secureCookies gates the wishlist/recently-viewed visitor_id cookie's
+	// Secure flag — same production-only rule as
 	// auth's refresh_token cookie above.
 	secureCookies := env == "production"
-
-	// AI chat's provider/model config is DB-driven (admin-managed, see the
-	// Phase 1 RFC) — the encryption key protecting stored API keys is the
-	// one thing that must still come from env, fail-fast like JWT_SECRET
-	// rather than silently running with an unencrypted/missing key.
-	aiCipher, err := aiInfra.NewSecretCipherFromEnv("AI_SECRETS_ENCRYPTION_KEY")
-	if err != nil {
-		log.Fatal("AI_SECRETS_ENCRYPTION_KEY must be a base64-encoded 32-byte key", zap.Error(err))
-	}
-	aiProviderRepo := aiInfra.NewPostgresProviderRepository(pool, aiCipher)
-	aiModelRepo := aiInfra.NewPostgresModelRepository(pool, aiCipher)
-	aiConversationRepo := aiInfra.NewPostgresConversationRepository(pool)
-
-	// Redis is entirely optional for internal/ai (see
-	// docs/rfc/2026-08-18-ai-chat-redis.md): unset REDIS_URL, or a
-	// connection failure, falls back to in-memory rate limiting and no
-	// caching — same graceful-degrade rule as the rest of this module's
-	// optional config (AI provider, guardrail classifier).
-	var aiCache aiDomain.Cache
-	aiChatLimiter := ratelimit.RateLimiter(ratelimit.New(aiPresentation.ChatRateLimit, aiPresentation.ChatRateLimitWindow))
-	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
-		if opt, err := redis.ParseURL(redisURL); err != nil {
-			log.Warn("REDIS_URL is set but invalid — AI chat falls back to in-memory rate limiting, no caching", zap.Error(err))
-		} else {
-			redisClient := redis.NewClient(opt)
-			pingCtx, cancelPing := context.WithTimeout(ctx, 5*time.Second)
-			pingErr := redisClient.Ping(pingCtx).Err()
-			cancelPing()
-			if pingErr != nil {
-				log.Warn("could not reach Redis — AI chat falls back to in-memory rate limiting, no caching", zap.Error(pingErr))
-			} else {
-				aiCache = aiInfra.NewRedisCache(redisClient, "ai:cache")
-				aiChatLimiter = ratelimit.NewRedisLimiter(redisClient, "ai:ratelimit:chat", aiPresentation.ChatRateLimit, aiPresentation.ChatRateLimitWindow)
-			}
-		}
-	}
-
-	searchProductsDef, searchProductsExec := aiInfra.NewProductSearchTool(productRepo, aiCache)
-	aiHandler := aiPresentation.NewAIHandler(aiInfra.NewLLMClient, aiModelRepo, aiConversationRepo, []aiApplication.Tool{
-		{Definition: searchProductsDef, Execute: searchProductsExec},
-	}, aiCache, aiChatLimiter)
-	aiProviderHandler := aiPresentation.NewProviderHandler(aiProviderRepo)
-	aiModelHandler := aiPresentation.NewModelHandler(aiModelRepo)
-	aiReportHandler := aiPresentation.NewReportHandler(aiConversationRepo)
-	aiPresentation.RegisterRoutes(router, aiHandler, aiProviderHandler, aiModelHandler, aiReportHandler, tokenIssuer, secureCookies)
 
 	productLineRepo := productInfra.NewPostgresProductLineRepository(pool)
 	productLineHandler := productPresentation.NewProductLineHandler(productLineRepo)
@@ -391,8 +340,8 @@ func main() {
 	}
 
 	// Only ReadHeaderTimeout and IdleTimeout, on purpose: ReadTimeout would cut
-	// off slow 10MB image uploads and WriteTimeout would kill long AI chat SSE
-	// streams mid-answer. ReadHeaderTimeout still stops a client from holding a
+	// off slow 10MB image uploads and WriteTimeout would kill slow large
+	// responses mid-stream. ReadHeaderTimeout still stops a client from holding a
 	// connection open by dribbling headers forever.
 	server := &http.Server{
 		Addr:              ":" + port,
