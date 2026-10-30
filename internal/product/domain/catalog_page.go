@@ -7,10 +7,8 @@ import (
 
 // CatalogPage is the singleton content/SEO config for "Tất cả sản phẩm" (the
 // catch-all/root product listing) — it belongs to Product's own bounded
-// context (not the generic system_pages module, which serves an unrelated
-// set of pages: homepage/news-hub/policy). There is exactly one row, never
-// created/deleted, only read and updated — see
-// infrastructure/catalog_page_repository.go.
+// context since there is exactly one row, never created/deleted, only read
+// and updated — see infrastructure/catalog_page_repository.go.
 type CatalogPage struct {
 	content         json.RawMessage
 	metaTitle       *string

@@ -17,22 +17,21 @@ import (
 type OwnerType string
 
 const (
-	OwnerTypeSystemPage OwnerType = "system_page"
-	OwnerTypeProduct    OwnerType = "product"
-	OwnerTypeProject    OwnerType = "project"
-	OwnerTypeService    OwnerType = "service"
-	OwnerTypeNews       OwnerType = "news"
-	OwnerTypeBranch     OwnerType = "branch"
-	OwnerTypePage       OwnerType = "page"
-	OwnerTypeBrand      OwnerType = "brand"
-	OwnerTypeGroup      OwnerType = "group"
-	OwnerTypeCategory   OwnerType = "category"
-	OwnerTypeHPPage     OwnerType = "hp_page"
+	OwnerTypeProduct  OwnerType = "product"
+	OwnerTypeProject  OwnerType = "project"
+	OwnerTypeService  OwnerType = "service"
+	OwnerTypeNews     OwnerType = "news"
+	OwnerTypeBranch   OwnerType = "branch"
+	OwnerTypePage     OwnerType = "page"
+	OwnerTypeBrand    OwnerType = "brand"
+	OwnerTypeGroup    OwnerType = "group"
+	OwnerTypeCategory OwnerType = "category"
+	OwnerTypeHPPage   OwnerType = "hp_page"
 )
 
 func (o OwnerType) IsValid() bool {
 	switch o {
-	case OwnerTypeSystemPage, OwnerTypeProduct, OwnerTypeProject, OwnerTypeService,
+	case OwnerTypeProduct, OwnerTypeProject, OwnerTypeService,
 		OwnerTypeNews, OwnerTypeBranch, OwnerTypePage, OwnerTypeBrand,
 		OwnerTypeGroup, OwnerTypeCategory, OwnerTypeHPPage:
 		return true

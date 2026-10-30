@@ -65,8 +65,6 @@ import (
 	settingspresentation "github.com/trvux/elc-go/internal/settings/presentation"
 	slugregistryinfra "github.com/trvux/elc-go/internal/slug-registry/infrastructure"
 	slugregistrypresentation "github.com/trvux/elc-go/internal/slug-registry/presentation"
-	systempageinfra "github.com/trvux/elc-go/internal/system-page/infrastructure"
-	systempagepresentation "github.com/trvux/elc-go/internal/system-page/presentation"
 	uploaddomain "github.com/trvux/elc-go/internal/upload/domain"
 	uploadinfra "github.com/trvux/elc-go/internal/upload/infrastructure"
 	uploadpresentation "github.com/trvux/elc-go/internal/upload/presentation"
@@ -289,10 +287,6 @@ func main() {
 	newsRepo := newsinfra.NewPostgresNewsRepository(pool)
 	newsHandler := newspresentation.NewNewsHandler(newsRepo)
 	newspresentation.RegisterRoutes(router, newsHandler, tokenIssuer)
-
-	systemPageRepo := systempageinfra.NewPostgresSystemPageRepository(pool)
-	systemPageHandler := systempagepresentation.NewSystemPageHandler(systemPageRepo)
-	systempagepresentation.RegisterRoutes(router, systemPageHandler, tokenIssuer)
 
 	slugRegistryRepo := slugregistryinfra.NewPostgresSlugRegistryRepository(pool)
 	slugRegistryHandler := slugregistrypresentation.NewSlugRegistryHandler(slugRegistryRepo)
