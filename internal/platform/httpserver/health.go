@@ -35,15 +35,15 @@ type Pinger interface {
 //     for deploy gates and dashboards, not for second-by-second polling.
 //
 // Neither is authenticated, and neither reveals anything beyond ok/unavailable.
-// Both are skipped by the access log and the metrics middleware (IsProbePath).
+// Both are skipped by the access log (IsProbePath).
 func RegisterHealthRoutes(r chi.Router, db Pinger, log *zap.Logger) {
 	r.Get(healthzPath, healthz)
 	r.Get(readyzPath, readyz(db, log, readyzTimeout))
 }
 
 // IsProbePath reports whether path is a liveness/readiness probe. Probes are
-// polled every few seconds, so the access log and the metrics middleware both
-// skip them; otherwise they would drown real traffic and distort every rate.
+// polled every few seconds, so the access log skips them; otherwise they would
+// drown real traffic.
 func IsProbePath(path string) bool {
 	return path == healthzPath || path == readyzPath
 }

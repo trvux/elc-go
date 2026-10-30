@@ -49,7 +49,6 @@ import (
 	"github.com/trvux/elc-go/internal/platform/db"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
 	"github.com/trvux/elc-go/internal/platform/logger"
-	"github.com/trvux/elc-go/internal/platform/metrics"
 	productInfra "github.com/trvux/elc-go/internal/product/infrastructure"
 	productPresentation "github.com/trvux/elc-go/internal/product/presentation"
 	projecttypeinfra "github.com/trvux/elc-go/internal/project-type/infrastructure"
@@ -104,13 +103,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Metrics live on their own private listener (see metricsServer below),
-	// never on the public router: the registry exposes route names, pool state
-	// and process internals.
-	appMetrics := metrics.New(httpserver.IsProbePath)
-	appMetrics.RegisterPool(pool)
-
-	router := httpserver.New(log, appMetrics.Middleware())
+	router := httpserver.New(log)
 	httpserver.RegisterHealthRoutes(router, pool, log)
 
 	authUserRepo := authinfra.NewPostgresUserRepository(pool)
@@ -342,27 +335,6 @@ func main() {
 		IdleTimeout:       120 * time.Second,
 	}
 
-	// Prometheus scrapes this from the monitoring stack over the host loopback
-	// (docker-compose publishes it on 127.0.0.1 only). It is deliberately a
-	// separate server from the API: a different port keeps /metrics unreachable
-	// through nginx, and a failure here must never take the API down — hence
-	// Error, not Fatal.
-	metricsPort := os.Getenv("METRICS_PORT")
-	if metricsPort == "" {
-		metricsPort = "9091"
-	}
-	metricsServer := &http.Server{
-		Addr:              ":" + metricsPort,
-		Handler:           appMetrics.Handler(),
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-	go func() {
-		log.Info("metrics server starting", zap.String("port", metricsPort))
-		if err := metricsServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("metrics server failed — the API keeps running without metrics", zap.Error(err))
-		}
-	}()
-
 	// ListenAndServe blocks, so it runs in its own goroutine — otherwise the
 	// signal-handling code below would never get a chance to run.
 	go func() {
@@ -386,8 +358,5 @@ func main() {
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Error("graceful shutdown failed", zap.Error(err))
-	}
-	if err := metricsServer.Shutdown(shutdownCtx); err != nil {
-		log.Error("metrics server shutdown failed", zap.Error(err))
 	}
 }
