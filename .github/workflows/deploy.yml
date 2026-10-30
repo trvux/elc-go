@@ -20,10 +20,8 @@ jobs:
           # --delete mirrors the repo exactly onto the VPS — must exclude
           # everything that only ever exists on the VPS itself (never in
           # git), or it gets wiped every deploy. `backups/` holds the nightly
-          # cron pg_dumps AND the migrate-postgres.sh sentinel
-          # (.postgres-migrated) that gates the one-time Supabase import from
-          # re-running — losing either here would silently re-trigger a full
-          # destructive re-import (or delete backups) on every future deploy.
+          # cron pg_dumps — losing it here would delete the backups on every
+          # future deploy.
           rsync -az --delete \
             --exclude '.git' --exclude '.env' --exclude 'backups/' \
             -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
@@ -32,13 +30,6 @@ jobs:
       - name: Write .env and (re)deploy container on VPS
         uses: appleboy/ssh-action@v1.0.3
         env:
-          # NOTE: this secret is Supabase's OLD connection string. It is no
-          # longer written into the app's own .env (see SOURCE_DATABASE_URL
-          # below) — it's kept only as the one-time source for
-          # scripts/migrate-postgres.sh's dump-and-restore. Safe to delete
-          # this secret once the self-hosted Postgres has run clean in
-          # production for a while.
-          SOURCE_DATABASE_URL: ${{ secrets.DATABASE_URL }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
@@ -60,7 +51,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: SOURCE_DATABASE_URL,POSTGRES_PASSWORD,JWT_SECRET,SMTP_HOST,SMTP_PORT,SMTP_USERNAME,SMTP_PASSWORD,SMTP_FROM,R2_ACCOUNT_ID,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,R2_BUCKET_NAME,R2_PUBLIC_URL,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,ADMIN_EMAILS,GA4_MEASUREMENT_ID,GA4_API_SECRET
+          envs: POSTGRES_PASSWORD,JWT_SECRET,SMTP_HOST,SMTP_PORT,SMTP_USERNAME,SMTP_PASSWORD,SMTP_FROM,R2_ACCOUNT_ID,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,R2_BUCKET_NAME,R2_PUBLIC_URL,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,ADMIN_EMAILS,GA4_MEASUREMENT_ID,GA4_API_SECRET
           script: |
             set -e
             cd /var/www/elc-go
@@ -92,34 +83,16 @@ jobs:
             # Build truoc (khong dung toi container dang chay), roi moi swap.
             docker compose build
 
-            # Dua Postgres len truoc va cho khoe, roi moi chay migration mot-lan
-            # (idempotent qua sentinel file) TRUOC khi dung toi elc-go -- neu
-            # migration that bai, container elc-go CU (dang chay, van tro ve
-            # Supabase qua .env cu cua no) khong bi dong, site khong sap.
+            # Dua Postgres len truoc va cho khoe, roi moi chay migration.
             docker compose up -d --wait --wait-timeout 60 postgres
-            SOURCE_DATABASE_URL="$SOURCE_DATABASE_URL" POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-              ./scripts/migrate-postgres.sh
 
             # Chay migration cho tung module (internal/*/migrations) TRUOC khi
-            # swap container elc-go moi -- day la buoc truoc day BI THIEU: script
-            # migrate-postgres.sh o tren chi chay dung 1 lan (cutover Supabase),
-            # khong ap dung migration moi cho tung lan deploy sau do, nen code Go
-            # moi (da doi cot/bang moi) tung khoi dong dung schema cu va loi ngay.
-            # Neu buoc nay loi, script thoat non-zero va container elc-go CU
-            # (chua dong toi) van tiep tuc phuc vu -- giong dung tinh an toan da
-            # co o buoc migrate-postgres.sh ben tren.
+            # swap container elc-go moi, de code Go moi (da doi cot/bang moi)
+            # khong khoi dong tren schema cu. Neu buoc nay loi, script thoat
+            # non-zero va container elc-go CU (chua dong toi) van tiep tuc
+            # phuc vu, site khong sap.
             DATABASE_URL="postgresql://elc:${POSTGRES_PASSWORD}@postgres:5432/elc" \
               ./scripts/migrate-all.sh
-
-            # Backup + seed + migrate legacy products.specs -> structured
-            # attribute_definitions/product_attribute_values. Idempotent
-            # (see script header) -- safe no-op on every deploy after the
-            # first. Runs after migrate-all.sh (needs the new tables to
-            # exist) and before the container swap, same safety reasoning
-            # as migrate-all.sh above: a failure here leaves the OLD elc-go
-            # container running untouched.
-            DATABASE_URL="postgresql://elc:${POSTGRES_PASSWORD}@postgres:5432/elc" \
-              ./scripts/deploy-attribute-migration.sh
 
             # --wait doi container moi qua HEALTHCHECK (curl /brands) roi moi
             # tra ve thanh cong -- khong con coi deploy la "xong" ngay khi tien
