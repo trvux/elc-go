@@ -47,7 +47,6 @@ erDiagram
     TAGS ||--o{ NEWS_TAGS : "tag_id"
 
     PRODUCTS ||--o{ REVIEWS : "product_id"
-    PRODUCTS ||--o{ WISHLIST_ITEMS : "product_id"
     PRODUCTS ||--o{ RECENTLY_VIEWED_ITEMS : "product_id"
 ```
 
@@ -91,11 +90,11 @@ erDiagram
 3. **`news_tags` (N - N Join Table)**
    - Gán thẻ tag cho các bài viết.
 
-### Module Tương tác & Khách hàng (`internal/review`, `internal/wishlist`, `internal/recently-viewed`, `internal/inquiry`)
+### Module Tương tác & Khách hàng (`internal/review`, `internal/recently-viewed`, `internal/inquiry`)
 1. **`products` -> `reviews` (1 - N)**
    - Lưu trữ đánh giá, số sao rating và nhận xét sản phẩm.
-2. **`products` -> `wishlist_items` / `recently_viewed_items` (1 - N)**
-   - Quản lý danh sách sản phẩm yêu thích và lịch sử xem sản phẩm của người dùng.
+2. **`products` -> `recently_viewed_items` (1 - N)**
+   - Quản lý lịch sử xem sản phẩm của người dùng.
 3. **`inquiries`**
    - Quản lý yêu cầu tư vấn, báo giá, liên hệ từ khách hàng.
 

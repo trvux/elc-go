@@ -74,8 +74,6 @@ import (
 	uploaddomain "github.com/trvux/elc-go/internal/upload/domain"
 	uploadinfra "github.com/trvux/elc-go/internal/upload/infrastructure"
 	uploadpresentation "github.com/trvux/elc-go/internal/upload/presentation"
-	wishlistinfra "github.com/trvux/elc-go/internal/wishlist/infrastructure"
-	wishlistpresentation "github.com/trvux/elc-go/internal/wishlist/presentation"
 )
 
 func main() {
@@ -243,7 +241,7 @@ func main() {
 	productHandler := productPresentation.NewProductHandler(productRepo, attributeDefinitionRepo)
 	productPresentation.RegisterRoutes(router, productHandler, tokenIssuer)
 
-	// secureCookies gates the wishlist/recently-viewed visitor_id cookie's
+	// secureCookies gates the recently-viewed visitor_id cookie's
 	// Secure flag — same production-only rule as
 	// auth's refresh_token cookie above.
 	secureCookies := env == "production"
@@ -255,10 +253,6 @@ func main() {
 	catalogPageRepo := productInfra.NewPostgresCatalogPageRepository(pool)
 	catalogPageHandler := productPresentation.NewCatalogPageHandler(catalogPageRepo)
 	productPresentation.RegisterCatalogPageRoutes(router, catalogPageHandler, tokenIssuer)
-
-	wishlistRepo := wishlistinfra.NewPostgresWishlistRepository(pool)
-	wishlistHandler := wishlistpresentation.NewWishlistHandler(wishlistRepo)
-	wishlistpresentation.RegisterRoutes(router, wishlistHandler, secureCookies)
 
 	recentlyViewedRepo := recentlyviewedinfra.NewPostgresRecentlyViewedRepository(pool)
 	recentlyViewedHandler := recentlyviewedpresentation.NewRecentlyViewedHandler(recentlyViewedRepo)

@@ -12,7 +12,7 @@ func RegisterRoutes(r chi.Router, h *ProductHandler, verifier httpserver.TokenVe
 		r.Get("/", h.List)
 		r.Get("/count", h.Count)
 		// POST but read-only (batch fetch by a body-carried ID list) — the
-		// public site uses this too (cart/wishlist), so it stays open.
+		// public site uses this too, so it stays open.
 		r.Post("/by-ids", h.GetByIDsBatch)
 		r.Get("/slug/{slug}", h.GetBySlug)
 		r.Get("/{id}", h.GetByID)

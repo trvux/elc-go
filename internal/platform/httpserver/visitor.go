@@ -16,9 +16,9 @@ const (
 )
 
 // EnsureVisitorID gives every anonymous site visitor a stable, opaque,
-// server-issued ID across requests — no login involved. Used by Wishlist and
-// Recently-Viewed, the first two modules with no other identity to key
-// public writes on (see internal/wishlist, internal/recently-viewed). If the
+// server-issued ID across requests — no login involved. Used by
+// Recently-Viewed, which has no other identity to key public writes on
+// (see internal/recently-viewed). If the
 // request already carries a visitor_id cookie, it's reused as-is; otherwise a
 // new one is minted and set on the response before the handler runs.
 // secure must be true in production (HTTPS) — same convention as auth's
