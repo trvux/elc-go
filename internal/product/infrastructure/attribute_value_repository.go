@@ -31,9 +31,8 @@ func insertProductAttributeValues(ctx context.Context, tx pgx.Tx, productID stri
 }
 
 // attachAttributeValuesToProducts loads the structured spec values for one or
-// more products — called with a single-element slice from GetByID/GetBySlug,
-// and with a real multi-product slice from GetByIDsWithAttributeValues
-// (Comparison). Plain GetAll/GetByIDs list reads still don't call this (specs
+// more products — called with a single-element slice from GetByID/GetBySlug.
+// Plain GetAll/GetByIDs list reads don't call this (specs
 // aren't needed for list/card rendering, same "list reads don't need this"
 // reasoning as attachVariantTree, see productJoin's doc comment). Joins
 // directly into attribute_definitions (owned by the sibling internal/
