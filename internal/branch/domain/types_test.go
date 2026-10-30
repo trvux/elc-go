@@ -18,7 +18,7 @@ func TestNewBranch(t *testing.T) {
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 			"",
-			nil, nil, nil, nil, nil,
+			nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
 		if err != nil {
@@ -37,7 +37,7 @@ func TestNewBranch(t *testing.T) {
 			"", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 			"",
-			nil, nil, nil, nil, nil,
+			nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
 		if err == nil {
@@ -57,7 +57,7 @@ func TestNewBranch(t *testing.T) {
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"invalid-email", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 			"",
-			nil, nil, nil, nil, nil,
+			nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
 		if err == nil {
@@ -77,7 +77,7 @@ func TestNewBranch(t *testing.T) {
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "not-a-valid-url", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 			"",
-			nil, nil, nil, nil, nil,
+			nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
 		if err == nil {
@@ -97,7 +97,7 @@ func TestNewBranch(t *testing.T) {
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 			"",
-			nil, nil, nil, nil, nil,
+			nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
 		if err != nil {
@@ -113,7 +113,7 @@ func TestNewBranch(t *testing.T) {
 			"ELC Q1", "elc-q1", "123 Le Loi, Q1, HCMC", "0901234567",
 			"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 			"sideways",
-			nil, nil, nil, nil, nil,
+			nil, nil, nil,
 			desc, images, true, 1, nil, nil,
 		)
 		if err == nil {
@@ -170,7 +170,7 @@ func TestBranch_UpdateFields(t *testing.T) {
 		"ELC Q1", "elc-q1", "123 Le Loi", "0901234567",
 		"q1@elc.vn", "https://maps.google.com/q1", "<iframe src=\"https://www.google.com/maps/embed?pb=abc123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
 		"",
-		nil, nil, nil, nil, nil,
+		nil, nil, nil,
 		desc, nil, true, 1, nil, nil,
 	)
 

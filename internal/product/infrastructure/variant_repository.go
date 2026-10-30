@@ -68,7 +68,7 @@ func fetchOptionsForProduct(ctx context.Context, pool *pgxpool.Pool, productID s
 
 func fetchVariantsForProduct(ctx context.Context, pool *pgxpool.Pool, productID string) ([]*domain.ProductVariant, error) {
 	rows, err := pool.Query(ctx, `
-		SELECT id, mpn, sku, gtin, is_default, is_standalone, stock_status::text, lead_time_days, cost_price,
+		SELECT id, mpn, sku, gtin, is_default, is_standalone, stock_status::text, cost_price,
 		       original_price, sale_price, discount_percent, weight, is_active, order_index,
 		       created_at, updated_at, deleted_at
 		FROM product_variants
@@ -84,7 +84,7 @@ func fetchVariantsForProduct(ctx context.Context, pool *pgxpool.Pool, productID 
 	for rows.Next() {
 		var v scannedVariant
 		if err := rows.Scan(
-			&v.id, &v.mpn, &v.sku, &v.gtin, &v.isDefault, &v.isStandalone, &v.stockStatus, &v.leadTimeDays, &v.costPrice,
+			&v.id, &v.mpn, &v.sku, &v.gtin, &v.isDefault, &v.isStandalone, &v.stockStatus, &v.costPrice,
 			&v.originalPrice, &v.salePrice, &v.discountPercent, &v.weight, &v.isActive, &v.orderIndex,
 			&v.createdAt, &v.updatedAt, &v.deletedAt,
 		); err != nil {
@@ -113,7 +113,7 @@ func fetchVariantsForProduct(ctx context.Context, pool *pgxpool.Pool, productID 
 	for i, v := range scanned {
 		variants[i] = domain.RehydrateProductVariant(
 			v.id, productID, v.mpn, v.sku, v.gtin,
-			v.isDefault, v.isStandalone, v.stockStatus, v.leadTimeDays, v.costPrice,
+			v.isDefault, v.isStandalone, v.stockStatus, v.costPrice,
 			v.originalPrice, v.salePrice, v.discountPercent, v.weight, v.isActive, v.orderIndex,
 			optionValueIDs[v.id], components[v.id],
 			v.createdAt, v.updatedAt, v.deletedAt,
@@ -178,7 +178,6 @@ type scannedVariant struct {
 	id, mpn, sku, stockStatus         string
 	gtin                              *string
 	isDefault, isStandalone, isActive bool
-	leadTimeDays                      *int
 	orderIndex                        int
 	costPrice, salePrice              *int64
 	originalPrice                     int64
@@ -209,7 +208,7 @@ func attachDefaultVariants(ctx context.Context, pool *pgxpool.Pool, products []*
 	}
 
 	rows, err := pool.Query(ctx, `
-		SELECT id, product_id, mpn, sku, gtin, is_default, is_standalone, stock_status::text, lead_time_days, cost_price,
+		SELECT id, product_id, mpn, sku, gtin, is_default, is_standalone, stock_status::text, cost_price,
 		       original_price, sale_price, discount_percent, weight, is_active, order_index,
 		       created_at, updated_at, deleted_at
 		FROM product_variants
@@ -224,7 +223,7 @@ func attachDefaultVariants(ctx context.Context, pool *pgxpool.Pool, products []*
 		var v scannedVariant
 		var productID string
 		if err := rows.Scan(
-			&v.id, &productID, &v.mpn, &v.sku, &v.gtin, &v.isDefault, &v.isStandalone, &v.stockStatus, &v.leadTimeDays, &v.costPrice,
+			&v.id, &productID, &v.mpn, &v.sku, &v.gtin, &v.isDefault, &v.isStandalone, &v.stockStatus, &v.costPrice,
 			&v.originalPrice, &v.salePrice, &v.discountPercent, &v.weight, &v.isActive, &v.orderIndex,
 			&v.createdAt, &v.updatedAt, &v.deletedAt,
 		); err != nil {
@@ -232,7 +231,7 @@ func attachDefaultVariants(ctx context.Context, pool *pgxpool.Pool, products []*
 		}
 		byProductID[productID] = domain.RehydrateProductVariant(
 			v.id, productID, v.mpn, v.sku, v.gtin,
-			v.isDefault, v.isStandalone, v.stockStatus, v.leadTimeDays, v.costPrice,
+			v.isDefault, v.isStandalone, v.stockStatus, v.costPrice,
 			v.originalPrice, v.salePrice, v.discountPercent, v.weight, v.isActive, v.orderIndex,
 			nil, nil,
 			v.createdAt, v.updatedAt, v.deletedAt,
@@ -332,12 +331,12 @@ func writeProductVariantTree(ctx context.Context, tx pgx.Tx, productID string, o
 		err := tx.QueryRow(ctx, `
 			INSERT INTO product_variants (
 				product_id, mpn, sku, gtin, is_default, is_standalone, stock_status,
-				lead_time_days, cost_price, original_price, sale_price, discount_percent,
+				cost_price, original_price, sale_price, discount_percent,
 				weight, is_active, order_index
-			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
 			RETURNING id`,
 			productID, v.MPN, sku, v.GTIN, v.IsDefault, !v.IsComponentOnly, stockStatus,
-			v.LeadTimeDays, v.CostPrice, v.OriginalPrice, v.SalePrice, v.DiscountPercent,
+			v.CostPrice, v.OriginalPrice, v.SalePrice, v.DiscountPercent,
 			v.Weight, v.IsActive, i,
 		).Scan(&variantID)
 		if err != nil {

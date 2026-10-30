@@ -31,9 +31,7 @@ type Branch struct {
 	email           string
 	mapsURL         string
 	mapsEmbed       string
-	provinceCode    *string
 	provinceName    *string
-	wardCode        *string
 	wardName        *string
 	postalCode      *string
 	description     json.RawMessage
@@ -48,15 +46,12 @@ type Branch struct {
 }
 
 // NewBranch validates and creates a new branch entity from user input.
-// provinceCode/provinceName/wardCode/wardName/postalCode are optional — they
-// reference internal/shippingzone's provinces/wards reference data (by code,
-// no DB foreign key across module boundaries) with the human-readable name
-// denormalized alongside so shared/lib/seo-schema.ts (frontend) never needs
-// a runtime lookup to build a real PostalAddress.
+// provinceName/wardName/postalCode are optional; shared/lib/seo-schema.ts
+// (frontend) reads them to build a real PostalAddress.
 func NewBranch(
 	name, slug, address, phone, email, mapsURL, mapsEmbed string,
 	nameAlign string,
-	provinceCode, provinceName, wardCode, wardName, postalCode *string,
+	provinceName, wardName, postalCode *string,
 	description json.RawMessage,
 	images []ImageAsset,
 	isPublished bool,
@@ -111,9 +106,7 @@ func NewBranch(
 		email:           email,
 		mapsURL:         mapsURL,
 		mapsEmbed:       mapsEmbed,
-		provinceCode:    provinceCode,
 		provinceName:    provinceName,
-		wardCode:        wardCode,
 		wardName:        wardName,
 		postalCode:      postalCode,
 		description:     description,
@@ -131,7 +124,7 @@ func NewBranch(
 func RehydrateBranch(
 	id, name, slug, address, phone, email, mapsURL, mapsEmbed string,
 	nameAlign string,
-	provinceCode, provinceName, wardCode, wardName, postalCode *string,
+	provinceName, wardName, postalCode *string,
 	description json.RawMessage,
 	images []ImageAsset,
 	isPublished bool,
@@ -150,9 +143,7 @@ func RehydrateBranch(
 		email:           email,
 		mapsURL:         mapsURL,
 		mapsEmbed:       mapsEmbed,
-		provinceCode:    provinceCode,
 		provinceName:    provinceName,
-		wardCode:        wardCode,
 		wardName:        wardName,
 		postalCode:      postalCode,
 		description:     description,
@@ -176,9 +167,7 @@ func (b *Branch) Phone() string                { return b.phone }
 func (b *Branch) Email() string                { return b.email }
 func (b *Branch) MapsURL() string              { return b.mapsURL }
 func (b *Branch) MapsEmbed() string            { return b.mapsEmbed }
-func (b *Branch) ProvinceCode() *string        { return b.provinceCode }
 func (b *Branch) ProvinceName() *string        { return b.provinceName }
-func (b *Branch) WardCode() *string            { return b.wardCode }
 func (b *Branch) WardName() *string            { return b.wardName }
 func (b *Branch) PostalCode() *string          { return b.postalCode }
 func (b *Branch) Description() json.RawMessage { return b.description }
@@ -273,14 +262,11 @@ func (b *Branch) Update(input UpdateBranchInput) error {
 		b.mapsEmbed = *input.MapsEmbed
 		changed = true
 	}
-	// Bundled: the frontend's cascading combobox always submits
-	// province/ward code+name+postalCode together (see BranchManagement.tsx),
-	// so treat "any one present" as "replace the whole location" rather than
-	// merging field-by-field.
-	if input.ProvinceCode != nil || input.ProvinceName != nil || input.WardCode != nil || input.WardName != nil || input.PostalCode != nil {
-		b.provinceCode = input.ProvinceCode
+	// Bundled: the admin form always submits province/ward name+postalCode
+	// together (see BranchManagement.tsx), so treat "any one present" as
+	// "replace the whole location" rather than merging field-by-field.
+	if input.ProvinceName != nil || input.WardName != nil || input.PostalCode != nil {
 		b.provinceName = input.ProvinceName
-		b.wardCode = input.WardCode
 		b.wardName = input.WardName
 		b.postalCode = input.PostalCode
 		changed = true
@@ -479,9 +465,7 @@ type CreateBranchInput struct {
 	Email           string
 	MapsURL         string
 	MapsEmbed       string
-	ProvinceCode    *string
 	ProvinceName    *string
-	WardCode        *string
 	WardName        *string
 	PostalCode      *string
 	Description     json.RawMessage
@@ -502,9 +486,7 @@ type UpdateBranchInput struct {
 	Email           *string
 	MapsURL         *string
 	MapsEmbed       *string
-	ProvinceCode    *string
 	ProvinceName    *string
-	WardCode        *string
 	WardName        *string
 	PostalCode      *string
 	Description     json.RawMessage

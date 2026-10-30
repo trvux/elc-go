@@ -328,7 +328,6 @@ type productVariantResponse struct {
 	IsDefault       bool                       `json:"is_default"`
 	IsStandalone    bool                       `json:"is_standalone"`
 	StockStatus     string                     `json:"stock_status"`
-	LeadTimeDays    *int                       `json:"lead_time_days"`
 	OriginalPrice   int64                      `json:"original_price"`
 	SalePrice       *int64                     `json:"sale_price"`
 	DiscountPercent float64                    `json:"discount_percent"`
@@ -355,7 +354,6 @@ func toProductVariantResponseList(variants []*domain.ProductVariant) []productVa
 		result[i] = productVariantResponse{
 			ID: v.ID(), MPN: v.MPN(), SKU: v.SKU(), GTIN: v.GTIN(),
 			IsDefault: v.IsDefault(), IsStandalone: v.IsStandalone(), StockStatus: v.StockStatus(),
-			LeadTimeDays:  v.LeadTimeDays(),
 			OriginalPrice: v.OriginalPrice(), SalePrice: v.SalePrice(), DiscountPercent: v.DiscountPercent(),
 			DisplayPrice: v.DisplayPrice(), Weight: v.Weight(), IsActive: v.IsActive(), OrderIndex: v.OrderIndex(),
 			OptionValueIDs: v.OptionValueIDs(), Components: components,
@@ -412,7 +410,6 @@ type productVariantRequestDTO struct {
 	IsDefault        bool                         `json:"is_default"`
 	IsComponentOnly  bool                         `json:"is_component_only"`
 	StockStatus      string                       `json:"stock_status"`
-	LeadTimeDays     *int                         `json:"lead_time_days,omitempty"`
 	CostPrice        *int64                       `json:"cost_price,omitempty"`
 	OriginalPrice    int64                        `json:"original_price"`
 	SalePrice        *int64                       `json:"sale_price,omitempty"`
@@ -429,7 +426,7 @@ func toProductVariantInputList(dtos []productVariantRequestDTO) []domain.Product
 	for i, d := range dtos {
 		result[i] = domain.ProductVariantInput{
 			MPN: d.MPN, SKU: d.SKU, GTIN: d.GTIN, IsDefault: d.IsDefault, IsComponentOnly: d.IsComponentOnly,
-			StockStatus: d.StockStatus, LeadTimeDays: d.LeadTimeDays, CostPrice: d.CostPrice,
+			StockStatus: d.StockStatus, CostPrice: d.CostPrice,
 			OriginalPrice: d.OriginalPrice, SalePrice: d.SalePrice, DiscountPercent: d.DiscountPercent,
 			Weight: d.Weight, IsActive: d.IsActive, OrderIndex: d.OrderIndex,
 			OptionSelections: toVariantOptionSelectionDomainList(d.OptionSelections),

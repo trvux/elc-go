@@ -99,13 +99,11 @@ erDiagram
 3. **`inquiries`**
    - Quản lý yêu cầu tư vấn, báo giá, liên hệ từ khách hàng.
 
-### Module Hệ thống & SEO (`internal/slug-registry`, `internal/branch`, `internal/contact`, `internal/shippingzone`)
+### Module Hệ thống & SEO (`internal/slug-registry`, `internal/branch`, `internal/contact`)
 1. **`slug_registry`**
    - Đảm bảo tính duy nhất của tất cả đường dẫn URL Slug (`entity_id`, `entity_type`, `slug`) trên toàn bộ hệ thống.
 2. **`branches` & `contacts`**
    - Danh sách chi nhánh, cửa hàng, bản đồ Google Maps và các kênh liên hệ.
-3. **`shipping_zones`, `districts`, `wards`**
-   - Cơ sở dữ liệu hành chính và cấu hình phí vận chuyển theo khu vực.
 
 ---
 

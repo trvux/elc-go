@@ -11,12 +11,12 @@ import (
 func TestProductVariant_DisplayPrice(t *testing.T) {
 	now := time.Now()
 	sale := int64(8000000)
-	v := RehydrateProductVariant("v-1", "prod-1", "MPN-1", "SKU-1", nil, true, true, StockStatusInStock, nil, nil, 9000000, &sale, 0, nil, true, 0, nil, nil, now, now, nil)
+	v := RehydrateProductVariant("v-1", "prod-1", "MPN-1", "SKU-1", nil, true, true, StockStatusInStock, nil, 9000000, &sale, 0, nil, true, 0, nil, nil, now, now, nil)
 	if v.DisplayPrice() != sale {
 		t.Errorf("expected DisplayPrice to prefer sale price, got %d", v.DisplayPrice())
 	}
 
-	v2 := RehydrateProductVariant("v-2", "prod-1", "MPN-2", "SKU-2", nil, true, true, StockStatusInStock, nil, nil, 9000000, nil, 0, nil, true, 0, nil, nil, now, now, nil)
+	v2 := RehydrateProductVariant("v-2", "prod-1", "MPN-2", "SKU-2", nil, true, true, StockStatusInStock, nil, 9000000, nil, 0, nil, true, 0, nil, nil, now, now, nil)
 	if v2.DisplayPrice() != 9000000 {
 		t.Errorf("expected DisplayPrice to fall back to original price, got %d", v2.DisplayPrice())
 	}

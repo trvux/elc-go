@@ -172,7 +172,6 @@ type ProductVariant struct {
 	isDefault       bool
 	isStandalone    bool
 	stockStatus     string
-	leadTimeDays    *int
 	costPrice       *int64
 	originalPrice   int64
 	salePrice       *int64
@@ -192,7 +191,6 @@ func RehydrateProductVariant(
 	gtin *string,
 	isDefault, isStandalone bool,
 	stockStatus string,
-	leadTimeDays *int,
 	costPrice *int64,
 	originalPrice int64,
 	salePrice *int64,
@@ -208,7 +206,7 @@ func RehydrateProductVariant(
 	return &ProductVariant{
 		id: id, productID: productID, mpn: mpn, sku: sku, gtin: gtin,
 		isDefault: isDefault, isStandalone: isStandalone, stockStatus: stockStatus,
-		leadTimeDays: leadTimeDays, costPrice: costPrice,
+		costPrice:     costPrice,
 		originalPrice: originalPrice, salePrice: salePrice, discountPercent: discountPercent,
 		weight: weight, isActive: isActive, orderIndex: orderIndex,
 		optionValueIDs: optionValueIDs, components: components,
@@ -224,7 +222,6 @@ func (v *ProductVariant) GTIN() *string                         { return v.gtin 
 func (v *ProductVariant) IsDefault() bool                       { return v.isDefault }
 func (v *ProductVariant) IsStandalone() bool                    { return v.isStandalone }
 func (v *ProductVariant) StockStatus() string                   { return v.stockStatus }
-func (v *ProductVariant) LeadTimeDays() *int                    { return v.leadTimeDays }
 func (v *ProductVariant) CostPrice() *int64                     { return v.costPrice }
 func (v *ProductVariant) OriginalPrice() int64                  { return v.originalPrice }
 func (v *ProductVariant) SalePrice() *int64                     { return v.salePrice }
@@ -291,7 +288,6 @@ type ProductVariantInput struct {
 	IsDefault        bool
 	IsComponentOnly  bool // inverse of is_standalone; false (zero value) is the correct default
 	StockStatus      string
-	LeadTimeDays     *int
 	CostPrice        *int64
 	OriginalPrice    int64
 	SalePrice        *int64
