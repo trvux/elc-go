@@ -20,8 +20,6 @@ import (
 	authdomain "github.com/trvux/elc-go/internal/auth/domain"
 	authinfra "github.com/trvux/elc-go/internal/auth/infrastructure"
 	authpresentation "github.com/trvux/elc-go/internal/auth/presentation"
-	authorinfra "github.com/trvux/elc-go/internal/author/infrastructure"
-	authorpresentation "github.com/trvux/elc-go/internal/author/presentation"
 	branchinfra "github.com/trvux/elc-go/internal/branch/infrastructure"
 	branchpresentation "github.com/trvux/elc-go/internal/branch/presentation"
 	brandinfra "github.com/trvux/elc-go/internal/brand/infrastructure"
@@ -224,10 +222,6 @@ func main() {
 	hpPageRepo := hppageinfra.NewPostgresHpPageRepository(pool)
 	hpPageHandler := hppagepresentation.NewHpPageHandler(hpPageRepo)
 	hppagepresentation.RegisterRoutes(router, hpPageHandler, tokenIssuer)
-
-	authorRepo := authorinfra.NewPostgresAuthorRepository(pool)
-	authorHandler := authorpresentation.NewAuthorHandler(authorRepo)
-	authorpresentation.RegisterRoutes(router, authorHandler, tokenIssuer)
 
 	tagRepo := taginfra.NewPostgresTagRepository(pool)
 	tagHandler := tagpresentation.NewTagHandler(tagRepo)

@@ -55,7 +55,6 @@ type newsResponse struct {
 	Content         json.RawMessage  `json:"content"`
 	Excerpt         string           `json:"excerpt"`
 	CategoryID      *string          `json:"category_id"`
-	AuthorID        *string          `json:"author_id"`
 	IsPublished     bool             `json:"is_published"`
 	MetaTitle       *string          `json:"meta_title"`
 	MetaDescription *string          `json:"meta_description"`
@@ -76,7 +75,6 @@ func toNewsResponse(n *domain.News) newsResponse {
 		Content:         n.Content(),
 		Excerpt:         n.Excerpt(),
 		CategoryID:      n.CategoryID(),
-		AuthorID:        n.AuthorID(),
 		IsPublished:     n.IsPublished(),
 		MetaTitle:       n.MetaTitle(),
 		MetaDescription: n.MetaDescription(),
@@ -104,7 +102,6 @@ type createNewsRequest struct {
 	Content         json.RawMessage `json:"content"`
 	Excerpt         string          `json:"excerpt"`
 	CategoryID      *string         `json:"category_id"`
-	AuthorID        *string         `json:"author_id"`
 	IsPublished     bool            `json:"is_published"`
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`
@@ -120,7 +117,6 @@ type updateNewsRequest struct {
 	Content         json.RawMessage `json:"content"`
 	Excerpt         *string         `json:"excerpt"`
 	CategoryID      *string         `json:"category_id"`
-	AuthorID        *string         `json:"author_id"`
 	IsPublished     *bool           `json:"is_published"`
 	MetaTitle       *string         `json:"meta_title"`
 	MetaDescription *string         `json:"meta_description"`

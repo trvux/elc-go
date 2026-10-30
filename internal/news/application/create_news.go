@@ -15,7 +15,6 @@ func CreateNews(ctx context.Context, repo domain.NewsRepository, input domain.Cr
 		input.Content,
 		input.Excerpt,
 		input.CategoryID,
-		input.AuthorID,
 		input.IsPublished,
 		input.MetaTitle,
 		input.MetaDescription,

@@ -1,2 +1,0 @@
-ALTER TABLE news DROP COLUMN IF EXISTS author_id;
-DROP TABLE IF EXISTS authors;

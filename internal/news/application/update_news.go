@@ -43,9 +43,6 @@ func UpdateNews(ctx context.Context, repo domain.NewsRepository, input domain.Up
 	if input.CategoryID != nil {
 		news.UpdateCategoryID(input.CategoryID)
 	}
-	if input.AuthorID != nil {
-		news.UpdateAuthorID(input.AuthorID)
-	}
 	if input.IsPublished != nil {
 		news.SetPublished(*input.IsPublished)
 	}

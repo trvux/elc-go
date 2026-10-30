@@ -40,7 +40,6 @@ type News struct {
 	content         json.RawMessage
 	excerpt         string
 	categoryID      *string
-	authorID        *string
 	isPublished     bool
 	metaTitle       *string
 	metaDescription *string
@@ -79,7 +78,6 @@ func NewNews(
 	content json.RawMessage,
 	excerpt string,
 	categoryID *string,
-	authorID *string,
 	isPublished bool,
 	metaTitle, metaDescription *string,
 	orderIndex int,
@@ -120,7 +118,6 @@ func NewNews(
 		content:         content,
 		excerpt:         excerpt,
 		categoryID:      categoryID,
-		authorID:        authorID,
 		isPublished:     isPublished,
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
@@ -140,7 +137,6 @@ func RehydrateNews(
 	content json.RawMessage,
 	excerpt string,
 	categoryID *string,
-	authorID *string,
 	isPublished bool,
 	metaTitle, metaDescription *string,
 	orderIndex int,
@@ -156,7 +152,6 @@ func RehydrateNews(
 		content:         content,
 		excerpt:         excerpt,
 		categoryID:      categoryID,
-		authorID:        authorID,
 		isPublished:     isPublished,
 		metaTitle:       metaTitle,
 		metaDescription: metaDescription,
@@ -175,7 +170,6 @@ func (n *News) Images() []ImageAsset     { return n.images }
 func (n *News) Content() json.RawMessage { return n.content }
 func (n *News) Excerpt() string          { return n.excerpt }
 func (n *News) CategoryID() *string      { return n.categoryID }
-func (n *News) AuthorID() *string        { return n.authorID }
 func (n *News) IsPublished() bool        { return n.isPublished }
 func (n *News) MetaTitle() *string       { return n.metaTitle }
 func (n *News) MetaDescription() *string { return n.metaDescription }
@@ -232,11 +226,6 @@ func (n *News) UpdateContent(content json.RawMessage) {
 
 func (n *News) UpdateCategoryID(categoryID *string) {
 	n.categoryID = categoryID
-	n.updatedAt = time.Now()
-}
-
-func (n *News) UpdateAuthorID(authorID *string) {
-	n.authorID = authorID
 	n.updatedAt = time.Now()
 }
 
@@ -313,7 +302,6 @@ type CreateNewsInput struct {
 	Content         json.RawMessage
 	Excerpt         string
 	CategoryID      *string
-	AuthorID        *string
 	IsPublished     bool
 	MetaTitle       *string
 	MetaDescription *string
@@ -330,7 +318,6 @@ type UpdateNewsInput struct {
 	Content         json.RawMessage
 	Excerpt         *string
 	CategoryID      *string
-	AuthorID        *string
 	IsPublished     *bool
 	MetaTitle       *string
 	MetaDescription *string
