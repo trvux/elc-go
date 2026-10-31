@@ -81,7 +81,10 @@ jobs:
             chmod +x scripts/*.sh
 
             # Build truoc (khong dung toi container dang chay), roi moi swap.
-            docker compose build
+            # --pull: re-fetch the golang/alpine base images every deploy. Without
+            # it the VPS kept a 4-month-old golang:1.26-alpine, so production was
+            # built with Go 1.26.4 and missed every stdlib security patch since.
+            docker compose build --pull
 
             # Dua Postgres len truoc va cho khoe, roi moi chay migration.
             docker compose up -d --wait --wait-timeout 60 postgres
