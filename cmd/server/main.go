@@ -61,8 +61,6 @@ import (
 	servicegrouppresentation "github.com/trvux/elc-go/internal/service-group/presentation"
 	serviceinfra "github.com/trvux/elc-go/internal/service/infrastructure"
 	servicepresentation "github.com/trvux/elc-go/internal/service/presentation"
-	settingsinfra "github.com/trvux/elc-go/internal/settings/infrastructure"
-	settingspresentation "github.com/trvux/elc-go/internal/settings/presentation"
 	slugregistryinfra "github.com/trvux/elc-go/internal/slug-registry/infrastructure"
 	slugregistrypresentation "github.com/trvux/elc-go/internal/slug-registry/presentation"
 	uploaddomain "github.com/trvux/elc-go/internal/upload/domain"
@@ -267,10 +265,6 @@ func main() {
 	contentVarResolver := contentvarApplication.NewResolver(productRepo, categoryRepo, groupRepo, brandRepo)
 	contentVarHandler := contentvarPresentation.NewContentVarHandler(contentVarResolver)
 	contentvarPresentation.RegisterRoutes(router, contentVarHandler)
-
-	settingsRepo := settingsinfra.NewPostgresSettingsRepository(pool)
-	settingsHandler := settingspresentation.NewSettingsHandler(settingsRepo)
-	settingspresentation.RegisterRoutes(router, settingsHandler, tokenIssuer)
 
 	pageRepo := pageinfra.NewPostgresPageRepository(pool)
 	pageHandler := pagepresentation.NewPageHandler(pageRepo)
