@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/server ./cmd/server
 
-FROM alpine:3.20
+FROM alpine:3.23
 # libwebp-tools: gives internal/upload/infrastructure's crop-on-upload
 # feature the real cwebp encoder — imaging's pure-Go Encode has no WEBP
 # case, and no pure-Go lossy WebP encoder here has libwebp's track record,
