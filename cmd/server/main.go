@@ -55,6 +55,8 @@ import (
 	projectpresentation "github.com/trvux/elc-go/internal/project/presentation"
 	recentlyviewedinfra "github.com/trvux/elc-go/internal/recently-viewed/infrastructure"
 	recentlyviewedpresentation "github.com/trvux/elc-go/internal/recently-viewed/presentation"
+	redirectinfra "github.com/trvux/elc-go/internal/redirect/infrastructure"
+	redirectpresentation "github.com/trvux/elc-go/internal/redirect/presentation"
 	reviewinfra "github.com/trvux/elc-go/internal/review/infrastructure"
 	reviewpresentation "github.com/trvux/elc-go/internal/review/presentation"
 	servicegroupinfra "github.com/trvux/elc-go/internal/service-group/infrastructure"
@@ -204,6 +206,10 @@ func main() {
 	faqRepo := faqinfra.NewPostgresFAQRepository(pool)
 	faqHandler := faqpresentation.NewFAQHandler(faqRepo)
 	faqpresentation.RegisterRoutes(router, faqHandler, tokenIssuer)
+
+	redirectRepo := redirectinfra.NewPostgresRepository(pool)
+	redirectHandler := redirectpresentation.NewHandler(redirectRepo)
+	redirectpresentation.RegisterRoutes(router, redirectHandler, tokenIssuer)
 
 	eventRepo := eventinfra.NewPostgresEventRepository(pool)
 	eventHandler := eventpresentation.NewEventHandler(eventRepo)
