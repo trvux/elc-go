@@ -12,7 +12,7 @@ func CreateService(ctx context.Context, repo domain.ServiceRepository, input dom
 		input.TitleAlign,
 		input.GroupID, input.CategoryID,
 		input.OriginalPrice, input.DiscountPercent,
-		input.PriceDisplayText, input.Labels, input.Description, input.Content,
+		input.PriceDisplayText, input.Labels, input.Line, input.BriefPrompts, input.Description, input.Content,
 		input.Images, input.MetaTitle, input.MetaDescription,
 		input.IsFeatured, input.IsPublished, input.OrderIndex,
 	)

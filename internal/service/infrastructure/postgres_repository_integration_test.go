@@ -33,7 +33,7 @@ func TestPostgresServiceRepository_CRUD(t *testing.T) {
 		"",
 		nil, nil,
 		&originalPrice, &discountPercent, nil,
-		[]string{"moi", "hot"}, nil, content,
+		[]string{"moi", "hot"}, "", nil, nil, content,
 		nil, nil, nil, false, true, 0,
 	)
 	if err != nil {
@@ -135,7 +135,7 @@ func TestPostgresServiceRepository_JoinsGroupAndCategory(t *testing.T) {
 	svc, err := domain.NewService(
 		"Join Test Service", "integration-test-service-join-xyz",
 		&groupID, &categoryID,
-		nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, "", nil, nil, nil,
 		nil, nil, nil, false, true, 0,
 	)
 	if err != nil {

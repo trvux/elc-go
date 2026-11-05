@@ -49,6 +49,8 @@ type serviceResponse struct {
 	DiscountPercent  *int            `json:"discount_percent"`
 	PriceDisplayText *string         `json:"price_display_text"`
 	Labels           []string        `json:"labels"`
+	Line             string          `json:"line"`
+	BriefPrompts     []string        `json:"brief_prompts"`
 	Description      *string         `json:"description"`
 	Content          json.RawMessage `json:"content"`
 	Images           []imageAssetDTO `json:"images"`
@@ -77,6 +79,8 @@ func toServiceResponse(sr *domain.ServiceWithRelations) serviceResponse {
 		DiscountPercent:  sr.DiscountPercent(),
 		PriceDisplayText: sr.PriceDisplayText(),
 		Labels:           sr.Labels(),
+		Line:             sr.Line(),
+		BriefPrompts:     orEmpty(sr.BriefPrompts()),
 		Description:      sr.Description(),
 		Content:          sr.Content(),
 		Images:           toImageAssetDTOList(sr.Images()),
@@ -113,6 +117,8 @@ func toPlainServiceResponse(s *domain.Service) serviceResponse {
 		DiscountPercent:  s.DiscountPercent(),
 		PriceDisplayText: s.PriceDisplayText(),
 		Labels:           s.Labels(),
+		Line:             s.Line(),
+		BriefPrompts:     orEmpty(s.BriefPrompts()),
 		Description:      s.Description(),
 		Content:          s.Content(),
 		Images:           toImageAssetDTOList(s.Images()),
@@ -145,6 +151,8 @@ type createServiceRequest struct {
 	DiscountPercent  *int            `json:"discount_percent"`
 	PriceDisplayText *string         `json:"price_display_text"`
 	Labels           []string        `json:"labels"`
+	Line             string          `json:"line"`
+	BriefPrompts     []string        `json:"brief_prompts"`
 	Description      *string         `json:"description"`
 	Content          json.RawMessage `json:"content"`
 	Images           []imageAssetDTO `json:"images"`
@@ -165,6 +173,8 @@ type updateServiceRequest struct {
 	DiscountPercent  *int            `json:"discount_percent"`
 	PriceDisplayText *string         `json:"price_display_text"`
 	Labels           []string        `json:"labels"`
+	Line             *string         `json:"line"`
+	BriefPrompts     []string        `json:"brief_prompts"`
 	Description      *string         `json:"description"`
 	Content          json.RawMessage `json:"content"`
 	Images           []imageAssetDTO `json:"images"`
@@ -173,4 +183,12 @@ type updateServiceRequest struct {
 	IsFeatured       *bool           `json:"is_featured"`
 	IsPublished      *bool           `json:"is_published"`
 	OrderIndex       *int            `json:"order_index"`
+}
+
+// orEmpty keeps JSON output as [] instead of null for an unset list.
+func orEmpty(list []string) []string {
+	if list == nil {
+		return []string{}
+	}
+	return list
 }

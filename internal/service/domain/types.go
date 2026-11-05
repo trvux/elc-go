@@ -2,6 +2,7 @@ package domain
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/trvux/elc-go/internal/platform/apperr"
@@ -25,6 +26,8 @@ type Service struct {
 	discountPercent  *int
 	priceDisplayText *string
 	labels           []string
+	line             string
+	briefPrompts     []string
 	description      *string
 	content          json.RawMessage
 	images           []ImageAsset
@@ -70,6 +73,18 @@ const (
 	TitleAlignRight  = titlealign.Right
 )
 
+// The two offerings a service can belong to. Drives the hub section, the
+// call-to-action wording and a tracking dimension (replaces service groups).
+const (
+	LineThiCong = "thi-cong" // system installation projects: survey, then quote
+	LineDichVu  = "dich-vu"  // services on air conditioners the customer already has
+)
+
+// ValidLine reports whether line is one of the two known offerings.
+func ValidLine(line string) bool {
+	return line == LineThiCong || line == LineDichVu
+}
+
 // NewService validates and creates a new entity from user input.
 // salePrice is intentionally not a parameter here — see SalePrice().
 func NewService(
@@ -80,6 +95,8 @@ func NewService(
 	discountPercent *int,
 	priceDisplayText *string,
 	labels []string,
+	line string,
+	briefPrompts []string,
 	description *string,
 	content json.RawMessage,
 	images []ImageAsset,
@@ -108,6 +125,13 @@ func NewService(
 	if !titlealign.Valid(titleAlign) {
 		fields["titleAlign"] = []string{"titleAlign must be 'left', 'center' or 'right'"}
 	}
+	if line == "" {
+		line = LineDichVu
+	}
+	if !ValidLine(line) {
+		fields["line"] = []string{"line must be 'thi-cong' or 'dich-vu'"}
+	}
+	briefPrompts = cleanBriefPrompts(briefPrompts)
 
 	if len(fields) > 0 {
 		return nil, apperr.NewValidationError("validation failed", fields)
@@ -124,6 +148,8 @@ func NewService(
 		discountPercent:  discountPercent,
 		priceDisplayText: priceDisplayText,
 		labels:           labels,
+		line:             line,
+		briefPrompts:     briefPrompts,
 		description:      description,
 		content:          content,
 		images:           images,
@@ -148,6 +174,8 @@ func RehydrateService(
 	discountPercent *int,
 	priceDisplayText *string,
 	labels []string,
+	line string,
+	briefPrompts []string,
 	description *string,
 	content json.RawMessage,
 	images []ImageAsset,
@@ -162,6 +190,7 @@ func RehydrateService(
 		groupID: groupID, categoryID: categoryID,
 		originalPrice: originalPrice, discountPercent: discountPercent,
 		priceDisplayText: priceDisplayText, labels: labels,
+		line: line, briefPrompts: briefPrompts,
 		description: description, content: content,
 		images: images, metaTitle: metaTitle, metaDescription: metaDescription,
 		isFeatured: isFeatured, isPublished: isPublished, orderIndex: orderIndex,
@@ -179,6 +208,8 @@ func (s *Service) OriginalPrice() *int64     { return s.originalPrice }
 func (s *Service) DiscountPercent() *int     { return s.discountPercent }
 func (s *Service) PriceDisplayText() *string { return s.priceDisplayText }
 func (s *Service) Labels() []string          { return s.labels }
+func (s *Service) Line() string              { return s.line }
+func (s *Service) BriefPrompts() []string    { return s.briefPrompts }
 func (s *Service) Description() *string      { return s.description }
 func (s *Service) Content() json.RawMessage  { return s.content }
 func (s *Service) Images() []ImageAsset      { return s.images }
@@ -288,6 +319,18 @@ func (s *Service) Update(input UpdateServiceInput) error {
 		s.labels = input.Labels
 		changed = true
 	}
+	if input.Line != nil {
+		if !ValidLine(*input.Line) {
+			return apperr.NewValidationError("validation failed", map[string][]string{"line": {"line must be 'thi-cong' or 'dich-vu'"}})
+		}
+		s.line = *input.Line
+		changed = true
+	}
+	// nil means "not part of this request"; an empty non-nil slice clears the list.
+	if input.BriefPrompts != nil {
+		s.briefPrompts = cleanBriefPrompts(input.BriefPrompts)
+		changed = true
+	}
 	if input.Description != nil {
 		s.description = input.Description
 		changed = true
@@ -345,6 +388,19 @@ func (s *Service) Restore() {
 	s.updatedAt = time.Now()
 }
 
+// cleanBriefPrompts trims each prompt and drops blank ones, so an admin textarea
+// with stray empty lines never produces empty bullets or empty lines in the
+// Zalo message. Always returns a non-nil slice (the column is NOT NULL).
+func cleanBriefPrompts(prompts []string) []string {
+	cleaned := make([]string, 0, len(prompts))
+	for _, p := range prompts {
+		if t := strings.TrimSpace(p); t != "" {
+			cleaned = append(cleaned, t)
+		}
+	}
+	return cleaned
+}
+
 func validateTitle(title string) []string {
 	if title == "" {
 		return []string{"title is required"}
@@ -388,6 +444,8 @@ type CreateServiceInput struct {
 	DiscountPercent  *int
 	PriceDisplayText *string
 	Labels           []string
+	Line             string
+	BriefPrompts     []string
 	Description      *string
 	Content          json.RawMessage
 	Images           []ImageAsset
@@ -409,6 +467,8 @@ type UpdateServiceInput struct {
 	DiscountPercent  *int
 	PriceDisplayText *string
 	Labels           []string
+	Line             *string
+	BriefPrompts     []string
 	Description      *string
 	Content          json.RawMessage
 	Images           []ImageAsset
