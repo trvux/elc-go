@@ -10,10 +10,13 @@ import (
 
 type fakeServiceRepository struct {
 	items map[string]*domain.Service
+	// categories records the last SetCategories call per service id; setCalls counts them.
+	categories map[string][]string
+	setCalls   int
 }
 
 func newFakeServiceRepository() *fakeServiceRepository {
-	return &fakeServiceRepository{items: map[string]*domain.Service{}}
+	return &fakeServiceRepository{items: map[string]*domain.Service{}, categories: map[string][]string{}}
 }
 
 func (r *fakeServiceRepository) Count(ctx context.Context, filter domain.ServiceFilter) (int, error) {
@@ -83,5 +86,11 @@ func (r *fakeServiceRepository) Restore(ctx context.Context, id string) error {
 		return nil
 	}
 	s.Restore()
+	return nil
+}
+
+func (r *fakeServiceRepository) SetCategories(ctx context.Context, serviceID string, categoryIDs []string) error {
+	r.setCalls++
+	r.categories[serviceID] = categoryIDs
 	return nil
 }

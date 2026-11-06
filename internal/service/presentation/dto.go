@@ -40,6 +40,7 @@ type serviceResponse struct {
 	Labels          []string        `json:"labels"`
 	Line            string          `json:"line"`
 	BriefPrompts    []string        `json:"brief_prompts"`
+	CategoryIDs     []string        `json:"category_ids"`
 	Description     *string         `json:"description"`
 	Content         json.RawMessage `json:"content"`
 	Images          []imageAssetDTO `json:"images"`
@@ -61,6 +62,7 @@ func toServiceResponse(sr *domain.ServiceWithRelations) serviceResponse {
 		Labels:          sr.Labels(),
 		Line:            sr.Line(),
 		BriefPrompts:    orEmpty(sr.BriefPrompts()),
+		CategoryIDs:     orEmpty(sr.CategoryIDs),
 		Description:     sr.Description(),
 		Content:         sr.Content(),
 		Images:          toImageAssetDTOList(sr.Images()),
@@ -86,6 +88,7 @@ func toPlainServiceResponse(s *domain.Service) serviceResponse {
 		Labels:          s.Labels(),
 		Line:            s.Line(),
 		BriefPrompts:    orEmpty(s.BriefPrompts()),
+		CategoryIDs:     []string{},
 		Description:     s.Description(),
 		Content:         s.Content(),
 		Images:          toImageAssetDTOList(s.Images()),
@@ -114,6 +117,7 @@ type createServiceRequest struct {
 	Labels          []string        `json:"labels"`
 	Line            string          `json:"line"`
 	BriefPrompts    []string        `json:"brief_prompts"`
+	CategoryIDs     []string        `json:"category_ids"`
 	Description     *string         `json:"description"`
 	Content         json.RawMessage `json:"content"`
 	Images          []imageAssetDTO `json:"images"`
@@ -130,6 +134,7 @@ type updateServiceRequest struct {
 	Labels          []string        `json:"labels"`
 	Line            *string         `json:"line"`
 	BriefPrompts    []string        `json:"brief_prompts"`
+	CategoryIDs     []string        `json:"category_ids"`
 	Description     *string         `json:"description"`
 	Content         json.RawMessage `json:"content"`
 	Images          []imageAssetDTO `json:"images"`

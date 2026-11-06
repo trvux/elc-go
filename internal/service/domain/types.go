@@ -40,6 +40,9 @@ type Service struct {
 // only ever deal with a plain *Service.
 type ServiceWithRelations struct {
 	*Service
+	// CategoryIDs are the product categories this service applies to
+	// (service_categories), loaded by the read queries.
+	CategoryIDs []string
 }
 
 // TitleAlignLeft/Center/Right re-export platform/titlealign — see its doc
@@ -312,12 +315,14 @@ func validateSlug(slug string) []string {
 }
 
 type CreateServiceInput struct {
-	Title           string
-	TitleAlign      string
-	Slug            string
-	Labels          []string
-	Line            string
-	BriefPrompts    []string
+	Title        string
+	TitleAlign   string
+	Slug         string
+	Labels       []string
+	Line         string
+	BriefPrompts []string
+	// CategoryIDs links the service to product categories, applied after create.
+	CategoryIDs     []string
 	Description     *string
 	Content         json.RawMessage
 	Images          []ImageAsset
@@ -328,13 +333,15 @@ type CreateServiceInput struct {
 }
 
 type UpdateServiceInput struct {
-	ID              string
-	Title           *string
-	TitleAlign      *string
-	Slug            *string
-	Labels          []string
-	Line            *string
-	BriefPrompts    []string
+	ID           string
+	Title        *string
+	TitleAlign   *string
+	Slug         *string
+	Labels       []string
+	Line         *string
+	BriefPrompts []string
+	// CategoryIDs: nil leaves the links alone; an empty non-nil slice clears them.
+	CategoryIDs     []string
 	Description     *string
 	Content         json.RawMessage
 	Images          []ImageAsset

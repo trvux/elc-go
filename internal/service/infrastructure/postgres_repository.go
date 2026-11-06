@@ -28,7 +28,8 @@ const serviceColumns = `s.id, s.title, s.title_align, s.slug, s.labels,
 	s.line, s.brief_prompts,
 	s.description, s.content, s.images, s.meta_title, s.meta_description,
 	s.is_published, s.order_index,
-	s.created_at, s.updated_at, s.deleted_at`
+	s.created_at, s.updated_at, s.deleted_at,
+	ARRAY(SELECT sc.category_id::text FROM service_categories sc WHERE sc.service_id = s.id ORDER BY sc.category_id)`
 
 // selectWithRelations is the shared SELECT for the read queries.
 const selectWithRelations = `
@@ -261,6 +262,7 @@ func scanServiceWithRelations(row rowScanner) (*domain.ServiceWithRelations, err
 		orderIndex                  int
 		createdAt, updatedAt        time.Time
 		deletedAt                   *time.Time
+		categoryIDs                 []string
 	)
 
 	if err := row.Scan(
@@ -269,6 +271,7 @@ func scanServiceWithRelations(row rowScanner) (*domain.ServiceWithRelations, err
 		&description, &content, &imagesRaw, &metaTitle, &metaDescription,
 		&isPublished, &orderIndex,
 		&createdAt, &updatedAt, &deletedAt,
+		&categoryIDs,
 	); err != nil {
 		return nil, err
 	}
@@ -284,7 +287,32 @@ func scanServiceWithRelations(row rowScanner) (*domain.ServiceWithRelations, err
 		createdAt, updatedAt, deletedAt,
 	)
 
-	result := &domain.ServiceWithRelations{Service: service}
+	result := &domain.ServiceWithRelations{Service: service, CategoryIDs: categoryIDs}
 
 	return result, nil
+}
+
+// SetCategories replaces the service's category links in one transaction.
+func (r *PostgresServiceRepository) SetCategories(ctx context.Context, serviceID string, categoryIDs []string) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("service repository setCategories begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, "DELETE FROM service_categories WHERE service_id = $1", serviceID); err != nil {
+		return fmt.Errorf("service repository setCategories delete: %w", err)
+	}
+	for _, categoryID := range categoryIDs {
+		if _, err := tx.Exec(ctx,
+			"INSERT INTO service_categories (service_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+			serviceID, categoryID,
+		); err != nil {
+			return fmt.Errorf("service repository setCategories insert: %w", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("service repository setCategories commit: %w", err)
+	}
+	return nil
 }

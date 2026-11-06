@@ -18,5 +18,14 @@ func CreateService(ctx context.Context, repo domain.ServiceRepository, input dom
 		return nil, err
 	}
 
-	return repo.Create(ctx, service)
+	created, err := repo.Create(ctx, service)
+	if err != nil {
+		return nil, err
+	}
+	if len(input.CategoryIDs) > 0 {
+		if err := repo.SetCategories(ctx, created.ID(), input.CategoryIDs); err != nil {
+			return nil, err
+		}
+	}
+	return created, nil
 }

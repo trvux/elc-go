@@ -160,3 +160,54 @@ func TestDeleteAndRestoreService(t *testing.T) {
 		t.Error("expected restored service to be found again")
 	}
 }
+
+func TestCreateService_LinksCategories(t *testing.T) {
+	repo := newFakeServiceRepository()
+	created, err := CreateService(context.Background(), repo, domain.CreateServiceInput{
+		Title: "Lap dat may lanh", Slug: "lap-dat-may-lanh", CategoryIDs: []string{"cat-1", "cat-2"},
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if got := repo.categories[created.ID()]; len(got) != 2 || got[0] != "cat-1" {
+		t.Errorf("expected both categories linked, got %v", got)
+	}
+}
+
+func TestCreateService_NoCategoriesMakesNoLinkCall(t *testing.T) {
+	repo := newFakeServiceRepository()
+	if _, err := CreateService(context.Background(), repo, domain.CreateServiceInput{Title: "X", Slug: "x"}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if repo.setCalls != 0 {
+		t.Errorf("expected no SetCategories call, got %d", repo.setCalls)
+	}
+}
+
+func TestUpdateService_CategoriesNilLeavesLinksAlone(t *testing.T) {
+	repo := newFakeServiceRepository()
+	ctx := context.Background()
+	created, _ := CreateService(ctx, repo, domain.CreateServiceInput{Title: "X", Slug: "x", CategoryIDs: []string{"cat-1"}})
+	calls := repo.setCalls
+
+	title := "Y"
+	if _, err := UpdateService(ctx, repo, domain.UpdateServiceInput{ID: created.ID(), Title: &title}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if repo.setCalls != calls {
+		t.Errorf("an update without category_ids must not touch the links")
+	}
+}
+
+func TestUpdateService_EmptyCategoriesClearsLinks(t *testing.T) {
+	repo := newFakeServiceRepository()
+	ctx := context.Background()
+	created, _ := CreateService(ctx, repo, domain.CreateServiceInput{Title: "X", Slug: "x", CategoryIDs: []string{"cat-1"}})
+
+	if _, err := UpdateService(ctx, repo, domain.UpdateServiceInput{ID: created.ID(), CategoryIDs: []string{}}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if got := repo.categories[created.ID()]; len(got) != 0 {
+		t.Errorf("expected links cleared, got %v", got)
+	}
+}

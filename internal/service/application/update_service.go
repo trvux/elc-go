@@ -21,5 +21,14 @@ func UpdateService(ctx context.Context, repo domain.ServiceRepository, input dom
 		return nil, err
 	}
 
-	return repo.Update(ctx, service)
+	updated, err := repo.Update(ctx, service)
+	if err != nil {
+		return nil, err
+	}
+	if input.CategoryIDs != nil {
+		if err := repo.SetCategories(ctx, updated.ID(), input.CategoryIDs); err != nil {
+			return nil, err
+		}
+	}
+	return updated, nil
 }
