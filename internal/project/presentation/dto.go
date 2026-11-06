@@ -62,6 +62,7 @@ type projectServiceResponse struct {
 	ID    string                   `json:"id"`
 	Title string                   `json:"title"`
 	Slug  string                   `json:"slug"`
+	Line  string                   `json:"line"`
 	Group *serviceGroupRefResponse `json:"group"`
 }
 
@@ -115,7 +116,7 @@ func toProjectResponse(p *domain.ProjectWithRelations) projectResponse {
 		if s.Group != nil {
 			group = &serviceGroupRefResponse{ID: s.Group.ID, Name: s.Group.Name, Slug: s.Group.Slug}
 		}
-		services[i] = projectServiceResponse{ID: s.ID, Title: s.Title, Slug: s.Slug, Group: group}
+		services[i] = projectServiceResponse{ID: s.ID, Title: s.Title, Slug: s.Slug, Line: s.Line, Group: group}
 	}
 
 	return projectResponse{

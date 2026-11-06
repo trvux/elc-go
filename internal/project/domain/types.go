@@ -91,6 +91,7 @@ type ProjectServiceRef struct {
 	ID    string
 	Title string
 	Slug  string
+	Line  string
 	Group *ServiceGroupRef
 }
 

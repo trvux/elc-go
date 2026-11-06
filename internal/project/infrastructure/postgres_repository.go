@@ -416,7 +416,7 @@ func (r *PostgresProjectRepository) fetchServicesForProjects(ctx context.Context
 	}
 
 	query := `
-		SELECT ps.project_id, s.id, s.title, s.slug, sg.id, sg.name, sg.slug
+		SELECT ps.project_id, s.id, s.title, s.slug, s.line, sg.id, sg.name, sg.slug
 		FROM project_service ps
 		JOIN services s ON s.id = ps.service_id
 		LEFT JOIN service_groups sg ON sg.id = s.group_id
@@ -432,10 +432,11 @@ func (r *PostgresProjectRepository) fetchServicesForProjects(ctx context.Context
 	for rows.Next() {
 		var (
 			projectID, svcID, svcTitle    string
+			svcLine                       string
 			svcSlug                       *string
 			groupID, groupName, groupSlug *string
 		)
-		if err := rows.Scan(&projectID, &svcID, &svcTitle, &svcSlug, &groupID, &groupName, &groupSlug); err != nil {
+		if err := rows.Scan(&projectID, &svcID, &svcTitle, &svcSlug, &svcLine, &groupID, &groupName, &groupSlug); err != nil {
 			return nil, fmt.Errorf("project repository fetchServices scan: %w", err)
 		}
 
@@ -445,7 +446,7 @@ func (r *PostgresProjectRepository) fetchServicesForProjects(ctx context.Context
 		}
 
 		result[projectID] = append(result[projectID], domain.ProjectServiceRef{
-			ID: svcID, Title: svcTitle, Slug: derefStr(svcSlug), Group: group,
+			ID: svcID, Title: svcTitle, Slug: derefStr(svcSlug), Line: svcLine, Group: group,
 		})
 	}
 	if err := rows.Err(); err != nil {
