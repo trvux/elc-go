@@ -29,7 +29,6 @@ func TestPostgresServiceRepository_CRUD(t *testing.T) {
 	svc, err := domain.NewService(
 		"Integration Test Service", "integration-test-service-xyz",
 		"",
-		nil,
 		[]string{"moi", "hot"}, "", nil, nil, content,
 		nil, nil, nil, true, 0,
 	)
@@ -66,17 +65,12 @@ func TestPostgresServiceRepository_CRUD(t *testing.T) {
 		t.Errorf("expected labels roundtrip, got %v", created.Labels())
 	}
 
-	// GetByID goes through the LEFT JOIN path — group should be nil since
-	// none was set.
 	fetched, err := repo.GetByID(ctx, created.ID())
 	if err != nil {
 		t.Fatalf("GetByID failed: %v", err)
 	}
 	if fetched == nil {
 		t.Fatal("expected to find the created service")
-	}
-	if fetched.Group != nil {
-		t.Errorf("expected nil Group, got %+v", fetched.Group)
 	}
 	if fetched.Line() != domain.LineDichVu {
 		t.Errorf("expected default line %q, got %q", domain.LineDichVu, fetched.Line())
@@ -103,51 +97,5 @@ func TestPostgresServiceRepository_CRUD(t *testing.T) {
 
 	if err := repo.Restore(ctx, created.ID()); err != nil {
 		t.Fatalf("Restore failed: %v", err)
-	}
-}
-
-// TestPostgresServiceRepository_JoinsGroup verifies the LEFT JOIN actually
-// resolves the real group name when the FK is set.
-func TestPostgresServiceRepository_JoinsGroup(t *testing.T) {
-	ctx := context.Background()
-
-	pool, err := db.New(ctx, os.Getenv("DATABASE_URL"))
-	if err != nil {
-		t.Fatalf("failed to connect: %v", err)
-	}
-	defer pool.Close()
-
-	var groupID string
-	if err := pool.QueryRow(ctx, "SELECT id FROM service_groups LIMIT 1").Scan(&groupID); err != nil {
-		t.Skipf("no service_groups row available to test join: %v", err)
-	}
-
-	repo := NewPostgresServiceRepository(pool)
-
-	svc, err := domain.NewService(
-		"Join Test Service", "integration-test-service-join-xyz",
-		"",
-		&groupID,
-		nil, "", nil, nil, nil,
-		nil, nil, nil, true, 0,
-	)
-	if err != nil {
-		t.Fatalf("NewService failed: %v", err)
-	}
-
-	created, err := repo.Create(ctx, svc)
-	if err != nil {
-		t.Fatalf("Create failed: %v", err)
-	}
-	defer func() {
-		_, _ = pool.Exec(ctx, "DELETE FROM services WHERE id = $1", created.ID())
-	}()
-
-	fetched, err := repo.GetByID(ctx, created.ID())
-	if err != nil {
-		t.Fatalf("GetByID failed: %v", err)
-	}
-	if fetched.Group == nil || fetched.Group.ID != groupID {
-		t.Errorf("expected Group to be joined with id %s, got %+v", groupID, fetched.Group)
 	}
 }

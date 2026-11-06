@@ -26,9 +26,6 @@ func parseServiceFilter(r *http.Request) (domain.ServiceFilter, error) {
 		Search:         r.URL.Query().Get("search"),
 		IncludeDeleted: r.URL.Query().Get("include_deleted") == "true",
 	}
-	if v := r.URL.Query().Get("group_id"); v != "" {
-		filter.GroupID = &v
-	}
 	if v := r.URL.Query().Get("is_published"); v != "" {
 		b, err := strconv.ParseBool(v)
 		if err != nil {
@@ -112,8 +109,8 @@ func (h *ServiceHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	input := domain.CreateServiceInput{
 		Title: req.Title, TitleAlign: req.TitleAlign, Slug: req.Slug,
-		GroupID: req.GroupID, Labels: req.Labels,
-		Line: req.Line, BriefPrompts: req.BriefPrompts,
+		Labels: req.Labels,
+		Line:   req.Line, BriefPrompts: req.BriefPrompts,
 		Description: req.Description, Content: req.Content,
 		Images: toImageAssetDomainList(req.Images), MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
 		IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
@@ -139,8 +136,8 @@ func (h *ServiceHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	input := domain.UpdateServiceInput{
 		ID: id, Title: req.Title, TitleAlign: req.TitleAlign, Slug: req.Slug,
-		GroupID: req.GroupID, Labels: req.Labels,
-		Line: req.Line, BriefPrompts: req.BriefPrompts,
+		Labels: req.Labels,
+		Line:   req.Line, BriefPrompts: req.BriefPrompts,
 		Description: req.Description, Content: req.Content,
 		Images: toImageAssetDomainList(req.Images), MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
 		IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,

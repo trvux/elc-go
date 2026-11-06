@@ -43,12 +43,6 @@ type categoryGroupRefResponse struct {
 	Name string `json:"name"`
 }
 
-type serviceGroupRefResponse struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-}
-
 type projectCategoryResponse struct {
 	ID        string                    `json:"id"`
 	Name      string                    `json:"name"`
@@ -59,11 +53,10 @@ type projectCategoryResponse struct {
 }
 
 type projectServiceResponse struct {
-	ID    string                   `json:"id"`
-	Title string                   `json:"title"`
-	Slug  string                   `json:"slug"`
-	Line  string                   `json:"line"`
-	Group *serviceGroupRefResponse `json:"group"`
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Slug  string `json:"slug"`
+	Line  string `json:"line"`
 }
 
 type projectResponse struct {
@@ -112,11 +105,7 @@ func toProjectResponse(p *domain.ProjectWithRelations) projectResponse {
 
 	services := make([]projectServiceResponse, len(p.Services))
 	for i, s := range p.Services {
-		var group *serviceGroupRefResponse
-		if s.Group != nil {
-			group = &serviceGroupRefResponse{ID: s.Group.ID, Name: s.Group.Name, Slug: s.Group.Slug}
-		}
-		services[i] = projectServiceResponse{ID: s.ID, Title: s.Title, Slug: s.Slug, Line: s.Line, Group: group}
+		services[i] = projectServiceResponse{ID: s.ID, Title: s.Title, Slug: s.Slug, Line: s.Line}
 	}
 
 	return projectResponse{

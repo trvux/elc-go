@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS services (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
-    group_id UUID REFERENCES service_groups(id) ON DELETE SET NULL,
+    group_id UUID, -- was a FK to service_groups; both are gone (see 000009)
     category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
     original_price BIGINT,
     sale_price BIGINT,

@@ -59,8 +59,6 @@ import (
 	redirectpresentation "github.com/trvux/elc-go/internal/redirect/presentation"
 	reviewinfra "github.com/trvux/elc-go/internal/review/infrastructure"
 	reviewpresentation "github.com/trvux/elc-go/internal/review/presentation"
-	servicegroupinfra "github.com/trvux/elc-go/internal/service-group/infrastructure"
-	servicegrouppresentation "github.com/trvux/elc-go/internal/service-group/presentation"
 	serviceinfra "github.com/trvux/elc-go/internal/service/infrastructure"
 	servicepresentation "github.com/trvux/elc-go/internal/service/presentation"
 	slugregistryinfra "github.com/trvux/elc-go/internal/slug-registry/infrastructure"
@@ -251,10 +249,6 @@ func main() {
 	branchRepo := branchinfra.NewPostgresBranchRepository(pool)
 	branchHandler := branchpresentation.NewBranchHandler(branchRepo)
 	branchpresentation.RegisterRoutes(router, branchHandler, tokenIssuer)
-
-	serviceGroupRepo := servicegroupinfra.NewPostgresServiceGroupRepository(pool)
-	serviceGroupHandler := servicegrouppresentation.NewServiceGroupHandler(serviceGroupRepo)
-	servicegrouppresentation.RegisterRoutes(router, serviceGroupHandler, tokenIssuer)
 
 	serviceRepo := serviceinfra.NewPostgresServiceRepository(pool)
 	serviceHandler := servicepresentation.NewServiceHandler(serviceRepo)

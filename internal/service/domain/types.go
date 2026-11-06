@@ -20,7 +20,6 @@ type Service struct {
 	title           string
 	titleAlign      string
 	slug            string
-	groupID         *string
 	labels          []string
 	line            string
 	briefPrompts    []string
@@ -36,19 +35,11 @@ type Service struct {
 	deletedAt       *time.Time
 }
 
-// GroupRef is a lightweight, read-only reference to the service group (owned
-// by the service-group module): just the id and name any UI actually reads.
-type GroupRef struct {
-	ID   string
-	Name string
-}
-
 // ServiceWithRelations is what read queries (GetAll/GetByID/GetBySlug) return
-// — a Service plus the joined group display ref. Create/Update
+// — a Service (kept as a wrapper for the read queries). Create/Update
 // only ever deal with a plain *Service.
 type ServiceWithRelations struct {
 	*Service
-	Group *GroupRef
 }
 
 // TitleAlignLeft/Center/Right re-export platform/titlealign — see its doc
@@ -75,7 +66,6 @@ func ValidLine(line string) bool {
 func NewService(
 	title, slug string,
 	titleAlign string,
-	groupID *string,
 	labels []string,
 	line string,
 	briefPrompts []string,
@@ -121,7 +111,6 @@ func NewService(
 		title:           title,
 		titleAlign:      titleAlign,
 		slug:            slug,
-		groupID:         groupID,
 		labels:          labels,
 		line:            line,
 		briefPrompts:    briefPrompts,
@@ -143,7 +132,6 @@ func RehydrateService(
 	id, title string,
 	titleAlign string,
 	slug string,
-	groupID *string,
 	labels []string,
 	line string,
 	briefPrompts []string,
@@ -158,8 +146,8 @@ func RehydrateService(
 ) *Service {
 	return &Service{
 		id: id, title: title, titleAlign: titleAlign, slug: slug,
-		groupID: groupID, labels: labels,
-		line: line, briefPrompts: briefPrompts,
+		labels: labels,
+		line:   line, briefPrompts: briefPrompts,
 		description: description, content: content,
 		images: images, metaTitle: metaTitle, metaDescription: metaDescription,
 		isPublished: isPublished, orderIndex: orderIndex,
@@ -171,7 +159,6 @@ func (s *Service) ID() string               { return s.id }
 func (s *Service) Title() string            { return s.title }
 func (s *Service) TitleAlign() string       { return s.titleAlign }
 func (s *Service) Slug() string             { return s.slug }
-func (s *Service) GroupID() *string         { return s.groupID }
 func (s *Service) Labels() []string         { return s.labels }
 func (s *Service) Line() string             { return s.line }
 func (s *Service) BriefPrompts() []string   { return s.briefPrompts }
@@ -226,10 +213,6 @@ func (s *Service) Update(input UpdateServiceInput) error {
 			return apperr.NewValidationError("validation failed", map[string][]string{"slug": errs})
 		}
 		s.slug = *input.Slug
-		changed = true
-	}
-	if input.GroupID != nil {
-		s.groupID = input.GroupID
 		changed = true
 	}
 	if input.Labels != nil {
@@ -332,7 +315,6 @@ type CreateServiceInput struct {
 	Title           string
 	TitleAlign      string
 	Slug            string
-	GroupID         *string
 	Labels          []string
 	Line            string
 	BriefPrompts    []string
@@ -350,7 +332,6 @@ type UpdateServiceInput struct {
 	Title           *string
 	TitleAlign      *string
 	Slug            *string
-	GroupID         *string
 	Labels          []string
 	Line            *string
 	BriefPrompts    []string
@@ -364,7 +345,6 @@ type UpdateServiceInput struct {
 }
 
 type ServiceFilter struct {
-	GroupID        *string
 	IsPublished    *bool
 	Search         string
 	IncludeDeleted bool

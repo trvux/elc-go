@@ -67,14 +67,6 @@ type CategoryGroupRef struct {
 	Name string
 }
 
-// ServiceGroupRef mirrors what the old TS read off service.group for a
-// project's service: id+name+slug (unlike CategoryGroupRef above).
-type ServiceGroupRef struct {
-	ID   string
-	Name string
-	Slug string
-}
-
 // ProjectCategory is one row of the project_category join — a category
 // attached to a project under a specific condition (new/used).
 type ProjectCategory struct {
@@ -92,7 +84,6 @@ type ProjectServiceRef struct {
 	Title string
 	Slug  string
 	Line  string
-	Group *ServiceGroupRef
 }
 
 // ProjectWithRelations is what read queries (GetAll/GetByID/GetBySlug)

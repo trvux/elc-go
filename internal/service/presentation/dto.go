@@ -7,11 +7,6 @@ import (
 	"github.com/trvux/elc-go/internal/service/domain"
 )
 
-type refResponse struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
-
 type imageAssetDTO struct {
 	URL     string `json:"url"`
 	Alt     string `json:"alt,omitempty"`
@@ -42,7 +37,6 @@ type serviceResponse struct {
 	Title           string          `json:"title"`
 	TitleAlign      string          `json:"title_align"`
 	Slug            string          `json:"slug"`
-	GroupID         *string         `json:"group_id"`
 	Labels          []string        `json:"labels"`
 	Line            string          `json:"line"`
 	BriefPrompts    []string        `json:"brief_prompts"`
@@ -56,7 +50,6 @@ type serviceResponse struct {
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 	DeletedAt       *time.Time      `json:"deleted_at"`
-	Group           *refResponse    `json:"group"`
 }
 
 func toServiceResponse(sr *domain.ServiceWithRelations) serviceResponse {
@@ -65,7 +58,6 @@ func toServiceResponse(sr *domain.ServiceWithRelations) serviceResponse {
 		Title:           sr.Title(),
 		TitleAlign:      sr.TitleAlign(),
 		Slug:            sr.Slug(),
-		GroupID:         sr.GroupID(),
 		Labels:          sr.Labels(),
 		Line:            sr.Line(),
 		BriefPrompts:    orEmpty(sr.BriefPrompts()),
@@ -80,9 +72,6 @@ func toServiceResponse(sr *domain.ServiceWithRelations) serviceResponse {
 		UpdatedAt:       sr.UpdatedAt(),
 		DeletedAt:       sr.DeletedAt(),
 	}
-	if sr.Group != nil {
-		resp.Group = &refResponse{ID: sr.Group.ID, Name: sr.Group.Name}
-	}
 	return resp
 }
 
@@ -94,7 +83,6 @@ func toPlainServiceResponse(s *domain.Service) serviceResponse {
 		Title:           s.Title(),
 		TitleAlign:      s.TitleAlign(),
 		Slug:            s.Slug(),
-		GroupID:         s.GroupID(),
 		Labels:          s.Labels(),
 		Line:            s.Line(),
 		BriefPrompts:    orEmpty(s.BriefPrompts()),
@@ -123,7 +111,6 @@ type createServiceRequest struct {
 	Title           string          `json:"title"`
 	TitleAlign      string          `json:"title_align"`
 	Slug            string          `json:"slug"`
-	GroupID         *string         `json:"group_id"`
 	Labels          []string        `json:"labels"`
 	Line            string          `json:"line"`
 	BriefPrompts    []string        `json:"brief_prompts"`
@@ -140,7 +127,6 @@ type updateServiceRequest struct {
 	Title           *string         `json:"title"`
 	TitleAlign      *string         `json:"title_align"`
 	Slug            *string         `json:"slug"`
-	GroupID         *string         `json:"group_id"`
 	Labels          []string        `json:"labels"`
 	Line            *string         `json:"line"`
 	BriefPrompts    []string        `json:"brief_prompts"`
