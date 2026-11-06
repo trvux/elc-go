@@ -2,7 +2,6 @@ package domain
 
 import (
 	"encoding/json"
-	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -98,7 +97,7 @@ type Inquiry struct {
 	leadType     LeadType
 	subType      *string
 	qualifyData  json.RawMessage
-	attachments  []string
+	attachments  []Attachment
 	channel      ContactChannel
 	status       InquiryStatus
 	internalNote *string
@@ -136,7 +135,7 @@ func NewInquiry(
 	name, phone string,
 	email, message *string,
 	productID, projectID, serviceID *string,
-	leadType LeadType, subType *string, qualifyData json.RawMessage, attachments []string,
+	leadType LeadType, subType *string, qualifyData json.RawMessage, attachments []Attachment,
 	channel ContactChannel,
 	gclid, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gaClientID, sessionID *string,
 	sourceIP, userAgent *string,
@@ -178,8 +177,9 @@ func NewInquiry(
 	if !leadType.IsValid() {
 		fields["leadType"] = []string{"invalid lead type"}
 	}
-	if errs := validateAttachments(attachments); len(errs) > 0 {
-		fields["attachments"] = errs
+	attachments, attachmentErrs := validateAttachments(attachments)
+	if len(attachmentErrs) > 0 {
+		fields["attachments"] = attachmentErrs
 	}
 
 	if len(fields) > 0 {
@@ -226,7 +226,7 @@ func RehydrateInquiry(
 	id, name, phone string,
 	email, message *string,
 	productID, projectID, serviceID *string,
-	leadType LeadType, subType *string, qualifyData json.RawMessage, attachments []string,
+	leadType LeadType, subType *string, qualifyData json.RawMessage, attachments []Attachment,
 	channel ContactChannel,
 	gclid, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gaClientID, sessionID *string,
 	status InquiryStatus,
@@ -279,7 +279,7 @@ func (i *Inquiry) ServiceID() *string           { return i.serviceID }
 func (i *Inquiry) LeadType() LeadType           { return i.leadType }
 func (i *Inquiry) SubType() *string             { return i.subType }
 func (i *Inquiry) QualifyData() json.RawMessage { return i.qualifyData }
-func (i *Inquiry) Attachments() []string        { return i.attachments }
+func (i *Inquiry) Attachments() []Attachment    { return i.attachments }
 func (i *Inquiry) Status() InquiryStatus        { return i.status }
 func (i *Inquiry) InternalNote() *string        { return i.internalNote }
 func (i *Inquiry) SourceIP() *string            { return i.sourceIP }
@@ -489,28 +489,6 @@ func validateSingleEntity(productID, projectID, serviceID *string) []string {
 	return nil
 }
 
-// validateAttachments caps the lead-form's photo upload step at 6 images —
-// matches the limit enforced client-side in createInquirySchema (Zod), kept
-// here too since the public endpoint can't rely on the client alone.
-func validateAttachments(attachments []string) []string {
-	if len(attachments) > 6 {
-		return []string{"at most 6 attachments allowed"}
-	}
-	for _, a := range attachments {
-		a = strings.TrimSpace(a)
-		if a == "" {
-			return []string{"attachment url must not be empty"}
-		}
-		// Admin renders these as images, so only plain https URLs are accepted: no
-		// javascript:, data:, http: or relative values, and a sane length.
-		u, err := url.Parse(a)
-		if err != nil || u.Scheme != "https" || u.Host == "" || len(a) > 2048 {
-			return []string{"attachment must be an https url"}
-		}
-	}
-	return nil
-}
-
 const (
 	maxMessageRunes = 2000
 	maxQualifyBytes = 8192
@@ -542,7 +520,7 @@ type CreateInquiryInput struct {
 	LeadType    LeadType
 	SubType     *string
 	QualifyData json.RawMessage
-	Attachments []string
+	Attachments []Attachment
 	Channel     ContactChannel
 	GCLID       *string
 	UTMSource   *string

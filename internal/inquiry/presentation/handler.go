@@ -23,25 +23,33 @@ import (
 type InquiryHandler struct {
 	repo          domain.InquiryRepository
 	uploader      uploaddomain.Uploader
+	files         uploaddomain.FileStore
 	notifier      adsconversiondomain.Notifier
 	log           *zap.Logger
 	createLimiter *ratelimit.Limiter
 	uploadLimiter *ratelimit.Limiter
+	fileLimiter   *ratelimit.Limiter
+	fileSlots     chan struct{}
 	clickLimiter  *ratelimit.Limiter
 }
 
-func NewInquiryHandler(repo domain.InquiryRepository, uploader uploaddomain.Uploader, notifier adsconversiondomain.Notifier, log *zap.Logger) *InquiryHandler {
+func NewInquiryHandler(repo domain.InquiryRepository, uploader uploaddomain.Uploader, files uploaddomain.FileStore, notifier adsconversiondomain.Notifier, log *zap.Logger) *InquiryHandler {
 	return &InquiryHandler{
-		repo:     repo,
-		uploader: uploader,
-		notifier: notifier,
-		log:      log,
+		repo:      repo,
+		uploader:  uploader,
+		files:     files,
+		fileSlots: make(chan struct{}, maxConcurrentFileUploads),
+		notifier:  notifier,
+		log:       log,
 		// 5 submissions per IP per 10 minutes — generous enough for a real
 		// visitor to retry a typo, tight enough to blunt a naive spam script.
 		createLimiter: ratelimit.New(5, 10*time.Minute),
 		// More generous than createLimiter — a single visitor attaching 3-5
 		// photos to one lead is normal use, not abuse.
 		uploadLimiter: ratelimit.New(20, 10*time.Minute),
+		// Stricter than uploadLimiter: files are up to 15 MB each, and six is the most one
+		// lead can carry, so ten in ten minutes covers a retry without inviting a flood.
+		fileLimiter: ratelimit.New(10, 10*time.Minute),
 		// Most generous of the three — a visitor legitimately clicking
 		// Zalo/Hotline on several product pages while browsing (or
 		// double-clicking) is normal use, and RecordContactClick's own
@@ -102,6 +110,13 @@ func (h *InquiryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		SourceIP:    &sourceIP,
 		UserAgent:   &userAgent,
 	}
+
+	verified, err := h.verifyAttachments(r, input.Attachments)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+	input.Attachments = verified
 
 	inquiry, err := application.CreateInquiry(r.Context(), h.repo, input)
 	if err != nil {

@@ -42,7 +42,7 @@ func (r *PostgresInquiryRepository) Create(ctx context.Context, inquiry *domain.
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 		RETURNING ` + inquiryColumns
 
-	// attachments is a domain []string — marshaled to JSON here so pgx sends
+	// attachments is a domain []Attachment — marshaled to JSON here so pgx sends
 	// it as a jsonb value rather than encoding a Go slice as a postgres
 	// array; qualifyData is already json.RawMessage (raw bytes), same as
 	// how internal/page's Content field is inserted as-is. A nil slice
@@ -50,7 +50,7 @@ func (r *PostgresInquiryRepository) Create(ctx context.Context, inquiry *domain.
 	// matches the column's `[]` default instead of a JSON null.
 	attachments := inquiry.Attachments()
 	if attachments == nil {
-		attachments = []string{}
+		attachments = []domain.Attachment{}
 	}
 	attachmentsBytes, err := json.Marshal(attachments)
 	if err != nil {
@@ -335,7 +335,7 @@ func scanInquiry(row rowScanner) (*domain.Inquiry, error) {
 		return nil, err
 	}
 
-	var attachments []string
+	var attachments []domain.Attachment
 	if len(attachmentsRaw) > 0 {
 		if err := json.Unmarshal(attachmentsRaw, &attachments); err != nil {
 			return nil, fmt.Errorf("inquiry repository scan: unmarshal attachments: %w", err)

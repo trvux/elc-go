@@ -165,15 +165,15 @@ func TestCreateInquiry_MessageAndQualifyDataAreBounded(t *testing.T) {
 
 func TestCreateInquiry_AttachmentsMustBeHTTPSURLs(t *testing.T) {
 	for _, a := range []string{"javascript:alert(1)", "data:image/png;base64,AAAA", "http://x.example/a.png", "/relative.png", "not a url", " "} {
-		if err := createWith(t, func(i *domain.CreateInquiryInput) { i.Attachments = []string{a} }); err == nil {
+		if err := createWith(t, func(i *domain.CreateInquiryInput) { i.Attachments = []domain.Attachment{{URL: a}} }); err == nil {
 			t.Errorf("expected attachment %q to be rejected", a)
 		}
 	}
-	good := []string{"https://pub-d68f2955d9cf48a697d203e342f5ac2b.r2.dev/inquiries/a.webp"}
+	good := []domain.Attachment{{URL: "https://pub-d68f2955d9cf48a697d203e342f5ac2b.r2.dev/inquiries/a.webp"}}
 	if err := createWith(t, func(i *domain.CreateInquiryInput) { i.Attachments = good }); err != nil {
 		t.Errorf("an https attachment should be accepted, got %v", err)
 	}
-	seven := []string{"https://a.example/1", "https://a.example/2", "https://a.example/3", "https://a.example/4", "https://a.example/5", "https://a.example/6", "https://a.example/7"}
+	seven := []domain.Attachment{{URL: "https://a.example/1"}, {URL: "https://a.example/2"}, {URL: "https://a.example/3"}, {URL: "https://a.example/4"}, {URL: "https://a.example/5"}, {URL: "https://a.example/6"}, {URL: "https://a.example/7"}}
 	if err := createWith(t, func(i *domain.CreateInquiryInput) { i.Attachments = seven }); err == nil {
 		t.Error("expected more than 6 attachments to be rejected")
 	}

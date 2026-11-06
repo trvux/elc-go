@@ -194,7 +194,32 @@ func main() {
 	}
 
 	inquiryRepo := inquiryinfra.NewPostgresInquiryRepository(pool)
-	inquiryHandler := inquirypresentation.NewInquiryHandler(inquiryRepo, uploader, adsNotifier, log)
+	// Customer files (drawings, site photos) live in a PRIVATE bucket, separate from the
+	// public image bucket above: no public URL, staff read them through signed links.
+	var fileStore uploaddomain.FileStore
+	privateBucket := os.Getenv("R2_PRIVATE_BUCKET_NAME")
+	privateEndpoint := os.Getenv("R2_PRIVATE_ENDPOINT") // empty in production; a local MinIO in tests
+	if privateBucket != "" && (os.Getenv("R2_ACCOUNT_ID") != "" || privateEndpoint != "") {
+		store := uploadinfra.NewR2FileStore(
+			os.Getenv("R2_ACCOUNT_ID"), os.Getenv("R2_PRIVATE_ACCESS_KEY_ID"), os.Getenv("R2_PRIVATE_SECRET_ACCESS_KEY"),
+			privateBucket, privateEndpoint,
+		)
+		fileStore = store
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			if err := uploadinfra.SelfTestFileStore(ctx, store); err != nil {
+				log.Error("private file store self-test FAILED: customer file uploads will not work", zap.String("bucket", privateBucket), zap.Error(err))
+				return
+			}
+			log.Info("private file store self-test passed", zap.String("bucket", privateBucket))
+		}()
+	} else {
+		log.Warn("R2_PRIVATE_BUCKET_NAME not set — customer file uploads will fail until the private bucket is configured")
+		fileStore = uploadinfra.NewNoopFileStore()
+	}
+
+	inquiryHandler := inquirypresentation.NewInquiryHandler(inquiryRepo, uploader, fileStore, adsNotifier, log)
 	inquirypresentation.RegisterRoutes(router, inquiryHandler, tokenIssuer)
 
 	reviewRepo := reviewinfra.NewPostgresReviewRepository(pool)

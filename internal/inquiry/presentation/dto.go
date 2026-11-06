@@ -2,6 +2,7 @@ package presentation
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/trvux/elc-go/internal/inquiry/domain"
@@ -22,7 +23,7 @@ type inquiryResponse struct {
 	SubType               *string                `json:"sub_type"`
 	QualifyData           json.RawMessage        `json:"qualify_data"`
 	InterestHistory       []domain.InterestTouch `json:"interest_history"`
-	Attachments           []string               `json:"attachments"`
+	Attachments           []attachmentResponse   `json:"attachments"`
 	Channel               string                 `json:"channel"`
 	GCLID                 *string                `json:"gclid"`
 	UTMSource             *string                `json:"utm_source"`
@@ -54,7 +55,7 @@ func toInquiryResponse(i *domain.Inquiry) inquiryResponse {
 		SubType:               i.SubType(),
 		QualifyData:           cleanQualifyData,
 		InterestHistory:       interestHistory,
-		Attachments:           i.Attachments(),
+		Attachments:           toAttachmentResponses(i.Attachments()),
 		Channel:               string(i.Channel()),
 		GCLID:                 i.GCLID(),
 		UTMSource:             i.UTMSource(),
@@ -128,26 +129,26 @@ const timeFormat = "2006-01-02T15:04:05Z07:00"
 // a hidden field real visitors never see or fill; a bot that fills every
 // field on the page trips it. See InquiryHandler.Create.
 type createInquiryRequest struct {
-	Name        string          `json:"name"`
-	Phone       string          `json:"phone"`
-	Email       *string         `json:"email"`
-	Message     *string         `json:"message"`
-	ProductID   *string         `json:"product_id"`
-	ProjectID   *string         `json:"project_id"`
-	ServiceID   *string         `json:"service_id"`
-	LeadType    string          `json:"lead_type"`
-	SubType     *string         `json:"sub_type"`
-	QualifyData json.RawMessage `json:"qualify_data"`
-	Attachments []string        `json:"attachments"`
-	Channel     string          `json:"channel"`
-	GCLID       *string         `json:"gclid"`
-	UTMSource   *string         `json:"utm_source"`
-	UTMMedium   *string         `json:"utm_medium"`
-	UTMCampaign *string         `json:"utm_campaign"`
-	UTMTerm     *string         `json:"utm_term"`
-	UTMContent  *string         `json:"utm_content"`
-	GAClientID  *string         `json:"ga_client_id"`
-	Website     string          `json:"website"`
+	Name        string              `json:"name"`
+	Phone       string              `json:"phone"`
+	Email       *string             `json:"email"`
+	Message     *string             `json:"message"`
+	ProductID   *string             `json:"product_id"`
+	ProjectID   *string             `json:"project_id"`
+	ServiceID   *string             `json:"service_id"`
+	LeadType    string              `json:"lead_type"`
+	SubType     *string             `json:"sub_type"`
+	QualifyData json.RawMessage     `json:"qualify_data"`
+	Attachments []domain.Attachment `json:"attachments"`
+	Channel     string              `json:"channel"`
+	GCLID       *string             `json:"gclid"`
+	UTMSource   *string             `json:"utm_source"`
+	UTMMedium   *string             `json:"utm_medium"`
+	UTMCampaign *string             `json:"utm_campaign"`
+	UTMTerm     *string             `json:"utm_term"`
+	UTMContent  *string             `json:"utm_content"`
+	GAClientID  *string             `json:"ga_client_id"`
+	Website     string              `json:"website"`
 }
 
 type updateInquiryStatusRequest struct {
@@ -218,4 +219,28 @@ func buildClickQualifyData(pagePath, entityName *string) json.RawMessage {
 		return json.RawMessage("{}")
 	}
 	return encoded
+}
+
+// attachmentResponse is what the admin receives for a file. A private file's storage key
+// stays on the server: the admin asks for a signed link by position instead (see
+// AttachmentURL), so nothing in a list response can be used to reach the bucket.
+type attachmentResponse struct {
+	// URL is set only for a legacy public photo.
+	URL     string `json:"url,omitempty"`
+	Private bool   `json:"private"`
+	Name    string `json:"name"`
+	Size    int64  `json:"size,omitempty"`
+	Type    string `json:"type,omitempty"`
+}
+
+func toAttachmentResponses(attachments []domain.Attachment) []attachmentResponse {
+	result := make([]attachmentResponse, len(attachments))
+	for i, a := range attachments {
+		name := a.Name
+		if name == "" && a.URL != "" {
+			name = a.URL[strings.LastIndex(a.URL, "/")+1:]
+		}
+		result[i] = attachmentResponse{URL: a.URL, Private: a.IsPrivate(), Name: name, Size: a.Size, Type: a.Type}
+	}
+	return result
 }
