@@ -3,6 +3,8 @@ package presentation
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -173,6 +175,39 @@ func (h *InquiryHandler) List(w http.ResponseWriter, r *http.Request) {
 	httpserver.WriteJSON(w, http.StatusOK, toInquiryResponseList(inquiries))
 }
 
+// maxExportRows keeps one download bounded: 58 leads exist today, so this is
+// ~170x headroom, and the cap makes a runaway request cheap to reason about.
+const maxExportRows = 10000
+
+// Export returns the full inquiry rows for the admin's Excel download. Same
+// JSON as List (the FE builds the workbook, because the Vietnamese labels
+// for qualify answers and the lead-priority badges live there), but admin
+// only and capped. Each call is logged: customer contact data left the
+// system and someone should be able to see who took it and when.
+func (h *InquiryHandler) Export(w http.ResponseWriter, r *http.Request) {
+	filter := parseInquiryFilter(r)
+	filter.Limit = maxExportRows
+
+	inquiries, err := application.GetInquiries(r.Context(), h.repo, filter)
+	if err != nil {
+		httpserver.WriteError(w, err)
+		return
+	}
+
+	userID, _ := httpserver.UserIDFromContext(r.Context())
+	h.log.Info("inquiries exported",
+		zap.String("user_id", userID),
+		zap.Int("rows", len(inquiries)),
+		zap.String("status", filter.Status),
+		zap.String("search", filter.Search),
+		zap.Time("from", filter.From),
+		zap.Time("to", filter.To),
+		zap.Int("selected_ids", len(filter.IDs)),
+	)
+
+	httpserver.WriteJSON(w, http.StatusOK, toInquiryResponseList(inquiries))
+}
+
 func (h *InquiryHandler) Count(w http.ResponseWriter, r *http.Request) {
 	filter := parseInquiryFilter(r)
 
@@ -255,8 +290,55 @@ func (h *InquiryHandler) UpdateDetails(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseInquiryFilter(r *http.Request) domain.InquiryFilter {
-	return domain.InquiryFilter{
-		Status: r.URL.Query().Get("status"),
-		Search: r.URL.Query().Get("search"),
+	q := r.URL.Query()
+	filter := domain.InquiryFilter{
+		Status: q.Get("status"),
+		Search: q.Get("search"),
 	}
+	filter.From, filter.To = parseDateRange(q.Get("from"), q.Get("to"))
+	filter.IDs = parseIDList(q.Get("ids"))
+	return filter
+}
+
+// vnLocation is the business's calendar: "from=2026-11-01" means midnight in
+// Vietnam, not UTC, otherwise leads from the first 7 hours of the day land in
+// the previous day's export.
+var vnLocation = time.FixedZone("ICT", 7*60*60)
+
+// parseDateRange reads YYYY-MM-DD bounds; both ends are inclusive days, so To
+// becomes the start of the following day. A malformed value is ignored (no
+// bound) rather than failing the whole list.
+func parseDateRange(from, to string) (time.Time, time.Time) {
+	var start, end time.Time
+	if t, err := time.ParseInLocation("2006-01-02", from, vnLocation); err == nil {
+		start = t
+	}
+	if t, err := time.ParseInLocation("2006-01-02", to, vnLocation); err == nil {
+		end = t.AddDate(0, 0, 1)
+	}
+	return start, end
+}
+
+var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// maxExportIDs bounds the query string; the FE sends selected rows only.
+const maxExportIDs = 500
+
+// parseIDList keeps only well-formed UUIDs (a bad one would otherwise make
+// the ::uuid[] cast fail the whole query).
+func parseIDList(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	var ids []string
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if uuidPattern.MatchString(part) {
+			ids = append(ids, part)
+		}
+		if len(ids) == maxExportIDs {
+			break
+		}
+	}
+	return ids
 }

@@ -32,6 +32,10 @@ const (
 	// published -> archived) — split from PermissionContentWrite so a
 	// role can create/edit drafts without being able to publish them.
 	PermissionContentPublish Permission = "content:publish"
+	// PermissionLeadsExport covers downloading customer contact data in
+	// bulk. Split from content:write because role "user" can read leads one
+	// by one in the admin but should not be able to take the whole list.
+	PermissionLeadsExport Permission = "leads:export"
 )
 
 // rolePermissions lists what each non-super_admin role grants. super_admin
@@ -43,6 +47,7 @@ var rolePermissions = map[Role][]Permission{
 		PermissionContentDelete,
 		PermissionContentPublish,
 		PermissionSettingsManage,
+		PermissionLeadsExport,
 	},
 	RoleUser: {
 		PermissionContentWrite,
@@ -93,4 +98,9 @@ func CanManageSettings(role string) bool {
 // CanManageAccounts gates the invite-creation and user-management routes.
 func CanManageAccounts(role string) bool {
 	return Role(role).HasPermission(PermissionUsersManage)
+}
+
+// CanExportLeads gates the bulk customer-data download.
+func CanExportLeads(role string) bool {
+	return Role(role).HasPermission(PermissionLeadsExport)
 }

@@ -583,6 +583,13 @@ type CreateContactClickInput struct {
 type InquiryFilter struct {
 	Status string
 	Search string
+	// From is inclusive, To is exclusive (callers pass the start of the day
+	// after the last day they want); the zero time means no bound.
+	From time.Time
+	To   time.Time
+	// IDs restricts the result to these inquiries (the export's "selected
+	// rows"); empty means no restriction.
+	IDs    []string
 	Limit  int
 	Offset int
 }

@@ -33,5 +33,12 @@ func RegisterRoutes(r chi.Router, h *InquiryHandler, verifier httpserver.TokenVe
 			r.Patch("/{id}", h.UpdateDetails)
 			r.Patch("/{id}/status", h.UpdateStatus)
 		})
+
+		// Bulk customer data: stricter than the group above (admin only).
+		r.Group(func(r chi.Router) {
+			r.Use(httpserver.RequireAuth(verifier))
+			r.Use(httpserver.RequirePermission(authdomain.CanExportLeads))
+			r.Get("/export", h.Export)
+		})
 	})
 }

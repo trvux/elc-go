@@ -278,6 +278,21 @@ func inquiryFilterConditions(filter domain.InquiryFilter) ([]string, []any) {
 		args = append(args, "%"+filter.Search+"%")
 		argN++
 	}
+	if !filter.From.IsZero() {
+		conditions = append(conditions, fmt.Sprintf("created_at >= $%d", argN))
+		args = append(args, filter.From)
+		argN++
+	}
+	if !filter.To.IsZero() {
+		conditions = append(conditions, fmt.Sprintf("created_at < $%d", argN))
+		args = append(args, filter.To)
+		argN++
+	}
+	if len(filter.IDs) > 0 {
+		conditions = append(conditions, fmt.Sprintf("id = ANY($%d::uuid[])", argN))
+		args = append(args, filter.IDs)
+		argN++
+	}
 
 	return conditions, args
 }
