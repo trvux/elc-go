@@ -2,6 +2,8 @@ package domain
 
 import (
 	"encoding/json"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -161,6 +163,12 @@ func NewInquiry(
 	if errs := validateEmail(email); len(errs) > 0 {
 		fields["email"] = errs
 	}
+	if errs := validateMessage(message); len(errs) > 0 {
+		fields["message"] = errs
+	}
+	if errs := validateQualifyData(qualifyData); len(errs) > 0 {
+		fields["qualifyData"] = errs
+	}
 	if errs := validateSingleEntity(productID, projectID, serviceID); len(errs) > 0 {
 		fields["entity"] = errs
 	}
@@ -184,7 +192,7 @@ func NewInquiry(
 
 	now := time.Now()
 	return &Inquiry{
-		name:        name,
+		name:        strings.TrimSpace(name),
 		phone:       phone,
 		email:       email,
 		message:     message,
@@ -416,6 +424,10 @@ func validateName(name string, requireIdentity bool) []string {
 	if utf8.RuneCountInString(name) > 255 {
 		errs = append(errs, "name must not exceed 255 characters")
 	}
+	// A single character is not a name staff can ask for; same rule as the form.
+	if utf8.RuneCountInString(strings.TrimSpace(name)) < 2 {
+		errs = append(errs, "name must be at least 2 characters")
+	}
 	return errs
 }
 
@@ -430,8 +442,28 @@ func validatePhone(phone string, requireIdentity bool) []string {
 	}
 	if utf8.RuneCountInString(phone) > 30 {
 		errs = append(errs, "phone must not exceed 30 characters")
+		return errs
+	}
+	// The on-site form takes a Vietnamese mobile number (same rule as the form's own
+	// check, repeated here because the public endpoint cannot trust the client): 10
+	// digits starting 0, or the 84/+84 form, second digit 3/5/7/8/9. A click-origin lead
+	// has no phone yet, and staff may later record a landline, so only the form is held to it.
+	if requireIdentity && !vnMobile.MatchString(stripPhoneSeparators(phone)) {
+		errs = append(errs, "phone must be a Vietnamese mobile number")
 	}
 	return errs
+}
+
+var vnMobile = regexp.MustCompile(`^(0|84|\+84)[35789]\d{8}$`)
+
+func stripPhoneSeparators(phone string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case ' ', '.', '-':
+			return -1
+		}
+		return r
+	}, strings.TrimSpace(phone))
 }
 
 func validateEmail(email *string) []string {
@@ -465,9 +497,35 @@ func validateAttachments(attachments []string) []string {
 		return []string{"at most 6 attachments allowed"}
 	}
 	for _, a := range attachments {
-		if strings.TrimSpace(a) == "" {
+		a = strings.TrimSpace(a)
+		if a == "" {
 			return []string{"attachment url must not be empty"}
 		}
+		// Admin renders these as images, so only plain https URLs are accepted: no
+		// javascript:, data:, http: or relative values, and a sane length.
+		u, err := url.Parse(a)
+		if err != nil || u.Scheme != "https" || u.Host == "" || len(a) > 2048 {
+			return []string{"attachment must be an https url"}
+		}
+	}
+	return nil
+}
+
+const (
+	maxMessageRunes = 2000
+	maxQualifyBytes = 8192
+)
+
+func validateMessage(message *string) []string {
+	if message != nil && utf8.RuneCountInString(*message) > maxMessageRunes {
+		return []string{"message must not exceed 2000 characters"}
+	}
+	return nil
+}
+
+func validateQualifyData(data json.RawMessage) []string {
+	if len(data) > maxQualifyBytes {
+		return []string{"qualify data is too large"}
 	}
 	return nil
 }

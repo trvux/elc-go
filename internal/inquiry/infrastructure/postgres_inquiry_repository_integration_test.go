@@ -26,7 +26,7 @@ func TestPostgresInquiryRepository_CRUD(t *testing.T) {
 	repo := NewPostgresInquiryRepository(pool)
 
 	inquiry, err := domain.NewInquiry(
-		"Integration Test", "0900000000-test", nil, nil, nil, nil, nil, "", nil, nil, nil,
+		"Integration Test", "0900000000", nil, nil, nil, nil, nil, "", nil, nil, nil,
 		"", nil, nil, nil, nil, nil, nil, nil, nil,
 		nil, nil,
 	)
