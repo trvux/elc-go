@@ -32,6 +32,36 @@ func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
 	return result
 }
 
+// briefFieldDTO is the wire shape of domain.BriefField.
+type briefFieldDTO struct {
+	Key     string   `json:"key"`
+	Label   string   `json:"label"`
+	Kind    string   `json:"kind"`
+	Unit    string   `json:"unit,omitempty"`
+	Options []string `json:"options,omitempty"`
+}
+
+func toBriefFieldDTOList(fields []domain.BriefField) []briefFieldDTO {
+	result := make([]briefFieldDTO, len(fields))
+	for i, f := range fields {
+		result[i] = briefFieldDTO{Key: f.Key, Label: f.Label, Kind: f.Kind, Unit: f.Unit, Options: f.Options}
+	}
+	return result
+}
+
+// toBriefFieldDomainList keeps nil as nil: for an update, "not sent" must stay
+// distinct from "sent empty" (which clears the list).
+func toBriefFieldDomainList(dtos []briefFieldDTO) []domain.BriefField {
+	if dtos == nil {
+		return nil
+	}
+	result := make([]domain.BriefField, len(dtos))
+	for i, d := range dtos {
+		result[i] = domain.BriefField{Key: d.Key, Label: d.Label, Kind: d.Kind, Unit: d.Unit, Options: d.Options}
+	}
+	return result
+}
+
 type serviceResponse struct {
 	ID              string          `json:"id"`
 	Title           string          `json:"title"`
@@ -40,6 +70,7 @@ type serviceResponse struct {
 	Labels          []string        `json:"labels"`
 	Line            string          `json:"line"`
 	BriefPrompts    []string        `json:"brief_prompts"`
+	BriefFields     []briefFieldDTO `json:"brief_fields"`
 	CategoryIDs     []string        `json:"category_ids"`
 	Description     *string         `json:"description"`
 	Content         json.RawMessage `json:"content"`
@@ -62,6 +93,7 @@ func toServiceResponse(sr *domain.ServiceWithRelations) serviceResponse {
 		Labels:          sr.Labels(),
 		Line:            sr.Line(),
 		BriefPrompts:    orEmpty(sr.BriefPrompts()),
+		BriefFields:     toBriefFieldDTOList(sr.BriefFields()),
 		CategoryIDs:     orEmpty(sr.CategoryIDs),
 		Description:     sr.Description(),
 		Content:         sr.Content(),
@@ -88,6 +120,7 @@ func toPlainServiceResponse(s *domain.Service) serviceResponse {
 		Labels:          s.Labels(),
 		Line:            s.Line(),
 		BriefPrompts:    orEmpty(s.BriefPrompts()),
+		BriefFields:     toBriefFieldDTOList(s.BriefFields()),
 		CategoryIDs:     []string{},
 		Description:     s.Description(),
 		Content:         s.Content(),
@@ -117,6 +150,7 @@ type createServiceRequest struct {
 	Labels          []string        `json:"labels"`
 	Line            string          `json:"line"`
 	BriefPrompts    []string        `json:"brief_prompts"`
+	BriefFields     []briefFieldDTO `json:"brief_fields"`
 	CategoryIDs     []string        `json:"category_ids"`
 	Description     *string         `json:"description"`
 	Content         json.RawMessage `json:"content"`
@@ -134,6 +168,7 @@ type updateServiceRequest struct {
 	Labels          []string        `json:"labels"`
 	Line            *string         `json:"line"`
 	BriefPrompts    []string        `json:"brief_prompts"`
+	BriefFields     []briefFieldDTO `json:"brief_fields"`
 	CategoryIDs     []string        `json:"category_ids"`
 	Description     *string         `json:"description"`
 	Content         json.RawMessage `json:"content"`

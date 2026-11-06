@@ -29,7 +29,7 @@ func TestPostgresServiceRepository_CRUD(t *testing.T) {
 	svc, err := domain.NewService(
 		"Integration Test Service", "integration-test-service-xyz",
 		"",
-		[]string{"moi", "hot"}, "", nil, nil, content,
+		[]string{"moi", "hot"}, "", nil, nil, nil, content,
 		nil, nil, nil, true, 0,
 	)
 	if err != nil {
@@ -129,7 +129,7 @@ func TestPostgresServiceRepository_Categories(t *testing.T) {
 	}
 
 	repo := NewPostgresServiceRepository(pool)
-	svc, err := domain.NewService("Categories Test Service", "integration-test-service-cats-xyz", "", nil, "", nil, nil, nil, nil, nil, nil, true, 0)
+	svc, err := domain.NewService("Categories Test Service", "integration-test-service-cats-xyz", "", nil, "", nil, nil, nil, nil, nil, nil, nil, true, 0)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -164,5 +164,68 @@ func TestPostgresServiceRepository_Categories(t *testing.T) {
 	fetched, _ = repo.GetByID(ctx, created.ID())
 	if len(fetched.CategoryIDs) != 0 {
 		t.Fatalf("expected links cleared, got %v", fetched.CategoryIDs)
+	}
+}
+
+// brief_fields is jsonb written through two code paths (Create, Update) and read
+// through two scans; this round-trips all of them, including the empty default.
+func TestPostgresServiceRepository_BriefFieldsRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	pool, err := db.New(ctx, os.Getenv("DATABASE_URL"))
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer pool.Close()
+
+	repo := NewPostgresServiceRepository(pool)
+	fields := []domain.BriefField{
+		{Label: "Diện tích cần làm lạnh", Key: "area_m2", Kind: domain.BriefKindArea},
+		{Label: "Số phòng", Kind: domain.BriefKindNumber, Unit: "phòng"},
+		{Label: "Loại công trình", Kind: domain.BriefKindChoice, Options: []string{"Nhà phố", "Biệt thự"}},
+	}
+	svc, err := domain.NewService("Brief Fields Test", "integration-test-service-brief-fields-xyz", "", nil, "", nil, fields, nil, nil, nil, nil, nil, true, 0)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+	created, err := repo.Create(ctx, svc)
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	defer func() { _, _ = pool.Exec(ctx, "DELETE FROM services WHERE id = $1", created.ID()) }()
+
+	if got := created.BriefFields(); len(got) != 3 || got[0].Key != "area_m2" || got[1].Key != "so_phong" || got[1].Unit != "phòng" {
+		t.Fatalf("Create returned %#v", got)
+	}
+	fetched, err := repo.GetByID(ctx, created.ID())
+	if err != nil || fetched == nil {
+		t.Fatalf("GetByID failed: %v", err)
+	}
+	if got := fetched.BriefFields(); len(got) != 3 || len(got[2].Options) != 2 || got[2].Options[1] != "Biệt thự" {
+		t.Fatalf("GetByID returned %#v", got)
+	}
+
+	if err := fetched.Service.Update(domain.UpdateServiceInput{BriefFields: []domain.BriefField{{Label: "Chỉ còn một", Kind: domain.BriefKindYesNo}}}); err != nil {
+		t.Fatalf("domain update failed: %v", err)
+	}
+	updated, err := repo.Update(ctx, fetched.Service)
+	if err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+	if got := updated.BriefFields(); len(got) != 1 || got[0].Kind != domain.BriefKindYesNo {
+		t.Fatalf("Update returned %#v", got)
+	}
+
+	// A service created without fields reads back as an empty (non-nil) list, not null.
+	plain, err := domain.NewService("Brief Fields Empty", "integration-test-service-brief-fields-empty-xyz", "", nil, "", nil, nil, nil, nil, nil, nil, nil, true, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	empty, err := repo.Create(ctx, plain)
+	if err != nil {
+		t.Fatalf("Create (no fields) failed: %v", err)
+	}
+	defer func() { _, _ = pool.Exec(ctx, "DELETE FROM services WHERE id = $1", empty.ID()) }()
+	if got := empty.BriefFields(); got == nil || len(got) != 0 {
+		t.Fatalf("expected an empty non-nil list, got %#v", got)
 	}
 }

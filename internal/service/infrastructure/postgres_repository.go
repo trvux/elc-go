@@ -25,7 +25,7 @@ func NewPostgresServiceRepository(pool *pgxpool.Pool) *PostgresServiceRepository
 }
 
 const serviceColumns = `s.id, s.title, s.title_align, s.slug, s.labels,
-	s.line, s.brief_prompts,
+	s.line, s.brief_prompts, s.brief_fields,
 	s.description, s.content, s.images, s.meta_title, s.meta_description,
 	s.is_published, s.order_index,
 	s.created_at, s.updated_at, s.deleted_at,
@@ -111,15 +111,19 @@ func (r *PostgresServiceRepository) Create(ctx context.Context, service *domain.
 	query := `
 		INSERT INTO services (
 			title, title_align, slug, labels, line, brief_prompts, description, content, images,
-			meta_title, meta_description, is_published, order_index
+			meta_title, meta_description, is_published, order_index, brief_fields
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-		RETURNING id, title, title_align, slug, labels, line, brief_prompts, description, content, images,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		RETURNING id, title, title_align, slug, labels, line, brief_prompts, brief_fields, description, content, images,
 			meta_title, meta_description, is_published, order_index, created_at, updated_at, deleted_at`
 
 	imagesJSON, err := media.MarshalImages(service.Images())
 	if err != nil {
 		return nil, fmt.Errorf("service repository create (marshal images): %w", err)
+	}
+	briefFieldsJSON, err := marshalBriefFields(service.BriefFields())
+	if err != nil {
+		return nil, fmt.Errorf("service repository create (marshal brief fields): %w", err)
 	}
 
 	row := r.pool.QueryRow(ctx, query,
@@ -127,6 +131,7 @@ func (r *PostgresServiceRepository) Create(ctx context.Context, service *domain.
 		service.Labels(), service.Line(), service.BriefPrompts(),
 		service.Description(), service.Content(), imagesJSON,
 		service.MetaTitle(), service.MetaDescription(), service.IsPublished(), service.OrderIndex(),
+		briefFieldsJSON,
 	)
 	created, err := scanService(row)
 	if err != nil {
@@ -140,14 +145,19 @@ func (r *PostgresServiceRepository) Update(ctx context.Context, service *domain.
 		UPDATE services
 		SET title = $1, title_align = $2, slug = $3, labels = $4,
 			line = $5, brief_prompts = $6, description = $7, content = $8, images = $9,
-			meta_title = $10, meta_description = $11, is_published = $12, order_index = $13, updated_at = $14
+			meta_title = $10, meta_description = $11, is_published = $12, order_index = $13, updated_at = $14,
+			brief_fields = $16
 		WHERE id = $15
-		RETURNING id, title, title_align, slug, labels, line, brief_prompts, description, content, images,
+		RETURNING id, title, title_align, slug, labels, line, brief_prompts, brief_fields, description, content, images,
 			meta_title, meta_description, is_published, order_index, created_at, updated_at, deleted_at`
 
 	imagesJSON, err := media.MarshalImages(service.Images())
 	if err != nil {
 		return nil, fmt.Errorf("service repository update (marshal images): %w", err)
+	}
+	briefFieldsJSON, err := marshalBriefFields(service.BriefFields())
+	if err != nil {
+		return nil, fmt.Errorf("service repository update (marshal brief fields): %w", err)
 	}
 
 	row := r.pool.QueryRow(ctx, query,
@@ -155,7 +165,7 @@ func (r *PostgresServiceRepository) Update(ctx context.Context, service *domain.
 		service.Labels(), service.Line(), service.BriefPrompts(),
 		service.Description(), service.Content(), imagesJSON,
 		service.MetaTitle(), service.MetaDescription(), service.IsPublished(), service.OrderIndex(),
-		service.UpdatedAt(), service.ID(),
+		service.UpdatedAt(), service.ID(), briefFieldsJSON,
 	)
 	updated, err := scanService(row)
 	if err != nil {
@@ -221,6 +231,7 @@ func scanService(row rowScanner) (*domain.Service, error) {
 		line                        string
 		content                     json.RawMessage
 		imagesRaw                   []byte
+		briefFieldsRaw              []byte
 		isPublished                 bool
 		orderIndex                  int
 		createdAt, updatedAt        time.Time
@@ -229,7 +240,7 @@ func scanService(row rowScanner) (*domain.Service, error) {
 
 	if err := row.Scan(
 		&id, &title, &titleAlign, &slug, &labels,
-		&line, &briefPrompts,
+		&line, &briefPrompts, &briefFieldsRaw,
 		&description, &content, &imagesRaw, &metaTitle, &metaDescription,
 		&isPublished, &orderIndex,
 		&createdAt, &updatedAt, &deletedAt,
@@ -241,9 +252,13 @@ func scanService(row rowScanner) (*domain.Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan service (unmarshal images): %w", err)
 	}
+	briefFields, err := unmarshalBriefFields(briefFieldsRaw)
+	if err != nil {
+		return nil, fmt.Errorf("scan service (unmarshal brief fields): %w", err)
+	}
 
 	return domain.RehydrateService(
-		id, title, titleAlign, slug, labels, line, briefPrompts, description, content,
+		id, title, titleAlign, slug, labels, line, briefPrompts, briefFields, description, content,
 		images, metaTitle, metaDescription, isPublished, orderIndex,
 		createdAt, updatedAt, deletedAt,
 	), nil
@@ -258,6 +273,7 @@ func scanServiceWithRelations(row rowScanner) (*domain.ServiceWithRelations, err
 		line                        string
 		content                     json.RawMessage
 		imagesRaw                   []byte
+		briefFieldsRaw              []byte
 		isPublished                 bool
 		orderIndex                  int
 		createdAt, updatedAt        time.Time
@@ -267,7 +283,7 @@ func scanServiceWithRelations(row rowScanner) (*domain.ServiceWithRelations, err
 
 	if err := row.Scan(
 		&id, &title, &titleAlign, &slug, &labels,
-		&line, &briefPrompts,
+		&line, &briefPrompts, &briefFieldsRaw,
 		&description, &content, &imagesRaw, &metaTitle, &metaDescription,
 		&isPublished, &orderIndex,
 		&createdAt, &updatedAt, &deletedAt,
@@ -280,9 +296,13 @@ func scanServiceWithRelations(row rowScanner) (*domain.ServiceWithRelations, err
 	if err != nil {
 		return nil, fmt.Errorf("scan service with relations (unmarshal images): %w", err)
 	}
+	briefFields, err := unmarshalBriefFields(briefFieldsRaw)
+	if err != nil {
+		return nil, fmt.Errorf("scan service with relations (unmarshal brief fields): %w", err)
+	}
 
 	service := domain.RehydrateService(
-		id, title, titleAlign, slug, labels, line, briefPrompts, description, content,
+		id, title, titleAlign, slug, labels, line, briefPrompts, briefFields, description, content,
 		images, metaTitle, metaDescription, isPublished, orderIndex,
 		createdAt, updatedAt, deletedAt,
 	)
@@ -315,4 +335,27 @@ func (r *PostgresServiceRepository) SetCategories(ctx context.Context, serviceID
 		return fmt.Errorf("service repository setCategories commit: %w", err)
 	}
 	return nil
+}
+
+// json.RawMessage, not []byte: pgx sends a []byte parameter as bytea, which a jsonb
+// column rejects (media.MarshalImages returns RawMessage for the same reason).
+func marshalBriefFields(fields []domain.BriefField) (json.RawMessage, error) {
+	if fields == nil {
+		fields = []domain.BriefField{}
+	}
+	return json.Marshal(fields)
+}
+
+func unmarshalBriefFields(raw []byte) ([]domain.BriefField, error) {
+	fields := []domain.BriefField{}
+	if len(raw) == 0 {
+		return fields, nil
+	}
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, err
+	}
+	if fields == nil {
+		fields = []domain.BriefField{}
+	}
+	return fields, nil
 }

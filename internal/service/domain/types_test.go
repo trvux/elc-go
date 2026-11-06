@@ -8,7 +8,7 @@ import (
 func TestService_Update_NoOpLeavesUpdatedAtUnchanged(t *testing.T) {
 	createdAt := time.Now().Add(-time.Hour)
 	s := RehydrateService(
-		"id-1", "Title", "", "slug", nil, "dich-vu", nil,
+		"id-1", "Title", "", "slug", nil, "dich-vu", nil, nil,
 		nil, nil, nil, nil, nil, true, 0,
 		createdAt, createdAt, nil,
 	)
@@ -23,7 +23,7 @@ func TestService_Update_NoOpLeavesUpdatedAtUnchanged(t *testing.T) {
 
 func newTestService(t *testing.T, line string, prompts []string) *Service {
 	t.Helper()
-	s, err := NewService("Title", "slug", "", nil, line, prompts, nil, nil, nil, nil, nil, true, 0)
+	s, err := NewService("Title", "slug", "", nil, line, prompts, nil, nil, nil, nil, nil, nil, true, 0)
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestNewService_LineDefaultsToDichVu(t *testing.T) {
 }
 
 func TestNewService_RejectsUnknownLine(t *testing.T) {
-	_, err := NewService("Title", "slug", "", nil, "khac", nil, nil, nil, nil, nil, nil, true, 0)
+	_, err := NewService("Title", "slug", "", nil, "khac", nil, nil, nil, nil, nil, nil, nil, true, 0)
 	if err == nil {
 		t.Fatal("expected a validation error for an unknown line")
 	}

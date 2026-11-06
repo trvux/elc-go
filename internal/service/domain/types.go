@@ -23,6 +23,7 @@ type Service struct {
 	labels          []string
 	line            string
 	briefPrompts    []string
+	briefFields     []BriefField
 	description     *string
 	content         json.RawMessage
 	images          []ImageAsset
@@ -72,6 +73,7 @@ func NewService(
 	labels []string,
 	line string,
 	briefPrompts []string,
+	briefFields []BriefField,
 	description *string,
 	content json.RawMessage,
 	images []ImageAsset,
@@ -104,6 +106,10 @@ func NewService(
 		fields["line"] = []string{"line must be 'thi-cong' or 'dich-vu'"}
 	}
 	briefPrompts = cleanBriefPrompts(briefPrompts)
+	briefFields, briefFieldProblems := cleanBriefFields(briefFields)
+	if len(briefFieldProblems) > 0 {
+		fields["briefFields"] = briefFieldProblems
+	}
 
 	if len(fields) > 0 {
 		return nil, apperr.NewValidationError("validation failed", fields)
@@ -117,6 +123,7 @@ func NewService(
 		labels:          labels,
 		line:            line,
 		briefPrompts:    briefPrompts,
+		briefFields:     briefFields,
 		description:     description,
 		content:         content,
 		images:          images,
@@ -138,6 +145,7 @@ func RehydrateService(
 	labels []string,
 	line string,
 	briefPrompts []string,
+	briefFields []BriefField,
 	description *string,
 	content json.RawMessage,
 	images []ImageAsset,
@@ -150,7 +158,7 @@ func RehydrateService(
 	return &Service{
 		id: id, title: title, titleAlign: titleAlign, slug: slug,
 		labels: labels,
-		line:   line, briefPrompts: briefPrompts,
+		line:   line, briefPrompts: briefPrompts, briefFields: briefFields,
 		description: description, content: content,
 		images: images, metaTitle: metaTitle, metaDescription: metaDescription,
 		isPublished: isPublished, orderIndex: orderIndex,
@@ -158,23 +166,24 @@ func RehydrateService(
 	}
 }
 
-func (s *Service) ID() string               { return s.id }
-func (s *Service) Title() string            { return s.title }
-func (s *Service) TitleAlign() string       { return s.titleAlign }
-func (s *Service) Slug() string             { return s.slug }
-func (s *Service) Labels() []string         { return s.labels }
-func (s *Service) Line() string             { return s.line }
-func (s *Service) BriefPrompts() []string   { return s.briefPrompts }
-func (s *Service) Description() *string     { return s.description }
-func (s *Service) Content() json.RawMessage { return s.content }
-func (s *Service) Images() []ImageAsset     { return s.images }
-func (s *Service) MetaTitle() *string       { return s.metaTitle }
-func (s *Service) MetaDescription() *string { return s.metaDescription }
-func (s *Service) IsPublished() bool        { return s.isPublished }
-func (s *Service) OrderIndex() int          { return s.orderIndex }
-func (s *Service) CreatedAt() time.Time     { return s.createdAt }
-func (s *Service) UpdatedAt() time.Time     { return s.updatedAt }
-func (s *Service) DeletedAt() *time.Time    { return s.deletedAt }
+func (s *Service) ID() string                { return s.id }
+func (s *Service) Title() string             { return s.title }
+func (s *Service) TitleAlign() string        { return s.titleAlign }
+func (s *Service) Slug() string              { return s.slug }
+func (s *Service) Labels() []string          { return s.labels }
+func (s *Service) Line() string              { return s.line }
+func (s *Service) BriefPrompts() []string    { return s.briefPrompts }
+func (s *Service) BriefFields() []BriefField { return s.briefFields }
+func (s *Service) Description() *string      { return s.description }
+func (s *Service) Content() json.RawMessage  { return s.content }
+func (s *Service) Images() []ImageAsset      { return s.images }
+func (s *Service) MetaTitle() *string        { return s.metaTitle }
+func (s *Service) MetaDescription() *string  { return s.metaDescription }
+func (s *Service) IsPublished() bool         { return s.isPublished }
+func (s *Service) OrderIndex() int           { return s.orderIndex }
+func (s *Service) CreatedAt() time.Time      { return s.createdAt }
+func (s *Service) UpdatedAt() time.Time      { return s.updatedAt }
+func (s *Service) DeletedAt() *time.Time     { return s.deletedAt }
 
 func (s *Service) IsDeleted() bool {
 	return s.deletedAt != nil
@@ -232,6 +241,15 @@ func (s *Service) Update(input UpdateServiceInput) error {
 	// nil means "not part of this request"; an empty non-nil slice clears the list.
 	if input.BriefPrompts != nil {
 		s.briefPrompts = cleanBriefPrompts(input.BriefPrompts)
+		changed = true
+	}
+	// Same convention as BriefPrompts: nil leaves it alone, empty clears it.
+	if input.BriefFields != nil {
+		cleaned, err := CleanBriefFields(input.BriefFields)
+		if err != nil {
+			return err
+		}
+		s.briefFields = cleaned
 		changed = true
 	}
 	if input.Description != nil {
@@ -321,6 +339,7 @@ type CreateServiceInput struct {
 	Labels       []string
 	Line         string
 	BriefPrompts []string
+	BriefFields  []BriefField
 	// CategoryIDs links the service to product categories, applied after create.
 	CategoryIDs     []string
 	Description     *string
@@ -340,6 +359,7 @@ type UpdateServiceInput struct {
 	Labels       []string
 	Line         *string
 	BriefPrompts []string
+	BriefFields  []BriefField
 	// CategoryIDs: nil leaves the links alone; an empty non-nil slice clears them.
 	CategoryIDs     []string
 	Description     *string

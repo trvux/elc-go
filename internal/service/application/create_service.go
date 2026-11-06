@@ -10,7 +10,7 @@ func CreateService(ctx context.Context, repo domain.ServiceRepository, input dom
 	service, err := domain.NewService(
 		input.Title, input.Slug,
 		input.TitleAlign,
-		input.Labels, input.Line, input.BriefPrompts, input.Description, input.Content,
+		input.Labels, input.Line, input.BriefPrompts, input.BriefFields, input.Description, input.Content,
 		input.Images, input.MetaTitle, input.MetaDescription,
 		input.IsPublished, input.OrderIndex,
 	)
