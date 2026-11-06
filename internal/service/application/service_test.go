@@ -9,8 +9,6 @@ import (
 	"github.com/trvux/elc-go/internal/service/domain"
 )
 
-func ptrInt64(v int64) *int64 { return &v }
-func ptrInt(v int) *int       { return &v }
 func ptrStr(v string) *string { return &v }
 
 func TestCreateService(t *testing.T) {
@@ -19,7 +17,7 @@ func TestCreateService(t *testing.T) {
 
 	s, err := CreateService(ctx, repo, domain.CreateServiceInput{
 		Title: "May lanh treo tuong", Slug: "may-lanh-treo-tuong",
-		OriginalPrice: ptrInt64(100000), DiscountPercent: ptrInt(10),
+		Line: domain.LineThiCong, BriefPrompts: []string{"Dia chi"},
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -27,8 +25,11 @@ func TestCreateService(t *testing.T) {
 	if s.ID() == "" {
 		t.Error("expected an ID after create")
 	}
-	if *s.SalePrice() != 90000 {
-		t.Errorf("expected sale price 90000, got %d", *s.SalePrice())
+	if s.Line() != domain.LineThiCong {
+		t.Errorf("expected line thi-cong, got %q", s.Line())
+	}
+	if len(s.BriefPrompts()) != 1 {
+		t.Errorf("expected 1 brief prompt, got %v", s.BriefPrompts())
 	}
 }
 
@@ -113,34 +114,6 @@ func TestUpdateService_NotFound(t *testing.T) {
 	var appErr *apperr.AppError
 	if !errors.As(err, &appErr) || appErr.Code != "NOT_FOUND" {
 		t.Fatalf("expected NOT_FOUND error, got %v", err)
-	}
-}
-
-func TestUpdateService_PartialPriceUpdate_NeverStale(t *testing.T) {
-	repo := newFakeServiceRepository()
-	ctx := context.Background()
-
-	created, _ := CreateService(ctx, repo, domain.CreateServiceInput{
-		Title: "May lanh", Slug: "may-lanh",
-		OriginalPrice: ptrInt64(200000), DiscountPercent: ptrInt(10),
-	})
-	if *created.SalePrice() != 180000 {
-		t.Fatalf("expected initial sale price 180000, got %d", *created.SalePrice())
-	}
-
-	// Update ONLY discountPercent — the exact scenario that went stale before.
-	updated, err := UpdateService(ctx, repo, domain.UpdateServiceInput{
-		ID: created.ID(), DiscountPercent: ptrInt(50),
-	})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if *updated.SalePrice() != 100000 {
-		t.Errorf("expected recomputed sale price 100000, got %d", *updated.SalePrice())
-	}
-	// originalPrice must be untouched.
-	if *updated.OriginalPrice() != 200000 {
-		t.Errorf("expected originalPrice to remain 200000, got %d", *updated.OriginalPrice())
 	}
 }
 

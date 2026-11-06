@@ -53,12 +53,11 @@ func (r *fakeServiceRepository) Create(ctx context.Context, service *domain.Serv
 	now := time.Now()
 	created := domain.RehydrateService(
 		id, service.Title(), service.TitleAlign(), service.Slug(),
-		service.GroupID(), service.CategoryID(),
-		service.OriginalPrice(), service.DiscountPercent(),
-		service.PriceDisplayText(), service.Labels(), service.Line(), service.BriefPrompts(),
+		service.GroupID(),
+		service.Labels(), service.Line(), service.BriefPrompts(),
 		service.Description(), service.Content(),
 		service.Images(), service.MetaTitle(), service.MetaDescription(),
-		service.IsFeatured(), service.IsPublished(), service.OrderIndex(),
+		service.IsPublished(), service.OrderIndex(),
 		now, now, nil,
 	)
 	r.items[id] = created

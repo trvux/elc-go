@@ -38,66 +38,50 @@ func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
 }
 
 type serviceResponse struct {
-	ID               string          `json:"id"`
-	Title            string          `json:"title"`
-	TitleAlign       string          `json:"title_align"`
-	Slug             string          `json:"slug"`
-	GroupID          *string         `json:"group_id"`
-	CategoryID       *string         `json:"category_id"`
-	OriginalPrice    *int64          `json:"original_price"`
-	SalePrice        *int64          `json:"sale_price"`
-	DiscountPercent  *int            `json:"discount_percent"`
-	PriceDisplayText *string         `json:"price_display_text"`
-	Labels           []string        `json:"labels"`
-	Line             string          `json:"line"`
-	BriefPrompts     []string        `json:"brief_prompts"`
-	Description      *string         `json:"description"`
-	Content          json.RawMessage `json:"content"`
-	Images           []imageAssetDTO `json:"images"`
-	MetaTitle        *string         `json:"meta_title"`
-	MetaDescription  *string         `json:"meta_description"`
-	IsFeatured       bool            `json:"is_featured"`
-	IsPublished      bool            `json:"is_published"`
-	OrderIndex       int             `json:"order_index"`
-	CreatedAt        time.Time       `json:"created_at"`
-	UpdatedAt        time.Time       `json:"updated_at"`
-	DeletedAt        *time.Time      `json:"deleted_at"`
-	Group            *refResponse    `json:"group"`
-	Category         *refResponse    `json:"category"`
+	ID              string          `json:"id"`
+	Title           string          `json:"title"`
+	TitleAlign      string          `json:"title_align"`
+	Slug            string          `json:"slug"`
+	GroupID         *string         `json:"group_id"`
+	Labels          []string        `json:"labels"`
+	Line            string          `json:"line"`
+	BriefPrompts    []string        `json:"brief_prompts"`
+	Description     *string         `json:"description"`
+	Content         json.RawMessage `json:"content"`
+	Images          []imageAssetDTO `json:"images"`
+	MetaTitle       *string         `json:"meta_title"`
+	MetaDescription *string         `json:"meta_description"`
+	IsPublished     bool            `json:"is_published"`
+	OrderIndex      int             `json:"order_index"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	DeletedAt       *time.Time      `json:"deleted_at"`
+	Group           *refResponse    `json:"group"`
 }
 
 func toServiceResponse(sr *domain.ServiceWithRelations) serviceResponse {
 	resp := serviceResponse{
-		ID:               sr.ID(),
-		Title:            sr.Title(),
-		TitleAlign:       sr.TitleAlign(),
-		Slug:             sr.Slug(),
-		GroupID:          sr.GroupID(),
-		CategoryID:       sr.CategoryID(),
-		OriginalPrice:    sr.OriginalPrice(),
-		SalePrice:        sr.SalePrice(),
-		DiscountPercent:  sr.DiscountPercent(),
-		PriceDisplayText: sr.PriceDisplayText(),
-		Labels:           sr.Labels(),
-		Line:             sr.Line(),
-		BriefPrompts:     orEmpty(sr.BriefPrompts()),
-		Description:      sr.Description(),
-		Content:          sr.Content(),
-		Images:           toImageAssetDTOList(sr.Images()),
-		MetaTitle:        sr.MetaTitle(),
-		MetaDescription:  sr.MetaDescription(),
-		IsFeatured:       sr.IsFeatured(),
-		IsPublished:      sr.IsPublished(),
-		OrderIndex:       sr.OrderIndex(),
-		CreatedAt:        sr.CreatedAt(),
-		UpdatedAt:        sr.UpdatedAt(),
-		DeletedAt:        sr.DeletedAt(),
+		ID:              sr.ID(),
+		Title:           sr.Title(),
+		TitleAlign:      sr.TitleAlign(),
+		Slug:            sr.Slug(),
+		GroupID:         sr.GroupID(),
+		Labels:          sr.Labels(),
+		Line:            sr.Line(),
+		BriefPrompts:    orEmpty(sr.BriefPrompts()),
+		Description:     sr.Description(),
+		Content:         sr.Content(),
+		Images:          toImageAssetDTOList(sr.Images()),
+		MetaTitle:       sr.MetaTitle(),
+		MetaDescription: sr.MetaDescription(),
+		IsPublished:     sr.IsPublished(),
+		OrderIndex:      sr.OrderIndex(),
+		CreatedAt:       sr.CreatedAt(),
+		UpdatedAt:       sr.UpdatedAt(),
+		DeletedAt:       sr.DeletedAt(),
 	}
 	if sr.Group != nil {
 		resp.Group = &refResponse{ID: sr.Group.ID, Name: sr.Group.Name}
-	}
-	if sr.Category != nil {
-		resp.Category = &refResponse{ID: sr.Category.ID, Name: sr.Category.Name}
 	}
 	return resp
 }
@@ -106,30 +90,24 @@ func toServiceResponse(sr *domain.ServiceWithRelations) serviceResponse {
 // plain *domain.Service (no joined relations — see docs/service.md).
 func toPlainServiceResponse(s *domain.Service) serviceResponse {
 	return serviceResponse{
-		ID:               s.ID(),
-		Title:            s.Title(),
-		TitleAlign:       s.TitleAlign(),
-		Slug:             s.Slug(),
-		GroupID:          s.GroupID(),
-		CategoryID:       s.CategoryID(),
-		OriginalPrice:    s.OriginalPrice(),
-		SalePrice:        s.SalePrice(),
-		DiscountPercent:  s.DiscountPercent(),
-		PriceDisplayText: s.PriceDisplayText(),
-		Labels:           s.Labels(),
-		Line:             s.Line(),
-		BriefPrompts:     orEmpty(s.BriefPrompts()),
-		Description:      s.Description(),
-		Content:          s.Content(),
-		Images:           toImageAssetDTOList(s.Images()),
-		MetaTitle:        s.MetaTitle(),
-		MetaDescription:  s.MetaDescription(),
-		IsFeatured:       s.IsFeatured(),
-		IsPublished:      s.IsPublished(),
-		OrderIndex:       s.OrderIndex(),
-		CreatedAt:        s.CreatedAt(),
-		UpdatedAt:        s.UpdatedAt(),
-		DeletedAt:        s.DeletedAt(),
+		ID:              s.ID(),
+		Title:           s.Title(),
+		TitleAlign:      s.TitleAlign(),
+		Slug:            s.Slug(),
+		GroupID:         s.GroupID(),
+		Labels:          s.Labels(),
+		Line:            s.Line(),
+		BriefPrompts:    orEmpty(s.BriefPrompts()),
+		Description:     s.Description(),
+		Content:         s.Content(),
+		Images:          toImageAssetDTOList(s.Images()),
+		MetaTitle:       s.MetaTitle(),
+		MetaDescription: s.MetaDescription(),
+		IsPublished:     s.IsPublished(),
+		OrderIndex:      s.OrderIndex(),
+		CreatedAt:       s.CreatedAt(),
+		UpdatedAt:       s.UpdatedAt(),
+		DeletedAt:       s.DeletedAt(),
 	}
 }
 
@@ -142,47 +120,37 @@ func toServiceResponseList(services []*domain.ServiceWithRelations) []serviceRes
 }
 
 type createServiceRequest struct {
-	Title            string          `json:"title"`
-	TitleAlign       string          `json:"title_align"`
-	Slug             string          `json:"slug"`
-	GroupID          *string         `json:"group_id"`
-	CategoryID       *string         `json:"category_id"`
-	OriginalPrice    *int64          `json:"original_price"`
-	DiscountPercent  *int            `json:"discount_percent"`
-	PriceDisplayText *string         `json:"price_display_text"`
-	Labels           []string        `json:"labels"`
-	Line             string          `json:"line"`
-	BriefPrompts     []string        `json:"brief_prompts"`
-	Description      *string         `json:"description"`
-	Content          json.RawMessage `json:"content"`
-	Images           []imageAssetDTO `json:"images"`
-	MetaTitle        *string         `json:"meta_title"`
-	MetaDescription  *string         `json:"meta_description"`
-	IsFeatured       bool            `json:"is_featured"`
-	IsPublished      bool            `json:"is_published"`
-	OrderIndex       int             `json:"order_index"`
+	Title           string          `json:"title"`
+	TitleAlign      string          `json:"title_align"`
+	Slug            string          `json:"slug"`
+	GroupID         *string         `json:"group_id"`
+	Labels          []string        `json:"labels"`
+	Line            string          `json:"line"`
+	BriefPrompts    []string        `json:"brief_prompts"`
+	Description     *string         `json:"description"`
+	Content         json.RawMessage `json:"content"`
+	Images          []imageAssetDTO `json:"images"`
+	MetaTitle       *string         `json:"meta_title"`
+	MetaDescription *string         `json:"meta_description"`
+	IsPublished     bool            `json:"is_published"`
+	OrderIndex      int             `json:"order_index"`
 }
 
 type updateServiceRequest struct {
-	Title            *string         `json:"title"`
-	TitleAlign       *string         `json:"title_align"`
-	Slug             *string         `json:"slug"`
-	GroupID          *string         `json:"group_id"`
-	CategoryID       *string         `json:"category_id"`
-	OriginalPrice    *int64          `json:"original_price"`
-	DiscountPercent  *int            `json:"discount_percent"`
-	PriceDisplayText *string         `json:"price_display_text"`
-	Labels           []string        `json:"labels"`
-	Line             *string         `json:"line"`
-	BriefPrompts     []string        `json:"brief_prompts"`
-	Description      *string         `json:"description"`
-	Content          json.RawMessage `json:"content"`
-	Images           []imageAssetDTO `json:"images"`
-	MetaTitle        *string         `json:"meta_title"`
-	MetaDescription  *string         `json:"meta_description"`
-	IsFeatured       *bool           `json:"is_featured"`
-	IsPublished      *bool           `json:"is_published"`
-	OrderIndex       *int            `json:"order_index"`
+	Title           *string         `json:"title"`
+	TitleAlign      *string         `json:"title_align"`
+	Slug            *string         `json:"slug"`
+	GroupID         *string         `json:"group_id"`
+	Labels          []string        `json:"labels"`
+	Line            *string         `json:"line"`
+	BriefPrompts    []string        `json:"brief_prompts"`
+	Description     *string         `json:"description"`
+	Content         json.RawMessage `json:"content"`
+	Images          []imageAssetDTO `json:"images"`
+	MetaTitle       *string         `json:"meta_title"`
+	MetaDescription *string         `json:"meta_description"`
+	IsPublished     *bool           `json:"is_published"`
+	OrderIndex      *int            `json:"order_index"`
 }
 
 // orEmpty keeps JSON output as [] instead of null for an unset list.

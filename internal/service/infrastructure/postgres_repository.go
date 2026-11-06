@@ -24,22 +24,19 @@ func NewPostgresServiceRepository(pool *pgxpool.Pool) *PostgresServiceRepository
 	return &PostgresServiceRepository{pool: pool}
 }
 
-const serviceColumns = `s.id, s.title, s.title_align, s.slug, s.group_id, s.category_id,
-	s.original_price, s.discount_percent, s.price_display_text, s.labels,
+const serviceColumns = `s.id, s.title, s.title_align, s.slug, s.group_id, s.labels,
 	s.line, s.brief_prompts,
 	s.description, s.content, s.images, s.meta_title, s.meta_description,
-	s.is_featured, s.is_published, s.order_index,
+	s.is_published, s.order_index,
 	s.created_at, s.updated_at, s.deleted_at,
-	g.id, g.name, c.id, c.name`
+	g.id, g.name`
 
 // selectWithRelations LEFT JOINs only the 2 fields (id, name) any UI actually
-// reads from group/category — see docs/service.md for why this stops one
-// level short of the old TS code's 3-table category.group join.
+// reads from the service group.
 const selectWithRelations = `
 	SELECT ` + serviceColumns + `
 	FROM services s
-	LEFT JOIN service_groups g ON g.id = s.group_id
-	LEFT JOIN categories c ON c.id = s.category_id`
+	LEFT JOIN service_groups g ON g.id = s.group_id`
 
 func (r *PostgresServiceRepository) Count(ctx context.Context, filter domain.ServiceFilter) (int, error) {
 	query := "SELECT COUNT(*) FROM services s"
@@ -115,14 +112,12 @@ func (r *PostgresServiceRepository) GetBySlug(ctx context.Context, slug string) 
 func (r *PostgresServiceRepository) Create(ctx context.Context, service *domain.Service) (*domain.Service, error) {
 	query := `
 		INSERT INTO services (
-			title, title_align, slug, group_id, category_id, original_price, sale_price, discount_percent,
-			price_display_text, labels, line, brief_prompts, description, content, images, meta_title, meta_description,
-			is_featured, is_published, order_index
+			title, title_align, slug, group_id, labels, line, brief_prompts, description, content, images,
+			meta_title, meta_description, is_published, order_index
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-		RETURNING id, title, title_align, slug, group_id, category_id, original_price, discount_percent,
-			price_display_text, labels, line, brief_prompts, description, content, images, meta_title, meta_description,
-			is_featured, is_published, order_index, created_at, updated_at, deleted_at`
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		RETURNING id, title, title_align, slug, group_id, labels, line, brief_prompts, description, content, images,
+			meta_title, meta_description, is_published, order_index, created_at, updated_at, deleted_at`
 
 	imagesJSON, err := media.MarshalImages(service.Images())
 	if err != nil {
@@ -130,12 +125,10 @@ func (r *PostgresServiceRepository) Create(ctx context.Context, service *domain.
 	}
 
 	row := r.pool.QueryRow(ctx, query,
-		service.Title(), service.TitleAlign(), service.Slug(), service.GroupID(), service.CategoryID(),
-		service.OriginalPrice(), service.SalePrice(), service.DiscountPercent(),
-		service.PriceDisplayText(), service.Labels(), service.Line(), service.BriefPrompts(),
-		service.Description(), service.Content(),
-		imagesJSON, service.MetaTitle(), service.MetaDescription(),
-		service.IsFeatured(), service.IsPublished(), service.OrderIndex(),
+		service.Title(), service.TitleAlign(), service.Slug(), service.GroupID(),
+		service.Labels(), service.Line(), service.BriefPrompts(),
+		service.Description(), service.Content(), imagesJSON,
+		service.MetaTitle(), service.MetaDescription(), service.IsPublished(), service.OrderIndex(),
 	)
 	created, err := scanService(row)
 	if err != nil {
@@ -147,15 +140,12 @@ func (r *PostgresServiceRepository) Create(ctx context.Context, service *domain.
 func (r *PostgresServiceRepository) Update(ctx context.Context, service *domain.Service) (*domain.Service, error) {
 	query := `
 		UPDATE services
-		SET title = $1, title_align = $2, slug = $3, group_id = $4, category_id = $5, original_price = $6,
-			sale_price = $7, discount_percent = $8, price_display_text = $9, labels = $10,
-			line = $11, brief_prompts = $12,
-			description = $13, content = $14, images = $15, meta_title = $16, meta_description = $17,
-			is_featured = $18, is_published = $19, order_index = $20, updated_at = $21
-		WHERE id = $22
-		RETURNING id, title, title_align, slug, group_id, category_id, original_price, discount_percent,
-			price_display_text, labels, line, brief_prompts, description, content, images, meta_title, meta_description,
-			is_featured, is_published, order_index, created_at, updated_at, deleted_at`
+		SET title = $1, title_align = $2, slug = $3, group_id = $4, labels = $5,
+			line = $6, brief_prompts = $7, description = $8, content = $9, images = $10,
+			meta_title = $11, meta_description = $12, is_published = $13, order_index = $14, updated_at = $15
+		WHERE id = $16
+		RETURNING id, title, title_align, slug, group_id, labels, line, brief_prompts, description, content, images,
+			meta_title, meta_description, is_published, order_index, created_at, updated_at, deleted_at`
 
 	imagesJSON, err := media.MarshalImages(service.Images())
 	if err != nil {
@@ -163,12 +153,10 @@ func (r *PostgresServiceRepository) Update(ctx context.Context, service *domain.
 	}
 
 	row := r.pool.QueryRow(ctx, query,
-		service.Title(), service.TitleAlign(), service.Slug(), service.GroupID(), service.CategoryID(),
-		service.OriginalPrice(), service.SalePrice(), service.DiscountPercent(),
-		service.PriceDisplayText(), service.Labels(), service.Line(), service.BriefPrompts(),
-		service.Description(), service.Content(),
-		imagesJSON, service.MetaTitle(), service.MetaDescription(),
-		service.IsFeatured(), service.IsPublished(), service.OrderIndex(),
+		service.Title(), service.TitleAlign(), service.Slug(), service.GroupID(),
+		service.Labels(), service.Line(), service.BriefPrompts(),
+		service.Description(), service.Content(), imagesJSON,
+		service.MetaTitle(), service.MetaDescription(), service.IsPublished(), service.OrderIndex(),
 		service.UpdatedAt(), service.ID(),
 	)
 	updated, err := scanService(row)
@@ -213,16 +201,6 @@ func buildFilterConditions(filter domain.ServiceFilter) ([]string, []any) {
 		args = append(args, *filter.GroupID)
 		argN++
 	}
-	if filter.CategoryID != nil {
-		conditions = append(conditions, fmt.Sprintf("s.category_id = $%d", argN))
-		args = append(args, *filter.CategoryID)
-		argN++
-	}
-	if filter.IsFeatured != nil {
-		conditions = append(conditions, fmt.Sprintf("s.is_featured = $%d", argN))
-		args = append(args, *filter.IsFeatured)
-		argN++
-	}
 	if filter.IsPublished != nil {
 		conditions = append(conditions, fmt.Sprintf("s.is_published = $%d", argN))
 		args = append(args, *filter.IsPublished)
@@ -243,28 +221,25 @@ type rowScanner interface {
 
 func scanService(row rowScanner) (*domain.Service, error) {
 	var (
-		id, title, titleAlign, slug   string
-		groupID, categoryID           *string
-		originalPrice                 *int64
-		discountPercent               *int
-		priceDisplayText, description *string
-		metaTitle, metaDescription    *string
-		labels, briefPrompts          []string
-		line                          string
-		content                       json.RawMessage
-		imagesRaw                     []byte
-		isFeatured, isPublished       bool
-		orderIndex                    int
-		createdAt, updatedAt          time.Time
-		deletedAt                     *time.Time
+		id, title, titleAlign, slug string
+		groupID                     *string
+		description                 *string
+		metaTitle, metaDescription  *string
+		labels, briefPrompts        []string
+		line                        string
+		content                     json.RawMessage
+		imagesRaw                   []byte
+		isPublished                 bool
+		orderIndex                  int
+		createdAt, updatedAt        time.Time
+		deletedAt                   *time.Time
 	)
 
 	if err := row.Scan(
-		&id, &title, &titleAlign, &slug, &groupID, &categoryID,
-		&originalPrice, &discountPercent, &priceDisplayText, &labels,
+		&id, &title, &titleAlign, &slug, &groupID, &labels,
 		&line, &briefPrompts,
 		&description, &content, &imagesRaw, &metaTitle, &metaDescription,
-		&isFeatured, &isPublished, &orderIndex,
+		&isPublished, &orderIndex,
 		&createdAt, &updatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
@@ -276,40 +251,36 @@ func scanService(row rowScanner) (*domain.Service, error) {
 	}
 
 	return domain.RehydrateService(
-		id, title, titleAlign, slug, groupID, categoryID,
-		originalPrice, discountPercent, priceDisplayText, labels, line, briefPrompts, description, content,
-		images, metaTitle, metaDescription, isFeatured, isPublished, orderIndex,
+		id, title, titleAlign, slug, groupID, labels, line, briefPrompts, description, content,
+		images, metaTitle, metaDescription, isPublished, orderIndex,
 		createdAt, updatedAt, deletedAt,
 	), nil
 }
 
 func scanServiceWithRelations(row rowScanner) (*domain.ServiceWithRelations, error) {
 	var (
-		id, title, titleAlign, slug                              string
-		groupID, categoryID                                      *string
-		originalPrice                                            *int64
-		discountPercent                                          *int
-		priceDisplayText, description                            *string
-		metaTitle, metaDescription                               *string
-		labels, briefPrompts                                     []string
-		line                                                     string
-		content                                                  json.RawMessage
-		imagesRaw                                                []byte
-		isFeatured, isPublished                                  bool
-		orderIndex                                               int
-		createdAt, updatedAt                                     time.Time
-		deletedAt                                                *time.Time
-		groupRefID, groupRefName, categoryRefID, categoryRefName *string
+		id, title, titleAlign, slug string
+		groupID                     *string
+		description                 *string
+		metaTitle, metaDescription  *string
+		labels, briefPrompts        []string
+		line                        string
+		content                     json.RawMessage
+		imagesRaw                   []byte
+		isPublished                 bool
+		orderIndex                  int
+		createdAt, updatedAt        time.Time
+		deletedAt                   *time.Time
+		groupRefID, groupRefName    *string
 	)
 
 	if err := row.Scan(
-		&id, &title, &titleAlign, &slug, &groupID, &categoryID,
-		&originalPrice, &discountPercent, &priceDisplayText, &labels,
+		&id, &title, &titleAlign, &slug, &groupID, &labels,
 		&line, &briefPrompts,
 		&description, &content, &imagesRaw, &metaTitle, &metaDescription,
-		&isFeatured, &isPublished, &orderIndex,
+		&isPublished, &orderIndex,
 		&createdAt, &updatedAt, &deletedAt,
-		&groupRefID, &groupRefName, &categoryRefID, &categoryRefName,
+		&groupRefID, &groupRefName,
 	); err != nil {
 		return nil, err
 	}
@@ -320,18 +291,14 @@ func scanServiceWithRelations(row rowScanner) (*domain.ServiceWithRelations, err
 	}
 
 	service := domain.RehydrateService(
-		id, title, titleAlign, slug, groupID, categoryID,
-		originalPrice, discountPercent, priceDisplayText, labels, line, briefPrompts, description, content,
-		images, metaTitle, metaDescription, isFeatured, isPublished, orderIndex,
+		id, title, titleAlign, slug, groupID, labels, line, briefPrompts, description, content,
+		images, metaTitle, metaDescription, isPublished, orderIndex,
 		createdAt, updatedAt, deletedAt,
 	)
 
 	result := &domain.ServiceWithRelations{Service: service}
 	if groupRefID != nil {
 		result.Group = &domain.GroupRef{ID: *groupRefID, Name: *groupRefName}
-	}
-	if categoryRefID != nil {
-		result.Category = &domain.CategoryRef{ID: *categoryRefID, Name: *categoryRefName}
 	}
 
 	return result, nil

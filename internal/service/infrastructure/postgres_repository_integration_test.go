@@ -24,17 +24,14 @@ func TestPostgresServiceRepository_CRUD(t *testing.T) {
 
 	repo := NewPostgresServiceRepository(pool)
 
-	originalPrice := int64(200000)
-	discountPercent := 10
 	content := json.RawMessage(`{"type":"doc","content":[{"type":"paragraph"}]}`)
 
 	svc, err := domain.NewService(
 		"Integration Test Service", "integration-test-service-xyz",
 		"",
-		nil, nil,
-		&originalPrice, &discountPercent, nil,
+		nil,
 		[]string{"moi", "hot"}, "", nil, nil, content,
-		nil, nil, nil, false, true, 0,
+		nil, nil, nil, true, 0,
 	)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
@@ -69,8 +66,8 @@ func TestPostgresServiceRepository_CRUD(t *testing.T) {
 		t.Errorf("expected labels roundtrip, got %v", created.Labels())
 	}
 
-	// GetByID goes through the LEFT JOIN path — group/category should both
-	// be nil since none was set.
+	// GetByID goes through the LEFT JOIN path — group should be nil since
+	// none was set.
 	fetched, err := repo.GetByID(ctx, created.ID())
 	if err != nil {
 		t.Fatalf("GetByID failed: %v", err)
@@ -81,15 +78,13 @@ func TestPostgresServiceRepository_CRUD(t *testing.T) {
 	if fetched.Group != nil {
 		t.Errorf("expected nil Group, got %+v", fetched.Group)
 	}
-	if fetched.Category != nil {
-		t.Errorf("expected nil Category, got %+v", fetched.Category)
-	}
-	if *fetched.SalePrice() != 180000 {
-		t.Errorf("expected sale price 180000, got %d", *fetched.SalePrice())
+	if fetched.Line() != domain.LineDichVu {
+		t.Errorf("expected default line %q, got %q", domain.LineDichVu, fetched.Line())
 	}
 
-	if err := fetched.UpdateTitle("Updated Title"); err != nil {
-		t.Fatalf("UpdateTitle failed: %v", err)
+	newTitle := "Updated Title"
+	if err := fetched.Update(domain.UpdateServiceInput{Title: &newTitle}); err != nil {
+		t.Fatalf("Update failed: %v", err)
 	}
 	updated, err := repo.Update(ctx, fetched.Service)
 	if err != nil {
@@ -111,9 +106,9 @@ func TestPostgresServiceRepository_CRUD(t *testing.T) {
 	}
 }
 
-// TestPostgresServiceRepository_JoinsGroupAndCategory verifies the LEFT JOIN
-// actually resolves real group/category names when the FKs are set.
-func TestPostgresServiceRepository_JoinsGroupAndCategory(t *testing.T) {
+// TestPostgresServiceRepository_JoinsGroup verifies the LEFT JOIN actually
+// resolves the real group name when the FK is set.
+func TestPostgresServiceRepository_JoinsGroup(t *testing.T) {
 	ctx := context.Background()
 
 	pool, err := db.New(ctx, os.Getenv("DATABASE_URL"))
@@ -122,21 +117,19 @@ func TestPostgresServiceRepository_JoinsGroupAndCategory(t *testing.T) {
 	}
 	defer pool.Close()
 
-	var groupID, categoryID string
+	var groupID string
 	if err := pool.QueryRow(ctx, "SELECT id FROM service_groups LIMIT 1").Scan(&groupID); err != nil {
 		t.Skipf("no service_groups row available to test join: %v", err)
-	}
-	if err := pool.QueryRow(ctx, "SELECT id FROM categories LIMIT 1").Scan(&categoryID); err != nil {
-		t.Skipf("no categories row available to test join: %v", err)
 	}
 
 	repo := NewPostgresServiceRepository(pool)
 
 	svc, err := domain.NewService(
 		"Join Test Service", "integration-test-service-join-xyz",
-		&groupID, &categoryID,
-		nil, nil, nil, nil, "", nil, nil, nil,
-		nil, nil, nil, false, true, 0,
+		"",
+		&groupID,
+		nil, "", nil, nil, nil,
+		nil, nil, nil, true, 0,
 	)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
@@ -156,8 +149,5 @@ func TestPostgresServiceRepository_JoinsGroupAndCategory(t *testing.T) {
 	}
 	if fetched.Group == nil || fetched.Group.ID != groupID {
 		t.Errorf("expected Group to be joined with id %s, got %+v", groupID, fetched.Group)
-	}
-	if fetched.Category == nil || fetched.Category.ID != categoryID {
-		t.Errorf("expected Category to be joined with id %s, got %+v", categoryID, fetched.Category)
 	}
 }

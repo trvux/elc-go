@@ -10,11 +10,10 @@ func CreateService(ctx context.Context, repo domain.ServiceRepository, input dom
 	service, err := domain.NewService(
 		input.Title, input.Slug,
 		input.TitleAlign,
-		input.GroupID, input.CategoryID,
-		input.OriginalPrice, input.DiscountPercent,
-		input.PriceDisplayText, input.Labels, input.Line, input.BriefPrompts, input.Description, input.Content,
+		input.GroupID,
+		input.Labels, input.Line, input.BriefPrompts, input.Description, input.Content,
 		input.Images, input.MetaTitle, input.MetaDescription,
-		input.IsFeatured, input.IsPublished, input.OrderIndex,
+		input.IsPublished, input.OrderIndex,
 	)
 	if err != nil {
 		return nil, err

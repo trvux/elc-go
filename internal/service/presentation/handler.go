@@ -29,16 +29,6 @@ func parseServiceFilter(r *http.Request) (domain.ServiceFilter, error) {
 	if v := r.URL.Query().Get("group_id"); v != "" {
 		filter.GroupID = &v
 	}
-	if v := r.URL.Query().Get("category_id"); v != "" {
-		filter.CategoryID = &v
-	}
-	if v := r.URL.Query().Get("is_featured"); v != "" {
-		b, err := strconv.ParseBool(v)
-		if err != nil {
-			return filter, err
-		}
-		filter.IsFeatured = &b
-	}
 	if v := r.URL.Query().Get("is_published"); v != "" {
 		b, err := strconv.ParseBool(v)
 		if err != nil {
@@ -122,13 +112,11 @@ func (h *ServiceHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	input := domain.CreateServiceInput{
 		Title: req.Title, TitleAlign: req.TitleAlign, Slug: req.Slug,
-		GroupID: req.GroupID, CategoryID: req.CategoryID,
-		OriginalPrice: req.OriginalPrice, DiscountPercent: req.DiscountPercent,
-		PriceDisplayText: req.PriceDisplayText, Labels: req.Labels,
+		GroupID: req.GroupID, Labels: req.Labels,
 		Line: req.Line, BriefPrompts: req.BriefPrompts,
 		Description: req.Description, Content: req.Content,
 		Images: toImageAssetDomainList(req.Images), MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
-		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
+		IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
 	}
 
 	s, err := application.CreateService(r.Context(), h.repo, input)
@@ -151,13 +139,11 @@ func (h *ServiceHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	input := domain.UpdateServiceInput{
 		ID: id, Title: req.Title, TitleAlign: req.TitleAlign, Slug: req.Slug,
-		GroupID: req.GroupID, CategoryID: req.CategoryID,
-		OriginalPrice: req.OriginalPrice, DiscountPercent: req.DiscountPercent,
-		PriceDisplayText: req.PriceDisplayText, Labels: req.Labels,
+		GroupID: req.GroupID, Labels: req.Labels,
 		Line: req.Line, BriefPrompts: req.BriefPrompts,
 		Description: req.Description, Content: req.Content,
 		Images: toImageAssetDomainList(req.Images), MetaTitle: req.MetaTitle, MetaDescription: req.MetaDescription,
-		IsFeatured: req.IsFeatured, IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
+		IsPublished: req.IsPublished, OrderIndex: req.OrderIndex,
 	}
 
 	s, err := application.UpdateService(r.Context(), h.repo, input)
