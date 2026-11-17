@@ -33,7 +33,32 @@ func NewPostgresProjectRepository(pool *pgxpool.Pool) *PostgresProjectRepository
 const projectColumns = `p.id, p.title, p.title_align, p.description, p.images,
 	COALESCE(p.is_published, false), COALESCE(p.order_index, 0), p.created_at, p.slug, p.updated_at,
 	COALESCE(p.is_featured, false), p.deleted_at, p.meta_title, p.meta_description, p.project_type_id,
-	p.client_name, p.location, p.completed_at, p.testimonial_quote, p.testimonial_author`
+	p.client_name, p.location, p.completed_at, p.testimonial_quote, p.testimonial_author,
+	p.province, p.ward, p.completed_precision, p.client_kind, p.client_consent_at, p.client_consent_note,
+	p.indoor_units, p.capacity_hp, p.airflow_m3h, p.area_m2, p.floors, p.duration_days, p.warranty_months, p.brands`
+
+// factsDest returns Scan destinations for the facts columns of projectColumns,
+// in column order.
+func factsDest(f *domain.ProjectFacts) []any {
+	return []any{
+		&f.Province, &f.Ward, &f.CompletedPrecision, &f.ClientKind, &f.ClientConsentAt, &f.ClientConsentNote,
+		&f.IndoorUnits, &f.CapacityHP, &f.AirflowM3H, &f.AreaM2, &f.Floors, &f.DurationDays, &f.WarrantyMonths, &f.Brands,
+	}
+}
+
+// factsArgs returns the write arguments for the facts columns, in the same
+// order as factsDest/projectColumns. Brands is never nil (the column is NOT
+// NULL).
+func factsArgs(f domain.ProjectFacts) []any {
+	brands := f.Brands
+	if brands == nil {
+		brands = []string{}
+	}
+	return []any{
+		f.Province, f.Ward, f.CompletedPrecision, f.ClientKind, f.ClientConsentAt, f.ClientConsentNote,
+		f.IndoorUnits, f.CapacityHP, f.AirflowM3H, f.AreaM2, f.Floors, f.DurationDays, f.WarrantyMonths, brands,
+	}
+}
 
 type rowScanner interface {
 	Scan(dest ...any) error
@@ -60,14 +85,16 @@ func scanProject(row rowScanner) (*domain.Project, error) {
 		clientName, location                string
 		completedAt                         *time.Time
 		testimonialQuote, testimonialAuthor string
+		facts                               domain.ProjectFacts
 	)
 
-	if err := row.Scan(
+	dest := []any{
 		&id, &title, &titleAlign, &description, &imagesRaw,
 		&isPublished, &orderIndex, &createdAt, &slug, &updatedAt,
 		&isFeatured, &deletedAt, &metaTitle, &metaDescription, &projectTypeID,
 		&clientName, &location, &completedAt, &testimonialQuote, &testimonialAuthor,
-	); err != nil {
+	}
+	if err := row.Scan(append(dest, factsDest(&facts)...)...); err != nil {
 		return nil, err
 	}
 
@@ -81,6 +108,7 @@ func scanProject(row rowScanner) (*domain.Project, error) {
 		isFeatured, isPublished, metaTitle, metaDescription,
 		orderIndex, projectTypeID,
 		clientName, location, completedAt, testimonialQuote, testimonialAuthor,
+		facts,
 		createdAt, updatedAt, deletedAt,
 	), nil
 }
@@ -103,16 +131,18 @@ func scanProjectWithType(row rowScanner) (*domain.Project, *domain.ProjectTypeRe
 		clientName, location                string
 		completedAt                         *time.Time
 		testimonialQuote, testimonialAuthor string
+		facts                               domain.ProjectFacts
 		ptID, ptName, ptSlug                *string
 	)
 
-	if err := row.Scan(
+	dest := []any{
 		&id, &title, &titleAlign, &description, &imagesRaw,
 		&isPublished, &orderIndex, &createdAt, &slug, &updatedAt,
 		&isFeatured, &deletedAt, &metaTitle, &metaDescription, &projectTypeID,
 		&clientName, &location, &completedAt, &testimonialQuote, &testimonialAuthor,
-		&ptID, &ptName, &ptSlug,
-	); err != nil {
+	}
+	dest = append(dest, factsDest(&facts)...)
+	if err := row.Scan(append(dest, &ptID, &ptName, &ptSlug)...); err != nil {
 		return nil, nil, err
 	}
 
@@ -126,6 +156,7 @@ func scanProjectWithType(row rowScanner) (*domain.Project, *domain.ProjectTypeRe
 		isFeatured, isPublished, metaTitle, metaDescription,
 		orderIndex, projectTypeID,
 		clientName, location, completedAt, testimonialQuote, testimonialAuthor,
+		facts,
 		createdAt, updatedAt, deletedAt,
 	)
 
@@ -491,16 +522,23 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 				is_published = $5, order_index = $6, slug = $7,
 				is_featured = $8, meta_title = $9, meta_description = $10,
 				project_type_id = $11, client_name = $12, location = $13, completed_at = $14,
-				testimonial_quote = $15, testimonial_author = $16, deleted_at = NULL, updated_at = $17
+				testimonial_quote = $15, testimonial_author = $16, deleted_at = NULL, updated_at = $17,
+				province = $19, ward = $20, completed_precision = $21, client_kind = $22,
+				client_consent_at = $23, client_consent_note = $24, indoor_units = $25,
+				capacity_hp = $26, airflow_m3h = $27, area_m2 = $28, floors = $29,
+				duration_days = $30, warranty_months = $31, brands = $32
 			WHERE id = $18
 			RETURNING id`
-		if err := tx.QueryRow(ctx, query,
+		// Every facts column must be rewritten here: a resurrected row would
+		// otherwise inherit the deleted row's province/brands/consent.
+		resurrectArgs := append([]any{
 			project.Title(), project.TitleAlign(), project.Description(), imagesJSON,
 			project.IsPublished(), project.OrderIndex(), project.Slug(),
 			project.IsFeatured(), project.MetaTitle(), project.MetaDescription(),
 			project.ProjectTypeID(), project.ClientName(), project.Location(), project.CompletedAt(),
 			project.TestimonialQuote(), project.TestimonialAuthor(), time.Now(), existingID,
-		).Scan(&createdID); err != nil {
+		}, factsArgs(project.Facts())...)
+		if err := tx.QueryRow(ctx, query, resurrectArgs...).Scan(&createdID); err != nil {
 			return nil, fmt.Errorf("project repository create (resurrect): %w", err)
 		}
 
@@ -515,16 +553,19 @@ func (r *PostgresProjectRepository) Create(ctx context.Context, project *domain.
 		}
 	} else {
 		query := `
-			INSERT INTO projects (title, title_align, description, images, is_published, order_index, slug, is_featured, meta_title, meta_description, project_type_id, client_name, location, completed_at, testimonial_quote, testimonial_author)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			INSERT INTO projects (title, title_align, description, images, is_published, order_index, slug, is_featured, meta_title, meta_description, project_type_id, client_name, location, completed_at, testimonial_quote, testimonial_author,
+				province, ward, completed_precision, client_kind, client_consent_at, client_consent_note, indoor_units, capacity_hp, airflow_m3h, area_m2, floors, duration_days, warranty_months, brands)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+				$17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
 			RETURNING id`
-		if err := tx.QueryRow(ctx, query,
+		args := append([]any{
 			project.Title(), project.TitleAlign(), project.Description(), imagesJSON,
 			project.IsPublished(), project.OrderIndex(), project.Slug(),
 			project.IsFeatured(), project.MetaTitle(), project.MetaDescription(),
 			project.ProjectTypeID(), project.ClientName(), project.Location(), project.CompletedAt(),
 			project.TestimonialQuote(), project.TestimonialAuthor(),
-		).Scan(&createdID); err != nil {
+		}, factsArgs(project.Facts())...)
+		if err := tx.QueryRow(ctx, query, args...).Scan(&createdID); err != nil {
 			return nil, fmt.Errorf("project repository create: %w", err)
 		}
 	}
@@ -568,17 +609,22 @@ func (r *PostgresProjectRepository) Update(ctx context.Context, project *domain.
 			is_published = $5, order_index = $6, slug = $7,
 			is_featured = $8, meta_title = $9, meta_description = $10,
 			project_type_id = $11, client_name = $12, location = $13, completed_at = $14,
-			testimonial_quote = $15, testimonial_author = $16, updated_at = $17
+			testimonial_quote = $15, testimonial_author = $16, updated_at = $17,
+			province = $19, ward = $20, completed_precision = $21, client_kind = $22,
+			client_consent_at = $23, client_consent_note = $24, indoor_units = $25,
+			capacity_hp = $26, airflow_m3h = $27, area_m2 = $28, floors = $29,
+			duration_days = $30, warranty_months = $31, brands = $32
 		WHERE p.id = $18
 		RETURNING ` + projectColumns
 
-	row := tx.QueryRow(ctx, query,
+	updateArgs := append([]any{
 		project.Title(), project.TitleAlign(), project.Description(), imagesJSON,
 		project.IsPublished(), project.OrderIndex(), project.Slug(),
 		project.IsFeatured(), project.MetaTitle(), project.MetaDescription(),
 		project.ProjectTypeID(), project.ClientName(), project.Location(), project.CompletedAt(),
 		project.TestimonialQuote(), project.TestimonialAuthor(), project.UpdatedAt(), project.ID(),
-	)
+	}, factsArgs(project.Facts())...)
+	row := tx.QueryRow(ctx, query, updateArgs...)
 	updated, err := scanProject(row)
 	if err != nil {
 		return nil, fmt.Errorf("project repository update: %w", err)

@@ -11,12 +11,13 @@ type imageAssetDTO struct {
 	URL     string `json:"url"`
 	Alt     string `json:"alt,omitempty"`
 	Caption string `json:"caption,omitempty"`
+	Role    string `json:"role,omitempty"`
 }
 
 func toImageAssetDTOList(images []domain.ImageAsset) []imageAssetDTO {
 	result := make([]imageAssetDTO, len(images))
 	for i, img := range images {
-		result[i] = imageAssetDTO{URL: img.URL, Alt: img.Alt, Caption: img.Caption}
+		result[i] = imageAssetDTO{URL: img.URL, Alt: img.Alt, Caption: img.Caption, Role: img.Role}
 	}
 	return result
 }
@@ -27,7 +28,7 @@ func toImageAssetDomainList(dtos []imageAssetDTO) []domain.ImageAsset {
 	}
 	result := make([]domain.ImageAsset, len(dtos))
 	for i, d := range dtos {
-		result[i] = domain.ImageAsset{URL: d.URL, Alt: d.Alt, Caption: d.Caption}
+		result[i] = domain.ImageAsset{URL: d.URL, Alt: d.Alt, Caption: d.Caption, Role: d.Role}
 	}
 	return result
 }
@@ -59,33 +60,91 @@ type projectServiceResponse struct {
 	Line  string `json:"line"`
 }
 
-type projectResponse struct {
-	ID                string                    `json:"id"`
-	Title             string                    `json:"title"`
-	TitleAlign        string                    `json:"title_align"`
-	Slug              string                    `json:"slug"`
-	Description       json.RawMessage           `json:"description"`
-	Images            []imageAssetDTO           `json:"images"`
-	IsFeatured        bool                      `json:"is_featured"`
-	IsPublished       bool                      `json:"is_published"`
-	MetaTitle         *string                   `json:"meta_title"`
-	MetaDescription   *string                   `json:"meta_description"`
-	OrderIndex        int                       `json:"order_index"`
-	ProjectTypeID     *string                   `json:"project_type_id"`
-	ClientName        string                    `json:"client_name"`
-	Location          string                    `json:"location"`
-	CompletedAt       *time.Time                `json:"completed_at"`
-	TestimonialQuote  string                    `json:"testimonial_quote"`
-	TestimonialAuthor string                    `json:"testimonial_author"`
-	CreatedAt         time.Time                 `json:"created_at"`
-	UpdatedAt         time.Time                 `json:"updated_at"`
-	DeletedAt         *time.Time                `json:"deleted_at"`
-	ProjectType       *projectTypeRefResponse   `json:"project_type"`
-	Categories        []projectCategoryResponse `json:"categories"`
-	Services          []projectServiceResponse  `json:"services"`
+// factsDTO is the wire shape of domain.ProjectFacts, used for both requests
+// and responses (nested under "facts").
+type factsDTO struct {
+	Province           string     `json:"province"`
+	Ward               string     `json:"ward"`
+	CompletedPrecision string     `json:"completed_precision"`
+	ClientKind         *string    `json:"client_kind"`
+	ClientConsentAt    *time.Time `json:"client_consent_at"`
+	ClientConsentNote  string     `json:"client_consent_note"`
+	IndoorUnits        *int       `json:"indoor_units"`
+	CapacityHP         *float64   `json:"capacity_hp"`
+	AirflowM3H         *int       `json:"airflow_m3h"`
+	AreaM2             *float64   `json:"area_m2"`
+	Floors             *int       `json:"floors"`
+	DurationDays       *int       `json:"duration_days"`
+	WarrantyMonths     *int       `json:"warranty_months"`
+	Brands             []string   `json:"brands"`
 }
 
+func toFactsDTO(f domain.ProjectFacts) factsDTO {
+	brands := f.Brands
+	if brands == nil {
+		brands = []string{}
+	}
+	return factsDTO{
+		Province: f.Province, Ward: f.Ward, CompletedPrecision: f.CompletedPrecision,
+		ClientKind: f.ClientKind, ClientConsentAt: f.ClientConsentAt, ClientConsentNote: f.ClientConsentNote,
+		IndoorUnits: f.IndoorUnits, CapacityHP: f.CapacityHP, AirflowM3H: f.AirflowM3H, AreaM2: f.AreaM2,
+		Floors: f.Floors, DurationDays: f.DurationDays, WarrantyMonths: f.WarrantyMonths, Brands: brands,
+	}
+}
+
+func (d factsDTO) toDomain() domain.ProjectFacts {
+	return domain.ProjectFacts{
+		Province: d.Province, Ward: d.Ward, CompletedPrecision: d.CompletedPrecision,
+		ClientKind: d.ClientKind, ClientConsentAt: d.ClientConsentAt, ClientConsentNote: d.ClientConsentNote,
+		IndoorUnits: d.IndoorUnits, CapacityHP: d.CapacityHP, AirflowM3H: d.AirflowM3H, AreaM2: d.AreaM2,
+		Floors: d.Floors, DurationDays: d.DurationDays, WarrantyMonths: d.WarrantyMonths, Brands: d.Brands,
+	}
+}
+
+type projectResponse struct {
+	ID                string          `json:"id"`
+	Title             string          `json:"title"`
+	TitleAlign        string          `json:"title_align"`
+	Slug              string          `json:"slug"`
+	Description       json.RawMessage `json:"description"`
+	Images            []imageAssetDTO `json:"images"`
+	IsFeatured        bool            `json:"is_featured"`
+	IsPublished       bool            `json:"is_published"`
+	MetaTitle         *string         `json:"meta_title"`
+	MetaDescription   *string         `json:"meta_description"`
+	OrderIndex        int             `json:"order_index"`
+	ProjectTypeID     *string         `json:"project_type_id"`
+	ClientName        string          `json:"client_name"`
+	Location          string          `json:"location"`
+	CompletedAt       *time.Time      `json:"completed_at"`
+	TestimonialQuote  string          `json:"testimonial_quote"`
+	TestimonialAuthor string          `json:"testimonial_author"`
+	Facts             factsDTO        `json:"facts"`
+	// PublishGaps is staff-only and only set where relations were loaded.
+	PublishGaps []string                  `json:"publish_gaps,omitempty"`
+	CreatedAt   time.Time                 `json:"created_at"`
+	UpdatedAt   time.Time                 `json:"updated_at"`
+	DeletedAt   *time.Time                `json:"deleted_at"`
+	ProjectType *projectTypeRefResponse   `json:"project_type"`
+	Categories  []projectCategoryResponse `json:"categories"`
+	Services    []projectServiceResponse  `json:"services"`
+}
+
+// toProjectResponse renders the PUBLIC view: drafts are filtered out by the
+// handler, and personal data is masked here — a natural person's client name
+// is blanked until consent is on record, and the consent bookkeeping fields
+// never leave the server. Staff get the full row via toAdminProjectResponse.
 func toProjectResponse(p *domain.ProjectWithRelations) projectResponse {
+	return renderProject(p, false, false)
+}
+
+// toAdminProjectResponse is the staff view: everything, plus publish_gaps
+// (what is still missing before the project could be published).
+func toAdminProjectResponse(p *domain.ProjectWithRelations) projectResponse {
+	return renderProject(p, true, true)
+}
+
+func renderProject(p *domain.ProjectWithRelations, admin, withGaps bool) projectResponse {
 	var projectType *projectTypeRefResponse
 	if p.ProjectType != nil {
 		projectType = &projectTypeRefResponse{ID: p.ProjectType.ID, Name: p.ProjectType.Name, Slug: p.ProjectType.Slug}
@@ -108,6 +167,21 @@ func toProjectResponse(p *domain.ProjectWithRelations) projectResponse {
 		services[i] = projectServiceResponse{ID: s.ID, Title: s.Title, Slug: s.Slug, Line: s.Line}
 	}
 
+	facts := toFactsDTO(p.Facts())
+	clientName := p.ClientName()
+	var gaps []string
+	if admin {
+		if withGaps {
+			gaps = domain.PublishGaps(p.Project, len(p.Services), len(p.Categories))
+		}
+	} else {
+		if !p.ClientNamePublic() {
+			clientName = ""
+		}
+		facts.ClientConsentAt = nil
+		facts.ClientConsentNote = ""
+	}
+
 	return projectResponse{
 		ID:                p.ID(),
 		Title:             p.Title(),
@@ -121,11 +195,13 @@ func toProjectResponse(p *domain.ProjectWithRelations) projectResponse {
 		MetaDescription:   p.MetaDescription(),
 		OrderIndex:        p.OrderIndex(),
 		ProjectTypeID:     p.ProjectTypeID(),
-		ClientName:        p.ClientName(),
+		ClientName:        clientName,
 		Location:          p.Location(),
 		CompletedAt:       p.CompletedAt(),
 		TestimonialQuote:  p.TestimonialQuote(),
 		TestimonialAuthor: p.TestimonialAuthor(),
+		Facts:             facts,
+		PublishGaps:       gaps,
 		CreatedAt:         p.CreatedAt(),
 		UpdatedAt:         p.UpdatedAt(),
 		DeletedAt:         p.DeletedAt(),
@@ -135,19 +211,24 @@ func toProjectResponse(p *domain.ProjectWithRelations) projectResponse {
 	}
 }
 
-func toProjectResponseList(projects []*domain.ProjectWithRelations) []projectResponse {
+func toProjectResponseList(projects []*domain.ProjectWithRelations, admin bool) []projectResponse {
 	result := make([]projectResponse, len(projects))
 	for i, p := range projects {
-		result[i] = toProjectResponse(p)
+		if admin {
+			result[i] = toAdminProjectResponse(p)
+		} else {
+			result[i] = toProjectResponse(p)
+		}
 	}
 	return result
 }
 
 // toPlainProjectResponse renders a *domain.Project with no relations — used
-// by Create/Update, which only ever return the plain row (see
-// domain.ProjectRepository's doc comment).
+// by Create/Update, which are staff-only and only ever return the plain row
+// (see domain.ProjectRepository's doc comment). No publish_gaps: the
+// relation counts aren't loaded here.
 func toPlainProjectResponse(p *domain.Project) projectResponse {
-	return toProjectResponse(&domain.ProjectWithRelations{Project: p})
+	return renderProject(&domain.ProjectWithRelations{Project: p}, true, false)
 }
 
 type categoryConditionDTO struct {
@@ -196,6 +277,7 @@ type createProjectRequest struct {
 	CompletedAt       *time.Time             `json:"completed_at"`
 	TestimonialQuote  string                 `json:"testimonial_quote"`
 	TestimonialAuthor string                 `json:"testimonial_author"`
+	Facts             factsDTO               `json:"facts"`
 }
 
 type updateProjectRequest struct {
@@ -217,6 +299,7 @@ type updateProjectRequest struct {
 	CompletedAt       *time.Time              `json:"completed_at"`
 	TestimonialQuote  *string                 `json:"testimonial_quote"`
 	TestimonialAuthor *string                 `json:"testimonial_author"`
+	Facts             *factsDTO               `json:"facts"`
 }
 
 type adjacentProjectResponse struct {

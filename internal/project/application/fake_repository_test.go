@@ -88,6 +88,7 @@ func (r *fakeProjectRepository) Create(ctx context.Context, project *domain.Proj
 		project.OrderIndex(), project.ProjectTypeID(),
 		project.ClientName(), project.Location(), project.CompletedAt(),
 		project.TestimonialQuote(), project.TestimonialAuthor(),
+		project.Facts(),
 		now, now, nil,
 	)
 	r.items[id] = created

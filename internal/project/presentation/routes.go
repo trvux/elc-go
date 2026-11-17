@@ -9,6 +9,9 @@ import (
 
 func RegisterRoutes(r chi.Router, h *ProjectHandler, verifier httpserver.TokenVerifier) {
 	r.Route("/projects", func(r chi.Router) {
+		// Public reads: staff tokens unlock drafts and internal fields, a
+		// visitor (no/invalid token) only ever gets published rows.
+		r.Use(httpserver.OptionalAuth(verifier))
 		r.Get("/", h.List)
 		r.Get("/count", h.Count)
 		r.Get("/adjacent", h.GetAdjacent)

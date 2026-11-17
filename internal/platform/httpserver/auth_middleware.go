@@ -54,6 +54,27 @@ func RequireAuth(verifier TokenVerifier) func(http.Handler) http.Handler {
 	}
 }
 
+// OptionalAuth attaches claims when a valid bearer token is present and
+// otherwise lets the request through as anonymous — it never answers 401.
+// For public read routes whose response differs for staff (e.g. unpublished
+// rows, internal fields): the handler asks RoleFromContext, and an absent or
+// invalid token simply means "treat as a visitor".
+func OptionalAuth(verifier TokenVerifier) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if ok && token != "" {
+				if claims, err := verifier.Verify(token); err == nil {
+					ctx := context.WithValue(r.Context(), ctxKeyUserID, claims.UserID)
+					ctx = context.WithValue(ctx, ctxKeyRole, claims.Role)
+					r = r.WithContext(ctx)
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // RequirePermission must be mounted after RequireAuth. check is normally a
 // closure over a business module's own permission map, e.g.:
 //

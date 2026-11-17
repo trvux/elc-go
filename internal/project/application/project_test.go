@@ -240,9 +240,12 @@ func TestToggleAndReorderProject(t *testing.T) {
 	repo := newFakeProjectRepository()
 	ctx := context.Background()
 
-	created, _ := CreateProject(ctx, repo, domain.CreateProjectInput{
-		Title: "Nha may A", Slug: "nha-may-a",
-	})
+	input := completeProjectInput()
+	input.IsPublished = false
+	created, err := CreateProject(ctx, repo, input)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
 
 	if err := ToggleProjectPublish(ctx, repo, created.ID(), true); err != nil {
 		t.Fatalf("expected no error, got %v", err)

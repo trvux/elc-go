@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	authdomain "github.com/trvux/elc-go/internal/auth/domain"
 	"github.com/trvux/elc-go/internal/platform/apperr"
 	"github.com/trvux/elc-go/internal/platform/httpserver"
 	"github.com/trvux/elc-go/internal/project/application"
@@ -19,6 +20,23 @@ type ProjectHandler struct {
 
 func NewProjectHandler(repo domain.ProjectRepository) *ProjectHandler {
 	return &ProjectHandler{repo: repo}
+}
+
+// isStaff reports whether the request carries a valid staff token (see
+// httpserver.OptionalAuth on the read routes). Everyone else is a visitor.
+func isStaff(r *http.Request) bool {
+	role, _ := httpserver.RoleFromContext(r.Context())
+	return authdomain.CanWriteContent(role)
+}
+
+// publicFilter pins a visitor's query to published, non-deleted rows no matter
+// what the query string asked for: these routes are unauthenticated, so
+// is_published/include_deleted are only honoured for staff.
+func publicFilter(filter domain.ProjectFilter) domain.ProjectFilter {
+	published := true
+	filter.IsPublished = &published
+	filter.IncludeDeleted = false
+	return filter
 }
 
 func parseProjectFilter(r *http.Request) (domain.ProjectFilter, error) {
@@ -71,13 +89,18 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	staff := isStaff(r)
+	if !staff {
+		filter = publicFilter(filter)
+	}
+
 	projects, err := application.GetProjects(r.Context(), h.repo, filter)
 	if err != nil {
 		httpserver.WriteError(w, err)
 		return
 	}
 
-	httpserver.WriteJSON(w, http.StatusOK, toProjectResponseList(projects))
+	httpserver.WriteJSON(w, http.StatusOK, toProjectResponseList(projects, staff))
 }
 
 func (h *ProjectHandler) Count(w http.ResponseWriter, r *http.Request) {
@@ -85,6 +108,10 @@ func (h *ProjectHandler) Count(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpserver.WriteError(w, err)
 		return
+	}
+
+	if !isStaff(r) {
+		filter = publicFilter(filter)
 	}
 
 	count, err := application.CountProjects(r.Context(), h.repo, filter)
@@ -104,11 +131,21 @@ func (h *ProjectHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		httpserver.WriteError(w, err)
 		return
 	}
-	if p == nil {
+	h.writeProject(w, r, p)
+}
+
+// writeProject answers a single-project read: drafts are invisible (404) to
+// visitors, and the response shape depends on who is asking.
+func (h *ProjectHandler) writeProject(w http.ResponseWriter, r *http.Request, p *domain.ProjectWithRelations) {
+	staff := isStaff(r)
+	if p == nil || (!staff && !p.IsPublished()) {
 		httpserver.WriteError(w, apperr.NewNotFoundError("project"))
 		return
 	}
-
+	if staff {
+		httpserver.WriteJSON(w, http.StatusOK, toAdminProjectResponse(p))
+		return
+	}
 	httpserver.WriteJSON(w, http.StatusOK, toProjectResponse(p))
 }
 
@@ -120,12 +157,7 @@ func (h *ProjectHandler) GetBySlug(w http.ResponseWriter, r *http.Request) {
 		httpserver.WriteError(w, err)
 		return
 	}
-	if p == nil {
-		httpserver.WriteError(w, apperr.NewNotFoundError("project"))
-		return
-	}
-
-	httpserver.WriteJSON(w, http.StatusOK, toProjectResponse(p))
+	h.writeProject(w, r, p)
 }
 
 func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -154,6 +186,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		CompletedAt:       req.CompletedAt,
 		TestimonialQuote:  req.TestimonialQuote,
 		TestimonialAuthor: req.TestimonialAuthor,
+		Facts:             req.Facts.toDomain(),
 	}
 
 	p, err := application.CreateProject(r.Context(), h.repo, input)
@@ -194,6 +227,10 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 		CompletedAt:       req.CompletedAt,
 		TestimonialQuote:  req.TestimonialQuote,
 		TestimonialAuthor: req.TestimonialAuthor,
+	}
+	if req.Facts != nil {
+		facts := req.Facts.toDomain()
+		input.Facts = &facts
 	}
 
 	p, err := application.UpdateProject(r.Context(), h.repo, input)

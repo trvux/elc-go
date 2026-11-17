@@ -17,6 +17,10 @@ type ImageAsset struct {
 	URL     string `json:"url"`
 	Alt     string `json:"alt,omitempty"`
 	Caption string `json:"caption,omitempty"`
+	// Role tags where in the job the photo was taken: "before", "during" or
+	// "after". Only project galleries set it; every other module leaves it
+	// empty and omitempty keeps their stored jsonb unchanged.
+	Role string `json:"role,omitempty"`
 	// CropVariants maps aspect ratio label ("4:3", "1:1") to a derivative
 	// crop of URL, generated at upload time (see internal/upload) — lets
 	// Product JSON-LD offer Google multiple image aspect ratios without

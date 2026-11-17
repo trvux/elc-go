@@ -33,6 +33,7 @@ type Project struct {
 	completedAt       *time.Time
 	testimonialQuote  string
 	testimonialAuthor string
+	facts             ProjectFacts
 	createdAt         time.Time
 	updatedAt         time.Time
 	deletedAt         *time.Time
@@ -128,6 +129,7 @@ func NewProject(
 	clientName, location string,
 	completedAt *time.Time,
 	testimonialQuote, testimonialAuthor string,
+	facts ProjectFacts,
 ) (*Project, error) {
 	fields := map[string][]string{}
 
@@ -146,6 +148,13 @@ func NewProject(
 	titleAlign = titlealign.OrDefault(titleAlign, titlealign.Center)
 	if !titlealign.Valid(titleAlign) {
 		fields["titleAlign"] = []string{"titleAlign must be 'left', 'center' or 'right'"}
+	}
+	if errs := ValidateImages(images); len(errs) > 0 {
+		fields["images"] = errs
+	}
+	facts = facts.normalize()
+	if err := facts.validate(); err != nil {
+		return nil, err
 	}
 
 	if len(fields) > 0 {
@@ -177,6 +186,7 @@ func NewProject(
 		completedAt:       completedAt,
 		testimonialQuote:  testimonialQuote,
 		testimonialAuthor: testimonialAuthor,
+		facts:             facts,
 		createdAt:         now,
 		updatedAt:         now,
 	}, nil
@@ -197,6 +207,7 @@ func RehydrateProject(
 	clientName, location string,
 	completedAt *time.Time,
 	testimonialQuote, testimonialAuthor string,
+	facts ProjectFacts,
 	createdAt, updatedAt time.Time,
 	deletedAt *time.Time,
 ) *Project {
@@ -218,6 +229,7 @@ func RehydrateProject(
 		completedAt:       completedAt,
 		testimonialQuote:  testimonialQuote,
 		testimonialAuthor: testimonialAuthor,
+		facts:             facts,
 		createdAt:         createdAt,
 		updatedAt:         updatedAt,
 		deletedAt:         deletedAt,
@@ -241,6 +253,7 @@ func (p *Project) Location() string             { return p.location }
 func (p *Project) CompletedAt() *time.Time      { return p.completedAt }
 func (p *Project) TestimonialQuote() string     { return p.testimonialQuote }
 func (p *Project) TestimonialAuthor() string    { return p.testimonialAuthor }
+func (p *Project) Facts() ProjectFacts          { return p.facts }
 func (p *Project) CreatedAt() time.Time         { return p.createdAt }
 func (p *Project) UpdatedAt() time.Time         { return p.updatedAt }
 func (p *Project) DeletedAt() *time.Time        { return p.deletedAt }
@@ -301,6 +314,9 @@ func (p *Project) Update(input UpdateProjectInput) error {
 		changed = true
 	}
 	if input.Images != nil {
+		if errs := ValidateImages(input.Images); len(errs) > 0 {
+			return apperr.NewValidationError("validation failed", map[string][]string{"images": errs})
+		}
 		p.images = input.Images
 		changed = true
 	}
@@ -352,6 +368,15 @@ func (p *Project) Update(input UpdateProjectInput) error {
 		if input.TestimonialAuthor != nil {
 			p.testimonialAuthor = *input.TestimonialAuthor
 		}
+		changed = true
+	}
+
+	if input.Facts != nil {
+		facts := input.Facts.normalize()
+		if err := facts.validate(); err != nil {
+			return err
+		}
+		p.facts = facts
 		changed = true
 	}
 
@@ -419,6 +444,7 @@ type CreateProjectInput struct {
 	CompletedAt       *time.Time
 	TestimonialQuote  string
 	TestimonialAuthor string
+	Facts             ProjectFacts
 }
 
 type UpdateProjectInput struct {
@@ -447,6 +473,9 @@ type UpdateProjectInput struct {
 	CompletedAt       *time.Time
 	TestimonialQuote  *string
 	TestimonialAuthor *string
+	// Facts nil leaves the typed facts untouched; non-nil replaces them as a
+	// whole (so a number can be cleared by sending it nil).
+	Facts *ProjectFacts
 }
 
 type ProjectFilter struct {
